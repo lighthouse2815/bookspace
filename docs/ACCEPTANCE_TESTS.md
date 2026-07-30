@@ -331,12 +331,12 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-CHAL-005 | P0 | Goal books bằng 0 hoặc lớn hơn 1.000 trả 400. |
 | AC-CHAL-006 | P0 | ADMIN publish challenge; public list bắt đầu hiển thị. |
 | AC-CHAL-007 | P0 | Không đổi start/end/goal sau publish; API trả 409. |
-| AC-CHAL-008 | P0 | User join active published challenge, `isJoined=true`, currentBooks 0 và participant count tăng một. |
+| AC-CHAL-008 | P0 | User join active published challenge, `isJoined=true`, participant count tăng một và `currentBooks` được suy ra ngay từ thư viện thật. |
 | AC-CHAL-009 | P0 | Join draft/challenge đã kết thúc trả 409. |
 | AC-CHAL-010 | P0 | Join lặp lại trả 409, không tăng participant count. |
-| AC-CHAL-011 | P0 | Patch `currentBooks` tăng trong giới hạn thành công và progress UI cập nhật. |
-| AC-CHAL-012 | P0 | Progress giảm trả 409; vượt goal trả 400. |
-| AC-CHAL-013 | P0 | Đạt goal đặt `completedAt` một lần và tạo notification `CHALLENGE`. |
+| AC-CHAL-011 | P0 | `currentBooks` đếm shelf `READ` có `finishedAt` trong khoảng UTC đóng `[startDate, endDate]`, không phụ thuộc `joinedAt`; client không có endpoint/UI ghi progress. |
+| AC-CHAL-012 | P0 | Progress đã đồng bộ là high-water mark: không giảm khi shelf đổi về sau, không vượt goal và list/detail/mine/dashboard không trả stale trước filter/phân trang. |
+| AC-CHAL-013 | P0 | Đạt goal đặt `completedAt` một lần và tạo đúng một notification `CHALLENGE` link `/challenges/{id}` dù đọc list/detail/dashboard nhiều lần. |
 | AC-CHAL-014 | P0 | `GET /api/challenges/my` chỉ trả challenge principal đã tham gia. |
 | AC-CHAL-015 | P0 | ADMIN chỉ xóa draft chưa có participant; mutation không hợp lệ trả 409. |
 
@@ -381,7 +381,8 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-WEB-008 | P0 | `/clubs` | list/search và empty state |
 | AC-WEB-009 | P0 | `/clubs/:id` | detail, join/leave, posts theo quyền |
 | AC-WEB-009A | P0 | `/clubs/:clubId/sprints/:sprintId` | join/leave, progress, leaderboard, timeline, manager controls và milestone thread theo permission DTO |
-| AC-WEB-010 | P0 | `/challenges` | list, join/leave, progress |
+| AC-WEB-010 | P0 | `/challenges` | list, join/leave, progress tự động và card link tới detail |
+| AC-WEB-010A | P0 | `/challenges/:id` | deep-link detail, loading/error/empty/unauthenticated CTA, join/leave không reload |
 
 ### 18.2 Route protected
 
@@ -464,7 +465,7 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 - Reading Insights range/offset, local-day grouping, streak, comparison và forecast.
 - Review rating.
 - Club owner role.
-- Challenge period và monotonic progress.
+- Challenge period, derived high-water progress và completion idempotency.
 - Refresh token revoke/rotation.
 - Notification mark read idempotent.
 
@@ -480,7 +481,7 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 - Review unique/like/comment.
 - Club membership/post permission.
 - Reading sprint lifecycle, permission, participant idempotency, progress, leaderboard, timeline, milestone/response, reminder deduplication và private-club isolation.
-- Challenge publish/join/progress.
+- Challenge detail published/draft, join/leave ownership, derived progress và completion notification deduplication.
 - Notification ownership.
 - Global error envelope.
 - Database unique constraints.
@@ -497,6 +498,7 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 - Reading Insights query key có timezone offset, route protected và session/goal mutation invalidate cache.
 - Review request top-level `/reviews`.
 - Admin request path `/admin/books` và `/admin/challenges`.
+- Challenge detail deep-link, list-card link và không có manual-progress UI/request.
 - Loading/error/empty states cho catalog, library, notifications.
 
 Không đặt ngưỡng coverage phần trăm giả tạo cho Goal 1. Mọi invariant và authorization branch liệt kê trên phải có test trực tiếp.

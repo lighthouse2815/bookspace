@@ -1,5 +1,4 @@
 import { CalendarBlank, CheckCircle, Flag, Users } from '@phosphor-icons/react'
-import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Button } from '../../components/ui/Button'
 import { Progress } from '../../components/ui/Progress'
@@ -8,7 +7,6 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import {
   useChallengeMembership,
-  useChallengeProgress,
   useChallenges,
 } from '../../hooks/useSocialProduct'
 import { errorMessage } from '../../lib/api'
@@ -19,24 +17,12 @@ function ChallengeCard({ challenge }: { challenge: Challenge }) {
   const { isAuthenticated } = useAuth()
   const { showToast } = useToast()
   const membership = useChallengeMembership(challenge.id, challenge.isJoined)
-  const progress = useChallengeProgress()
-  const [currentBooks, setCurrentBooks] = useState(String(challenge.currentBooks))
   const percentage = (challenge.currentBooks / Math.max(challenge.goalBooks, 1)) * 100
 
   const toggle = async () => {
     try {
       await membership.mutateAsync()
       showToast(challenge.isJoined ? 'Đã rời thử thách' : 'Đã tham gia thử thách', 'success')
-    } catch (error) {
-      showToast(errorMessage(error), 'error')
-    }
-  }
-
-  const update = async () => {
-    const value = Math.max(0, Math.min(Number(currentBooks), challenge.goalBooks))
-    try {
-      await progress.mutateAsync({ id: challenge.id, currentBooks: value })
-      showToast('Đã cập nhật tiến độ thử thách', 'success')
     } catch (error) {
       showToast(errorMessage(error), 'error')
     }
@@ -66,7 +52,11 @@ function ChallengeCard({ challenge }: { challenge: Challenge }) {
             {challenge.participantCount} người
           </span>
         </div>
-        <h2 className="mt-4 text-xl font-bold text-heading">{challenge.title}</h2>
+        <h2 className="mt-4 text-xl font-bold text-heading">
+          <Link to={`/challenges/${challenge.id}`} className="hover:text-accent-strong">
+            {challenge.title}
+          </Link>
+        </h2>
         <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted">{challenge.description}</p>
         <div className="mt-6">
           <Progress
@@ -80,40 +70,15 @@ function ChallengeCard({ challenge }: { challenge: Challenge }) {
         </div>
         <div className="mt-auto pt-6">
           {isAuthenticated ? (
-            <>
-              <Button
-                variant={challenge.isJoined ? 'secondary' : 'primary'}
-                className="w-full"
-                loading={membership.isPending}
-                icon={challenge.isJoined ? <CheckCircle size={18} /> : <Flag size={18} />}
-                onClick={() => void toggle()}
-              >
-                {challenge.isJoined ? 'Đang tham gia' : 'Tham gia thử thách'}
-              </Button>
-              {challenge.isJoined ? (
-                <div className="mt-3 flex items-end gap-2">
-                  <label className="field flex-1">
-                    <span className="field-label">Số cuốn đã hoàn thành</span>
-                    <input
-                      type="number"
-                      className="input py-2"
-                      min={0}
-                      max={challenge.goalBooks}
-                      value={currentBooks}
-                      onChange={(event) => setCurrentBooks(event.target.value)}
-                    />
-                  </label>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    loading={progress.isPending}
-                    onClick={() => void update()}
-                  >
-                    Lưu
-                  </Button>
-                </div>
-              ) : null}
-            </>
+            <Button
+              variant={challenge.isJoined ? 'secondary' : 'primary'}
+              className="w-full"
+              loading={membership.isPending}
+              icon={challenge.isJoined ? <CheckCircle size={18} /> : <Flag size={18} />}
+              onClick={() => void toggle()}
+            >
+              {challenge.isJoined ? 'Rời thử thách' : 'Tham gia thử thách'}
+            </Button>
           ) : (
             <Link to="/login" className="button button-primary button-md w-full">
               Đăng nhập để tham gia

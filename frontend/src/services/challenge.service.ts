@@ -10,14 +10,13 @@ export const challengeService = {
       }),
     ),
 
+  detail: async (id: string) =>
+    unwrap(await api.get<ApiEnvelope<Challenge>>(`/challenges/${id}`)),
+
   join: async (id: string) =>
     unwrap(await api.post<ApiEnvelope<Challenge>>(`/challenges/${id}/join`)),
 
   leave: async (id: string) =>
     unwrap(await api.delete<ApiEnvelope<Challenge>>(`/challenges/${id}/join`)),
 
-  updateProgress: async (id: string, currentBooks: number) =>
-    unwrap(
-      await api.patch<ApiEnvelope<Challenge>>(`/challenges/${id}/progress`, { currentBooks }),
-    ),
 }

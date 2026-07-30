@@ -19,7 +19,7 @@ adapter can connect the two products later without sharing databases.
 - Ratings, reviews, comments and reactions
 - Reader profiles, follows and social feed
 - Book clubs with private invitations, member roles, shared current books, discussions and collaborative reading sprints
-- Reading challenges and participant progress
+- Reading challenges with server-derived progress from completed library books
 - In-app notifications
 - Member dashboard, rolling activity heatmap, streaks, period reports and finish forecasts
 - Administration for catalog and challenges
@@ -170,6 +170,7 @@ dotnet test BookSpace.slnx
 
 cd T:\bookspace\frontend
 npm run lint
+npm test
 npm run build
 ```
 

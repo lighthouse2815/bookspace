@@ -20,6 +20,7 @@ Push-Location $frontendRoot
 try {
     npm install
     npm run lint
+    npm test
     npm run build
 }
 finally {

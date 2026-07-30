@@ -538,16 +538,17 @@ Invariant:
 | `Id` | `Guid` | có | server tạo |
 | `ReadingChallengeId` | `Guid` | có | challenge |
 | `UserId` | `Guid` | có | participant |
-| `CurrentBooks` | `int` | có | 0..`ReadingChallenge.GoalBooks` |
-| `JoinedAt` | `DateTimeOffset` | có | trong thời gian cho phép |
+| `CurrentBooks` | `int` | có | high-water mark 0..`ReadingChallenge.GoalBooks` do server suy ra |
+| `JoinedAt` | `DateTimeOffset` | có | audit thời điểm tham gia, không thu hẹp cửa sổ tính tiến độ |
 | `CompletedAt` | `DateTimeOffset?` | không | đặt khi đạt mục tiêu |
 
 Invariant:
 
 - Unique `(ReadingChallengeId, UserId)`.
-- `CurrentBooks` do participant cập nhật thủ công qua API; server chỉ nhận số tuyệt đối, không nhận phép cộng tùy ý.
-- Tiến độ mới không được nhỏ hơn tiến độ hiện tại và không vượt `GoalBooks`.
-- Đạt mục tiêu đặt `CompletedAt` đúng một lần.
+- `CurrentBooks` được đồng bộ từ số `LibraryItem` của user có shelf `READ`, `FinishedAt != null` và `FinishedAt` trong khoảng UTC đóng `[ReadingChallenge.StartDate, ReadingChallenge.EndDate]`, giống Reading Goal metric `BOOKS`.
+- Client không có endpoint ghi progress. Giá trị lưu là high-water mark, chỉ tăng và bị chặn tại `GoalBooks`, nên thay đổi shelf về sau không làm mất thành tích đã ghi nhận.
+- List, detail, mine và dashboard đồng bộ progress trước khi map/filter/phân trang có liên quan.
+- Đạt mục tiêu đặt `CompletedAt` đúng một lần và tạo tối đa một notification `CHALLENGE` link `/challenges/{id}`.
 
 ## 8. Bounded context Notifications
 

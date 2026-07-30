@@ -236,8 +236,22 @@ export function useCreateClubPostComment(clubId: string, postId: string) {
   })
 }
 
+export const challengeKeys = {
+  all: ['challenges'] as const,
+  lists: ['challenges', 'list'] as const,
+  detail: (id: string) => ['challenges', 'detail', id] as const,
+}
+
 export function useChallenges() {
-  return useQuery({ queryKey: ['challenges'], queryFn: challengeService.challenges })
+  return useQuery({ queryKey: challengeKeys.lists, queryFn: challengeService.challenges })
+}
+
+export function useChallenge(id: string) {
+  return useQuery({
+    queryKey: challengeKeys.detail(id),
+    queryFn: () => challengeService.detail(id),
+    enabled: Boolean(id),
+  })
 }
 
 export function useAdminChallenges() {
@@ -248,16 +262,13 @@ export function useChallengeMembership(id: string, joined: boolean) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: () => (joined ? challengeService.leave(id) : challengeService.join(id)),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['challenges'] }),
-  })
-}
-
-export function useChallengeProgress() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, currentBooks }: { id: string; currentBooks: number }) =>
-      challengeService.updateProgress(id, currentBooks),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['challenges'] }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: challengeKeys.lists }),
+        queryClient.invalidateQueries({ queryKey: challengeKeys.detail(id) }),
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+      ])
+    },
   })
 }
 

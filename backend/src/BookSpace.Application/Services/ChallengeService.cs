@@ -10,8 +10,17 @@ public sealed class ChallengeService(IBookSpaceDbContext db) : IChallengeService
 {
     private readonly ServiceMapper _mapper = new(db);
 
-    public PageResult<ChallengeDto> GetChallenges(Guid? userId, int page, int pageSize)
+    public async Task<PageResult<ChallengeDto>> GetChallengesAsync(
+        Guid? userId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken)
     {
+        if (userId.HasValue)
+        {
+            await SyncProgressAsync(userId.Value, cancellationToken);
+        }
+
         var query = db.ReadingChallenges.Where(x => x.IsPublished);
         return Page(query, userId, page, pageSize);
     }
@@ -19,18 +28,31 @@ public sealed class ChallengeService(IBookSpaceDbContext db) : IChallengeService
     public PageResult<ChallengeDto> GetAdminChallenges(int page, int pageSize) =>
         Page(db.ReadingChallenges, null, page, pageSize);
 
-    public PageResult<ChallengeDto> GetMine(Guid userId, int page, int pageSize)
+    public async Task<PageResult<ChallengeDto>> GetMineAsync(
+        Guid userId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken)
     {
+        await SyncProgressAsync(userId, cancellationToken);
         var ids = db.ChallengeParticipations.Where(x => x.UserId == userId).Select(x => x.ChallengeId);
         return Page(db.ReadingChallenges.Where(x => ids.Contains(x.Id)), userId, page, pageSize);
     }
 
-    public ChallengeDto GetPublic(Guid challengeId, Guid? userId)
+    public async Task<ChallengeDto> GetPublicAsync(
+        Guid challengeId,
+        Guid? userId,
+        CancellationToken cancellationToken)
     {
         var challenge = FindChallenge(challengeId);
         if (!challenge.IsPublished)
         {
             throw ServiceErrors.NotFound("CHALLENGE_NOT_FOUND", "Không tìm thấy thử thách.");
+        }
+
+        if (userId.HasValue)
+        {
+            await SyncProgressAsync(userId.Value, cancellationToken);
         }
 
         return _mapper.Challenge(challenge, userId);
@@ -60,46 +82,70 @@ public sealed class ChallengeService(IBookSpaceDbContext db) : IChallengeService
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<ChallengeDto> UpdateProgressAsync(
-        Guid userId,
-        Guid challengeId,
-        UpdateChallengeProgressRequest request,
-        CancellationToken cancellationToken)
+    public async Task SyncProgressAsync(Guid userId, CancellationToken cancellationToken)
     {
-        var challenge = FindChallenge(challengeId);
-        EnsureAcceptingParticipants(challenge);
-        var participation = db.ChallengeParticipations.FirstOrDefault(x =>
-            x.ChallengeId == challengeId && x.UserId == userId)
-            ?? throw ServiceErrors.NotFound("CHALLENGE_NOT_JOINED", "Bạn chưa tham gia thử thách.");
-
-        if (request.CurrentBooks < participation.CompletedBooks)
+        var participations = db.ChallengeParticipations
+            .Where(x => x.UserId == userId)
+            .ToList();
+        if (participations.Count == 0)
         {
-            throw ServiceErrors.Conflict(
-                "CHALLENGE_PROGRESS_CANNOT_DECREASE",
-                "Tiến độ thử thách không thể giảm.");
+            return;
         }
 
-        if (request.CurrentBooks > challenge.TargetBooks)
+        var challenges = db.ReadingChallenges
+            .Where(x => participations.Select(p => p.ChallengeId).Contains(x.Id))
+            .ToDictionary(x => x.Id);
+        var completedBooks = db.LibraryItems
+            .Where(x =>
+                x.UserId == userId &&
+                x.Status == LibraryStatus.READ &&
+                x.FinishedAt != null)
+            .Select(x => x.FinishedAt!.Value)
+            .ToList();
+        var changed = false;
+
+        foreach (var participation in participations)
         {
-            throw ServiceErrors.BadRequest(
-                "CHALLENGE_PROGRESS_EXCEEDS_TARGET",
-                "Tiến độ không được vượt quá mục tiêu thử thách.");
+            if (!challenges.TryGetValue(participation.ChallengeId, out var challenge))
+            {
+                continue;
+            }
+
+            var next = ChallengeProgress.Derive(
+                completedBooks,
+                challenge.StartsAt,
+                challenge.EndsAt,
+                challenge.TargetBooks,
+                participation.CompletedBooks);
+            if (next <= participation.CompletedBooks)
+            {
+                continue;
+            }
+
+            var wasCompleted = participation.CompletedAt.HasValue;
+            participation.UpdateProgress(next, challenge.TargetBooks);
+            changed = true;
+            var notificationLink = $"/challenges/{challenge.Id}";
+            if (!wasCompleted &&
+                participation.CompletedAt.HasValue &&
+                !db.Notifications.Any(x =>
+                    x.UserId == userId &&
+                    x.Type == NotificationType.CHALLENGE &&
+                    x.Link == notificationLink))
+            {
+                db.Add(new Notification(
+                    userId,
+                    NotificationType.CHALLENGE,
+                    "Hoàn thành thử thách",
+                    $"Chúc mừng! Bạn đã hoàn thành “{challenge.Title}”.",
+                    notificationLink));
+            }
         }
 
-        var wasCompleted = participation.CompletedAt.HasValue;
-        participation.UpdateProgress(request.CurrentBooks, challenge.TargetBooks);
-        if (!wasCompleted && participation.CompletedAt.HasValue)
+        if (changed)
         {
-            db.Add(new Notification(
-                userId,
-                NotificationType.CHALLENGE,
-                "Hoàn thành thử thách",
-                $"Chúc mừng! Bạn đã hoàn thành “{challenge.Title}”.",
-                $"/challenges/{challenge.Id}"));
+            await db.SaveChangesAsync(cancellationToken);
         }
-
-        await db.SaveChangesAsync(cancellationToken);
-        return _mapper.Challenge(challenge, userId);
     }
 
     public async Task<ChallengeDto> CreateAsync(

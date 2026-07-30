@@ -86,12 +86,8 @@ public sealed class ApiFlowTests(BookSpaceApiFactory factory) : IClassFixture<Bo
         var activeChallenge = challenges.GetProperty("items").EnumerateArray()
             .First(challenge => challenge.GetProperty("isJoined").GetBoolean());
         var challengeId = activeChallenge.GetProperty("id").GetGuid();
-        var goalBooks = activeChallenge.GetProperty("goalBooks").GetInt32();
-
-        var progress = await _client.PatchAsJsonAsync(
-            $"/api/challenges/{challengeId}/progress",
-            new { currentBooks = goalBooks });
-        Assert.Equal(HttpStatusCode.OK, progress.StatusCode);
+        var detail = await _client.GetAsync($"/api/challenges/{challengeId}");
+        Assert.Equal(HttpStatusCode.OK, detail.StatusCode);
 
         var feed = await GetDataAsync("/api/feed");
         var types = feed.GetProperty("items")
@@ -433,13 +429,10 @@ public sealed class ApiFlowTests(BookSpaceApiFactory factory) : IClassFixture<Bo
         Assert.Equal(
             HttpStatusCode.OK,
             (await _client.PostAsync($"/api/challenges/{challengeId}/join", null)).StatusCode);
-        var challengeProgressResponse = await _client.PatchAsJsonAsync(
+        var removedProgressEndpoint = await _client.PatchAsJsonAsync(
             $"/api/challenges/{challengeId}/progress",
             new { currentBooks = 1 });
-        Assert.Equal(HttpStatusCode.OK, challengeProgressResponse.StatusCode);
-        Assert.Equal(
-            1,
-            (await ReadDataAsync(challengeProgressResponse)).GetProperty("currentBooks").GetInt32());
+        Assert.Equal(HttpStatusCode.NotFound, removedProgressEndpoint.StatusCode);
         var myChallenges = await GetDataAsync("/api/challenges/mine");
         Assert.Contains(
             myChallenges.GetProperty("items").EnumerateArray(),
@@ -546,6 +539,91 @@ public sealed class ApiFlowTests(BookSpaceApiFactory factory) : IClassFixture<Bo
         Assert.Equal(
             HttpStatusCode.Conflict,
             (await _client.DeleteAsync($"/api/admin/challenges/{challengeId}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Challenge_progress_is_derived_before_reads_and_completion_notification_is_idempotent()
+    {
+        await LoginAsync("admin@bookspace.local", "Admin123!");
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var authorId = (await GetDataAsync("/api/authors"))
+            .GetProperty("items").EnumerateArray().First().GetProperty("id").GetGuid();
+        var categoryId = (await GetDataAsync("/api/categories"))
+            .GetProperty("items").EnumerateArray().First().GetProperty("id").GetGuid();
+        var bookResponse = await _client.PostAsJsonAsync("/api/admin/books", new
+        {
+            title = $"Sách tiến độ thử thách {suffix}",
+            authorId,
+            categoryIds = new[] { categoryId },
+            isbn = $"CHAL-{suffix}",
+            pageCount = 100,
+            publishedYear = 2026
+        });
+        Assert.Equal(HttpStatusCode.Created, bookResponse.StatusCode);
+        var bookId = (await ReadDataAsync(bookResponse)).GetProperty("id").GetGuid();
+        var challengeStart = DateTimeOffset.UtcNow.AddSeconds(-1);
+        var create = await _client.PostAsJsonAsync("/api/admin/challenges", new
+        {
+            title = $"Thử thách suy ra tiến độ {suffix}",
+            description = "Kiểm tra tiến độ từ thư viện.",
+            startDate = challengeStart,
+            endDate = DateTimeOffset.UtcNow.AddDays(2),
+            goalBooks = 1
+        });
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        var challengeId = (await ReadDataAsync(create)).GetProperty("id").GetGuid();
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await _client.PatchAsJsonAsync(
+                $"/api/admin/challenges/{challengeId}/publish",
+                new { isPublished = true })).StatusCode);
+
+        await LoginAsync("reader@bookspace.local", "Reader123!");
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await _client.PostAsync($"/api/challenges/{challengeId}/join", null)).StatusCode);
+        var addLibraryItem = await _client.PostAsJsonAsync(
+            "/api/library",
+            new { bookId, shelf = "READ" });
+        Assert.Equal(HttpStatusCode.Created, addLibraryItem.StatusCode);
+        var libraryItemId = (await ReadDataAsync(addLibraryItem)).GetProperty("id").GetGuid();
+
+        var detail = await GetDataAsync($"/api/challenges/{challengeId}");
+        Assert.Equal(1, detail.GetProperty("currentBooks").GetInt32());
+        Assert.NotEqual(JsonValueKind.Null, detail.GetProperty("completedAt").ValueKind);
+
+        await GetDataAsync("/api/challenges?page=1&pageSize=1");
+        await GetDataAsync("/api/challenges/mine?page=1&pageSize=1");
+        await GetDataAsync("/api/dashboard");
+        await GetDataAsync($"/api/challenges/{challengeId}");
+
+        var notifications = await GetDataAsync("/api/notifications?page=1&pageSize=100");
+        var completionLink = $"/challenges/{challengeId}";
+        Assert.Single(
+            notifications.GetProperty("items").EnumerateArray(),
+            item =>
+                item.GetProperty("type").GetString() == "CHALLENGE" &&
+                item.GetProperty("link").GetString() == completionLink);
+
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await _client.PatchAsJsonAsync(
+                $"/api/library/{libraryItemId}",
+                new { shelf = "READING" })).StatusCode);
+        var afterShelfChange = await GetDataAsync($"/api/challenges/{challengeId}");
+        Assert.Equal(1, afterShelfChange.GetProperty("currentBooks").GetInt32());
+
+        var removedProgressEndpoint = await _client.PatchAsJsonAsync(
+            $"/api/challenges/{challengeId}/progress",
+            new { currentBooks = 0 });
+        Assert.Equal(HttpStatusCode.NotFound, removedProgressEndpoint.StatusCode);
+
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await _client.DeleteAsync($"/api/challenges/{challengeId}/join")).StatusCode);
+        var afterLeave = await GetDataAsync($"/api/challenges/{challengeId}");
+        Assert.False(afterLeave.GetProperty("isJoined").GetBoolean());
+        Assert.Equal(0, afterLeave.GetProperty("currentBooks").GetInt32());
     }
 
     private async Task LoginAsync(string email, string password)

@@ -140,7 +140,7 @@ export function ExplorePage() {
             ) : (
               <div className="space-y-3">
                 {challenges.data?.items.slice(0, 3).map((challenge) => (
-                  <Link key={challenge.id} to="/challenges" className="surface flex gap-4 p-4 hover:border-accent/50">
+                  <Link key={challenge.id} to={`/challenges/${challenge.id}`} className="surface flex gap-4 p-4 hover:border-accent/50">
                     <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent-strong">
                       <Books size={21} weight="duotone" />
                     </div>

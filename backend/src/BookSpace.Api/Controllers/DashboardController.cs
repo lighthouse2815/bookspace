@@ -14,8 +14,9 @@ public sealed class DashboardController(
 {
     [Authorize]
     [HttpGet("dashboard")]
-    public ActionResult<ApiResponse<DashboardDto>> Dashboard() =>
-        OkData(dashboardService.Get(CurrentUserId));
+    public async Task<ActionResult<ApiResponse<DashboardDto>>> Dashboard(
+        CancellationToken cancellationToken) =>
+        OkData(await dashboardService.GetAsync(CurrentUserId, cancellationToken));
 
     [AllowAnonymous]
     [HttpGet("external-books/search")]

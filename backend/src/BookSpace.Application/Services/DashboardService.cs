@@ -4,12 +4,13 @@ using BookSpace.Domain.Enums;
 
 namespace BookSpace.Application.Services;
 
-public sealed class DashboardService(IBookSpaceDbContext db) : IDashboardService
+public sealed class DashboardService(IBookSpaceDbContext db, IChallengeService challengeService) : IDashboardService
 {
     private readonly ServiceMapper _mapper = new(db);
 
-    public DashboardDto Get(Guid userId)
+    public async Task<DashboardDto> GetAsync(Guid userId, CancellationToken cancellationToken)
     {
+        await challengeService.SyncProgressAsync(userId, cancellationToken);
         var sessions = db.ReadingSessions.Where(x => x.UserId == userId).ToList();
         var readingItems = db.LibraryItems
             .Where(x => x.UserId == userId && x.Status == LibraryStatus.READING)

@@ -176,7 +176,7 @@ Sách, membership, tiến độ, leaderboard, timeline và notification của đ
 
 ### UC-09 — Thử thách đọc
 
-Quản trị viên tạo bản nháp, chỉnh sửa và xuất bản thử thách. Thành viên chỉ tham gia thử thách `PUBLISHED` còn hạn. Thành viên cập nhật số sách đã hoàn thành theo giá trị tuyệt đối; server không cho giảm tiến độ hoặc vượt mục tiêu và đặt thời điểm hoàn thành đúng một lần.
+Quản trị viên tạo bản nháp, chỉnh sửa và xuất bản thử thách. Thành viên chỉ tham gia thử thách `PUBLISHED` còn hạn. Server tự suy ra tiến độ từ số `LibraryItem` của thành viên có shelf `READ` và `FinishedAt` trong khoảng UTC đóng `[StartDate, EndDate]`, cùng quy tắc với Reading Goal metric `BOOKS`; thời điểm tham gia không thu hẹp cửa sổ. Client không có API nhập tiến độ. Participation lưu high-water mark nên tiến độ không giảm; lần đầu đạt mục tiêu đặt thời điểm hoàn thành và tạo đúng một notification.
 
 ### UC-10 — Thông báo
 
@@ -203,6 +203,7 @@ Tên route là hợp đồng điều hướng Goal 1; thay đổi cần đồng 
 | `/books` | Books | catalog đầy đủ có phân trang |
 | `/books/:id` | Book detail | metadata, tác giả, thể loại, review |
 | `/challenges` | Challenges | thử thách đã xuất bản |
+| `/challenges/:id` | Challenge detail | chi tiết, tiến độ tự động và join/leave |
 | `/clubs` | Clubs | danh sách câu lạc bộ công khai |
 | `/clubs/:id` | Club detail | thông tin, thành viên, bài đăng và đợt đọc chung theo quyền |
 | `/clubs/:clubId/sprints/:sprintId` | Reading sprint | tiến độ, leaderboard, timeline, quản trị và cột mốc theo quyền |

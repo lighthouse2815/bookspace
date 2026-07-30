@@ -200,6 +200,11 @@ Với `GET /users/{id}`, `email` phải là `null` hoặc bị loại khỏi DTO
 | `startDate`, `endDate` | datetime |
 | `status` | `ACTIVE`, `COMPLETED`, `EXPIRED` |
 | `completedAt` | datetime hoặc null |
+
+`currentBooks` và `completedAt` chỉ do server suy ra. Nguồn đếm là `LibraryItem`
+shelf `READ` có `FinishedAt` trong khoảng UTC đóng `[startDate, endDate]`; không
+giới hạn bởi thời điểm join. Giá trị đã ghi nhận không giảm và bị chặn tại
+`goalBooks`.
 | `createdAt`, `updatedAt` | datetime, datetime hoặc null |
 
 `ReadingNoteResponse`:
@@ -1220,23 +1225,15 @@ Challenge phải đã publish và chưa kết thúc. Response `200`: `ApiRespons
 
 Response `200`: `ApiResponse<ChallengeResponse>`.
 
-### `PATCH /api/challenges/{challengeId}/progress` — Participant
-
-Request:
-
-```json
-{
-  "currentBooks": 4
-}
-```
-
-`currentBooks` không được giảm và không vượt `goalBooks`.
-
-Response `200`: `ApiResponse<ChallengeResponse>`.
-
 ### `GET /api/challenges/my?page=1&pageSize=20` — Authenticated
 
 Response `200`: `ApiResponse<PageResult<ChallengeResponse>>`.
+
+Không có endpoint write-progress. Khi principal đã đăng nhập đọc list, detail,
+mine hoặc dashboard, server đồng bộ participation từ dữ liệu thư viện thật
+trước khi map/filter/phân trang. Lần đầu đạt mục tiêu tạo đúng một notification
+`CHALLENGE` với link `/challenges/{challengeId}`; đọc lại qua các surface không
+tạo notification trùng.
 
 ## 16. Admin challenge API
 
@@ -1441,8 +1438,6 @@ thành lỗi của core API.
 | `CHALLENGE_NOT_ACTIVE` | 409 | chưa bắt đầu/đã kết thúc |
 | `CHALLENGE_ALREADY_JOINED` | 409 | participation trùng |
 | `CHALLENGE_NOT_JOINED` | 404 | chưa tham gia |
-| `CHALLENGE_PROGRESS_CANNOT_DECREASE` | 409 | progress bị lùi |
-| `CHALLENGE_PROGRESS_EXCEEDS_TARGET` | 400 | progress vượt mục tiêu |
 | `CHALLENGE_RULES_LOCKED` | 409 | không đổi mục tiêu hoặc thời gian sau publish |
 | `CHALLENGE_DELETE_REQUIRES_DRAFT` | 409 | chỉ xóa bản nháp |
 | `CHALLENGE_HAS_PARTICIPANTS` | 409 | không unpublish/xóa khi đã có participant |

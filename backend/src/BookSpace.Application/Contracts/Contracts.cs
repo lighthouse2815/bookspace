@@ -317,7 +317,6 @@ public sealed record SaveChallengeRequest(
     [Range(1, 1000)] int GoalBooks,
     [Url, MaxLength(1000)] string? CoverImageUrl);
 
-public sealed record UpdateChallengeProgressRequest([Range(0, 1000)] int CurrentBooks);
 public sealed record PublishChallengeRequest(bool IsPublished);
 
 public sealed record NotificationDto(

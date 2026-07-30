@@ -144,13 +144,13 @@ public interface IClubService
 
 public interface IChallengeService
 {
-    PageResult<ChallengeDto> GetChallenges(Guid? userId, int page, int pageSize);
+    Task<PageResult<ChallengeDto>> GetChallengesAsync(Guid? userId, int page, int pageSize, CancellationToken cancellationToken);
     PageResult<ChallengeDto> GetAdminChallenges(int page, int pageSize);
-    PageResult<ChallengeDto> GetMine(Guid userId, int page, int pageSize);
-    ChallengeDto GetPublic(Guid challengeId, Guid? userId);
+    Task<PageResult<ChallengeDto>> GetMineAsync(Guid userId, int page, int pageSize, CancellationToken cancellationToken);
+    Task<ChallengeDto> GetPublicAsync(Guid challengeId, Guid? userId, CancellationToken cancellationToken);
+    Task SyncProgressAsync(Guid userId, CancellationToken cancellationToken);
     Task JoinAsync(Guid userId, Guid challengeId, CancellationToken cancellationToken);
     Task LeaveAsync(Guid userId, Guid challengeId, CancellationToken cancellationToken);
-    Task<ChallengeDto> UpdateProgressAsync(Guid userId, Guid challengeId, UpdateChallengeProgressRequest request, CancellationToken cancellationToken);
     Task<ChallengeDto> CreateAsync(Guid adminId, SaveChallengeRequest request, CancellationToken cancellationToken);
     Task<ChallengeDto> UpdateAsync(Guid challengeId, SaveChallengeRequest request, CancellationToken cancellationToken);
     Task<ChallengeDto> PublishAsync(Guid challengeId, PublishChallengeRequest request, CancellationToken cancellationToken);
@@ -168,7 +168,7 @@ public interface INotificationService
 
 public interface IDashboardService
 {
-    DashboardDto Get(Guid userId);
+    Task<DashboardDto> GetAsync(Guid userId, CancellationToken cancellationToken);
 }
 
 public interface IExternalCatalogService

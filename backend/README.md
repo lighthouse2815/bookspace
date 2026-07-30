@@ -184,9 +184,11 @@ Reading Insights là read model riêng tư được suy ra trực tiếp từ `R
 | GET | `/api/challenges`, `/api/challenges/{id}` | Public |
 | GET | `/api/challenges/mine` | User |
 | POST / DELETE | `/api/challenges/{id}/join` | User |
-| PATCH | `/api/challenges/{id}/progress` | User |
 
-Tiến độ thử thách là `currentBooks`, chỉ tăng và không vượt `goalBooks`.
+Tiến độ thử thách do server suy ra từ sách shelf `READ` có `FinishedAt` trong
+cửa sổ UTC của challenge. Client không có endpoint ghi progress; giá trị đã
+đồng bộ chỉ tăng, không vượt `goalBooks`, và completion notification là
+idempotent.
 
 Reading sprint dùng sách catalog nội bộ, metric `PAGES` hoặc `CHAPTERS` và status
 suy ra `PLANNED`, `ACTIVE`, `ENDED` hoặc explicit `COMPLETED`, `CANCELLED`.

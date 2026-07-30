@@ -74,6 +74,11 @@ const ChallengesPage = lazy(() =>
     default: module.ChallengesPage,
   })),
 )
+const ChallengeDetailPage = lazy(() =>
+  import('./pages/challenges/ChallengeDetailPage').then((module) => ({
+    default: module.ChallengeDetailPage,
+  })),
+)
 const NotificationsPage = lazy(() =>
   import('./pages/account/NotificationsPage').then((module) => ({
     default: module.NotificationsPage,
@@ -121,6 +126,7 @@ export default function App() {
           <Route path="clubs/:id" element={<ClubDetailPage />} />
           <Route path="clubs/:clubId/sprints/:sprintId" element={<ReadingSprintPage />} />
           <Route path="challenges" element={<ChallengesPage />} />
+          <Route path="challenges/:id" element={<ChallengeDetailPage />} />
 
           <Route element={<ProtectedRoute />}>
             <Route path="dashboard" element={<DashboardPage />} />
