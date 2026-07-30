@@ -1,0 +1,35 @@
+# .NET
+**/bin/
+**/obj/
+*.user
+*.suo
+
+# React / Node
+**/node_modules/
+**/dist/
+**/.vite/
+*.tsbuildinfo
+
+# Runtime data
+*.db
+*.db-shm
+*.db-wal
+data/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# IDE / OS
+.idea/
+.vs/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Test output
+TestResults/
+coverage/
+playwright-report/
+test-results/

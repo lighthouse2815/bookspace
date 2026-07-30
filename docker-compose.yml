@@ -1,0 +1,33 @@
+name: bookspace
+
+services:
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:5080
+      BOOKSPACE_ConnectionStrings__DefaultConnection: Data Source=/app/data/bookspace.db
+      BOOKSPACE_Jwt__Issuer: BookSpace
+      BOOKSPACE_Jwt__Audience: BookSpace.Web
+      BOOKSPACE_Jwt__Secret: ${JWT_SECRET:-local-docker-secret-change-before-production-123456789}
+      BOOKSPACE_Cors__AllowedOrigins__0: http://localhost:5173
+      BOOKSPACE_BookstoreIntegration__Enabled: "false"
+    ports:
+      - "5080:5080"
+    volumes:
+      - bookspace-data:/app/data
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:5080/api
+    depends_on:
+      - api
+    ports:
+      - "5173:80"
+
+volumes:
+  bookspace-data:

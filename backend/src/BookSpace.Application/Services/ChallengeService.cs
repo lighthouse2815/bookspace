@@ -1,0 +1,235 @@
+using BookSpace.Application.Abstractions;
+using BookSpace.Application.Common;
+using BookSpace.Application.Contracts;
+using BookSpace.Domain.Entities;
+using BookSpace.Domain.Enums;
+
+namespace BookSpace.Application.Services;
+
+public sealed class ChallengeService(IBookSpaceDbContext db) : IChallengeService
+{
+    private readonly ServiceMapper _mapper = new(db);
+
+    public PageResult<ChallengeDto> GetChallenges(Guid? userId, int page, int pageSize)
+    {
+        var query = db.ReadingChallenges.Where(x => x.IsPublished);
+        return Page(query, userId, page, pageSize);
+    }
+
+    public PageResult<ChallengeDto> GetAdminChallenges(int page, int pageSize) =>
+        Page(db.ReadingChallenges, null, page, pageSize);
+
+    public PageResult<ChallengeDto> GetMine(Guid userId, int page, int pageSize)
+    {
+        var ids = db.ChallengeParticipations.Where(x => x.UserId == userId).Select(x => x.ChallengeId);
+        return Page(db.ReadingChallenges.Where(x => ids.Contains(x.Id)), userId, page, pageSize);
+    }
+
+    public ChallengeDto GetPublic(Guid challengeId, Guid? userId)
+    {
+        var challenge = FindChallenge(challengeId);
+        if (!challenge.IsPublished)
+        {
+            throw ServiceErrors.NotFound("CHALLENGE_NOT_FOUND", "Không tìm thấy thử thách.");
+        }
+
+        return _mapper.Challenge(challenge, userId);
+    }
+
+    public async Task JoinAsync(Guid userId, Guid challengeId, CancellationToken cancellationToken)
+    {
+        var challenge = FindChallenge(challengeId);
+        EnsureAcceptingParticipants(challenge);
+
+        if (db.ChallengeParticipations.Any(x => x.ChallengeId == challengeId && x.UserId == userId))
+        {
+            throw ServiceErrors.Conflict("CHALLENGE_ALREADY_JOINED", "Bạn đã tham gia thử thách.");
+        }
+
+        db.Add(new ChallengeParticipation(challengeId, userId));
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task LeaveAsync(Guid userId, Guid challengeId, CancellationToken cancellationToken)
+    {
+        FindChallenge(challengeId);
+        var participation = db.ChallengeParticipations.FirstOrDefault(x =>
+            x.ChallengeId == challengeId && x.UserId == userId)
+            ?? throw ServiceErrors.NotFound("CHALLENGE_PARTICIPATION_NOT_FOUND", "Bạn chưa tham gia thử thách.");
+        db.Remove(participation);
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<ChallengeDto> UpdateProgressAsync(
+        Guid userId,
+        Guid challengeId,
+        UpdateChallengeProgressRequest request,
+        CancellationToken cancellationToken)
+    {
+        var challenge = FindChallenge(challengeId);
+        EnsureAcceptingParticipants(challenge);
+        var participation = db.ChallengeParticipations.FirstOrDefault(x =>
+            x.ChallengeId == challengeId && x.UserId == userId)
+            ?? throw ServiceErrors.NotFound("CHALLENGE_NOT_JOINED", "Bạn chưa tham gia thử thách.");
+
+        if (request.CurrentBooks < participation.CompletedBooks)
+        {
+            throw ServiceErrors.Conflict(
+                "CHALLENGE_PROGRESS_CANNOT_DECREASE",
+                "Tiến độ thử thách không thể giảm.");
+        }
+
+        if (request.CurrentBooks > challenge.TargetBooks)
+        {
+            throw ServiceErrors.BadRequest(
+                "CHALLENGE_PROGRESS_EXCEEDS_TARGET",
+                "Tiến độ không được vượt quá mục tiêu thử thách.");
+        }
+
+        var wasCompleted = participation.CompletedAt.HasValue;
+        participation.UpdateProgress(request.CurrentBooks, challenge.TargetBooks);
+        if (!wasCompleted && participation.CompletedAt.HasValue)
+        {
+            db.Add(new Notification(
+                userId,
+                NotificationType.CHALLENGE,
+                "Hoàn thành thử thách",
+                $"Chúc mừng! Bạn đã hoàn thành “{challenge.Title}”.",
+                $"/challenges/{challenge.Id}"));
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        return _mapper.Challenge(challenge, userId);
+    }
+
+    public async Task<ChallengeDto> CreateAsync(
+        Guid adminId,
+        SaveChallengeRequest request,
+        CancellationToken cancellationToken)
+    {
+        var challenge = new ReadingChallenge(
+            adminId,
+            request.Title,
+            request.Description,
+            request.GoalBooks,
+            request.StartDate,
+            request.EndDate,
+            request.CoverImageUrl,
+            false);
+        db.Add(challenge);
+        await db.SaveChangesAsync(cancellationToken);
+        return _mapper.Challenge(challenge, adminId);
+    }
+
+    public async Task<ChallengeDto> UpdateAsync(
+        Guid challengeId,
+        SaveChallengeRequest request,
+        CancellationToken cancellationToken)
+    {
+        var challenge = FindChallenge(challengeId);
+        if (challenge.IsPublished &&
+            (request.GoalBooks != challenge.TargetBooks ||
+             request.StartDate != challenge.StartsAt ||
+             request.EndDate != challenge.EndsAt))
+        {
+            throw ServiceErrors.Conflict(
+                "CHALLENGE_RULES_LOCKED",
+                "Không thể thay đổi mục tiêu hoặc thời gian của thử thách đã xuất bản.");
+        }
+
+        challenge.Update(
+            request.Title,
+            request.Description,
+            request.GoalBooks,
+            request.StartDate,
+            request.EndDate,
+            request.CoverImageUrl);
+        await db.SaveChangesAsync(cancellationToken);
+        return _mapper.Challenge(challenge, null);
+    }
+
+    public async Task<ChallengeDto> PublishAsync(
+        Guid challengeId,
+        PublishChallengeRequest request,
+        CancellationToken cancellationToken)
+    {
+        var challenge = FindChallenge(challengeId);
+        if (request.IsPublished)
+        {
+            challenge.Publish();
+        }
+        else
+        {
+            if (db.ChallengeParticipations.Any(x => x.ChallengeId == challenge.Id))
+            {
+                throw ServiceErrors.Conflict(
+                    "CHALLENGE_HAS_PARTICIPANTS",
+                    "Không thể chuyển về bản nháp khi thử thách đã có người tham gia.");
+            }
+
+            challenge.Unpublish();
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        return _mapper.Challenge(challenge, null);
+    }
+
+    public async Task DeleteAsync(Guid challengeId, CancellationToken cancellationToken)
+    {
+        var challenge = FindChallenge(challengeId);
+        if (challenge.IsPublished)
+        {
+            throw ServiceErrors.Conflict(
+                "CHALLENGE_DELETE_REQUIRES_DRAFT",
+                "Chỉ có thể xóa bản nháp thử thách.");
+        }
+
+        if (db.ChallengeParticipations.Any(x => x.ChallengeId == challenge.Id))
+        {
+            throw ServiceErrors.Conflict(
+                "CHALLENGE_HAS_PARTICIPANTS",
+                "Không thể xóa thử thách đã có người tham gia.");
+        }
+
+        challenge.SoftDelete();
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private PageResult<ChallengeDto> Page(
+        IQueryable<ReadingChallenge> query,
+        Guid? userId,
+        int page,
+        int pageSize)
+    {
+        var (normalizedPage, size, skip) = Paging.Normalize(page, pageSize);
+        var total = query.LongCount();
+        var items = query
+            .OrderByDescending(x => x.StartsAt)
+            .Skip(skip)
+            .Take(size)
+            .ToList()
+            .Select(x => _mapper.Challenge(x, userId))
+            .ToList();
+        return PageResult<ChallengeDto>.Create(items, normalizedPage, size, total);
+    }
+
+    private ReadingChallenge FindChallenge(Guid id) =>
+        db.ReadingChallenges.FirstOrDefault(x => x.Id == id)
+        ?? throw ServiceErrors.NotFound("CHALLENGE_NOT_FOUND", "Không tìm thấy thử thách.");
+
+    private static void EnsureAcceptingParticipants(ReadingChallenge challenge)
+    {
+        if (!challenge.IsPublished)
+        {
+            throw ServiceErrors.Conflict("CHALLENGE_NOT_PUBLISHED", "Thử thách chưa được xuất bản.");
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (challenge.StartsAt > now || challenge.EndsAt < now)
+        {
+            throw ServiceErrors.Conflict(
+                "CHALLENGE_NOT_ACTIVE",
+                "Thử thách chưa bắt đầu hoặc đã kết thúc.");
+        }
+    }
+}

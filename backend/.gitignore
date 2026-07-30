@@ -1,0 +1,14 @@
+**/bin/
+**/obj/
+.vs/
+.idea/
+*.user
+*.suo
+*.log
+data/
+src/BookSpace.Api/data/
+TestResults/
+coverage/
+.env
+.env.*
+!.env.example
