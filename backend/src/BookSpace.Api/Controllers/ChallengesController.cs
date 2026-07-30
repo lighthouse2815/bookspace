@@ -46,13 +46,10 @@ public sealed class ChallengesController(IChallengeService challengeService) : A
     [HttpPost("{id:guid}/join")]
     public async Task<ActionResult<ApiResponse<ChallengeDto>>> Join(
         Guid id,
-        CancellationToken cancellationToken)
-    {
-        await challengeService.JoinAsync(CurrentUserId, id, cancellationToken);
-        return OkData(
-            await challengeService.GetPublicAsync(id, CurrentUserId, cancellationToken),
+        CancellationToken cancellationToken) =>
+        OkData(
+            await challengeService.JoinAsync(CurrentUserId, id, cancellationToken),
             "Tham gia thử thách thành công.");
-    }
 
     [Authorize]
     [HttpDelete("{id:guid}/join")]

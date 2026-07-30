@@ -59,7 +59,10 @@ public sealed class ChallengeService(
         return _mapper.Challenge(challenge, userId);
     }
 
-    public async Task JoinAsync(Guid userId, Guid challengeId, CancellationToken cancellationToken)
+    public async Task<ChallengeDto> JoinAsync(
+        Guid userId,
+        Guid challengeId,
+        CancellationToken cancellationToken)
     {
         var challenge = FindChallenge(challengeId);
         EnsureAcceptingParticipants(challenge);
@@ -70,7 +73,19 @@ public sealed class ChallengeService(
         }
 
         db.Add(new ChallengeParticipation(challengeId, userId));
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            return await progressSynchronizer.SaveChangesAndSyncAsync(
+                userId,
+                () => _mapper.Challenge(challenge, userId),
+                cancellationToken);
+        }
+        catch (DuplicateChallengeParticipationException)
+        {
+            throw ServiceErrors.Conflict(
+                "CHALLENGE_ALREADY_JOINED",
+                "Bạn đã tham gia thử thách.");
+        }
     }
 
     public async Task LeaveAsync(Guid userId, Guid challengeId, CancellationToken cancellationToken)

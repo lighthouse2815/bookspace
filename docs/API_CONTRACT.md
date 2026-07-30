@@ -1219,7 +1219,11 @@ Chỉ trả challenge đã xuất bản. Bản nháp chỉ có mặt trong danh 
 
 ### `POST /api/challenges/{challengeId}/join` — Authenticated
 
-Challenge phải đã publish và chưa kết thúc. Response `200`: `ApiResponse<ChallengeResponse>`.
+Challenge phải đã publish và chưa kết thúc. Application tạo participation, suy ra
+initial progress/completion từ thư viện thật và chèn completion notification liên
+quan trong cùng transaction. Response chỉ được trả sau khi operation này commit;
+nếu operation lỗi thì participation không được lưu. Response `200`:
+`ApiResponse<ChallengeResponse>` đã phản ánh progress vừa commit.
 
 ### `DELETE /api/challenges/{challengeId}/join` — Authenticated
 
@@ -1236,7 +1240,10 @@ trong cùng transaction. List, detail, `/my` và dashboard vẫn đồng bộ l�
 khi map/filter/phân trang để sửa dữ liệu cũ. Progress dùng atomic max ở database.
 Lần đầu đạt mục tiêu tạo notification `CHALLENGE` với link
 `/challenges/{challengeId}` và event key riêng có unique index; request đồng thời
-hoặc đọc lại qua các surface không tạo notification trùng.
+hoặc đọc lại qua các surface không tạo notification trùng. Application sở hữu
+việc suy ra progress, quyết định completion và nội dung notification;
+Infrastructure chỉ cung cấp transaction và các primitive persistence
+provider-specific như atomic high-water update, unique insert và retry khi cần.
 
 ## 16. Admin challenge API
 

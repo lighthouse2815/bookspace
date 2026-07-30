@@ -612,14 +612,31 @@ public sealed class ApiFlowTests(BookSpaceApiFactory factory) : IClassFixture<Bo
                 item.GetProperty("type").GetString() == "CHALLENGE" &&
                 item.GetProperty("link").GetString() == completionLink);
 
-        var joinAfterReadingResponse = await _client.PostAsync(
-            $"/api/challenges/{joinAfterReadingChallengeId}/join",
-            null);
-        Assert.Equal(HttpStatusCode.OK, joinAfterReadingResponse.StatusCode);
+        var concurrentJoinResponses = await Task.WhenAll(
+            _client.PostAsync(
+                $"/api/challenges/{joinAfterReadingChallengeId}/join",
+                null),
+            _client.PostAsync(
+                $"/api/challenges/{joinAfterReadingChallengeId}/join",
+                null));
+        var joinAfterReadingResponse = Assert.Single(
+            concurrentJoinResponses,
+            response => response.StatusCode == HttpStatusCode.OK);
+        Assert.Single(
+            concurrentJoinResponses,
+            response => response.StatusCode == HttpStatusCode.Conflict);
         Assert.Equal(
             1,
             (await ReadDataAsync(joinAfterReadingResponse))
                 .GetProperty("currentBooks").GetInt32());
+        var notificationsAfterJoin =
+            await GetDataAsync("/api/notifications?page=1&pageSize=100");
+        Assert.Single(
+            notificationsAfterJoin.GetProperty("items").EnumerateArray(),
+            item =>
+                item.GetProperty("type").GetString() == "CHALLENGE" &&
+                item.GetProperty("link").GetString() ==
+                $"/challenges/{joinAfterReadingChallengeId}");
 
         var concurrentDetails = await Task.WhenAll(
             Enumerable.Range(0, 8)
@@ -639,6 +656,13 @@ public sealed class ApiFlowTests(BookSpaceApiFactory factory) : IClassFixture<Bo
         Assert.Equal(
             1,
             myChallenges.GetProperty("items").EnumerateArray()
+                .Single(item => item.GetProperty("id").GetGuid() == challengeId)
+                .GetProperty("currentBooks").GetInt32());
+        var mineAliasChallenges =
+            await GetDataAsync("/api/challenges/mine?page=1&pageSize=100");
+        Assert.Equal(
+            1,
+            mineAliasChallenges.GetProperty("items").EnumerateArray()
                 .Single(item => item.GetProperty("id").GetGuid() == challengeId)
                 .GetProperty("currentBooks").GetInt32());
         var dashboard = await GetDataAsync("/api/dashboard");

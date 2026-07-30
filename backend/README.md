@@ -192,7 +192,10 @@ idempotent.
 
 `/api/challenges/my` là route canonical; `/api/challenges/mine` chỉ là alias
 tương thích. Mutation thư viện/phiên đọc và đồng bộ challenge được commit trong
-cùng transaction; completion event dùng deduplication key có unique index riêng.
+cùng transaction; join cũng commit participation, initial progress/completion và
+notification trước khi trả DTO. Application sở hữu orchestration nghiệp vụ;
+Infrastructure chỉ cung cấp transaction, atomic max và dedupe insert. Completion
+event dùng deduplication key có unique index riêng.
 
 Reading sprint dùng sách catalog nội bộ, metric `PAGES` hoặc `CHAPTERS` và status
 suy ra `PLANNED`, `ACTIVE`, `ENDED` hoặc explicit `COMPLETED`, `CANCELLED`.

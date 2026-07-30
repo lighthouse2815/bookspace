@@ -331,13 +331,13 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-CHAL-005 | P0 | Goal books bằng 0 hoặc lớn hơn 1.000 trả 400. |
 | AC-CHAL-006 | P0 | ADMIN publish challenge; public list bắt đầu hiển thị. |
 | AC-CHAL-007 | P0 | Không đổi start/end/goal sau publish; API trả 409. |
-| AC-CHAL-008 | P0 | User join active published challenge, `isJoined=true`, participant count tăng một và `currentBooks` được suy ra ngay từ thư viện thật. |
+| AC-CHAL-008 | P0 | User join active published challenge trong một application operation atomic: response đã commit có `isJoined=true`, participant count tăng một và `currentBooks` được suy ra ngay từ thư viện thật; nếu initial sync/completion thất bại thì không lưu participation. |
 | AC-CHAL-009 | P0 | Join draft/challenge đã kết thúc trả 409. |
 | AC-CHAL-010 | P0 | Join lặp lại trả 409, không tăng participant count. |
 | AC-CHAL-011 | P0 | `currentBooks` đếm shelf `READ` có `finishedAt` trong khoảng UTC đóng `[startDate, endDate]`, không phụ thuộc `joinedAt`; client không có endpoint/UI ghi progress. |
 | AC-CHAL-012 | P0 | Progress đã đồng bộ là atomic high-water mark: không giảm khi shelf đổi về sau hoặc khi sync đồng thời, không vượt goal và list/detail/`my`/dashboard không trả stale trước filter/phân trang. |
 | AC-CHAL-013 | P0 | Mutation lần đầu hoàn tất sách tạo completion ngay, không cần mở challenge; đạt goal đặt `completedAt` một lần và unique event key bảo đảm đúng một notification `CHALLENGE` link `/challenges/{id}` khi request đồng thời hoặc đọc lại. |
-| AC-CHAL-014 | P0 | `GET /api/challenges/my` chỉ trả challenge principal đã tham gia. |
+| AC-CHAL-014 | P0 | Route canonical `GET /api/challenges/my` chỉ trả challenge principal đã tham gia; alias tương thích `GET /api/challenges/mine` trả payload tương đương. |
 | AC-CHAL-015 | P0 | ADMIN chỉ xóa draft chưa có participant; mutation không hợp lệ trả 409. |
 
 ## 16. Notifications
@@ -481,7 +481,7 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 - Review unique/like/comment.
 - Club membership/post permission.
 - Reading sprint lifecycle, permission, participant idempotency, progress, leaderboard, timeline, milestone/response, reminder deduplication và private-club isolation.
-- Challenge detail published/draft, join/leave/nonparticipant leave, progress từ sách hoàn tất trước/sau join, mutation-time completion, high-water sau đổi shelf và notification dedupe qua nhiều request.
+- Challenge detail published/draft, atomic join/rollback, concurrent duplicate join 409, leave/nonparticipant leave, progress từ sách hoàn tất trước/sau join, deterministic stale-low high-water, repair `CompletedAt`, mutation-time completion và notification dedupe/unique constraint.
 - Notification ownership.
 - Global error envelope.
 - Database unique constraints.

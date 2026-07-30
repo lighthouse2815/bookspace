@@ -548,6 +548,7 @@ Invariant:
 - `CurrentBooks` được đồng bộ từ số `LibraryItem` của user có shelf `READ`, `FinishedAt != null` và `FinishedAt` trong khoảng UTC đóng `[ReadingChallenge.StartDate, ReadingChallenge.EndDate]`, giống Reading Goal metric `BOOKS`.
 - Client không có endpoint ghi progress. Giá trị lưu là high-water mark, chỉ tăng và bị chặn tại `GoalBooks`, nên thay đổi shelf về sau không làm mất thành tích đã ghi nhận.
 - Mutation thư viện/phiên đọc hoàn tất sách lưu dữ liệu đọc và đồng bộ challenge trong cùng transaction; list, detail, `/my` và dashboard vẫn đồng bộ trước khi map/filter/phân trang có liên quan.
+- Use case join do Application điều phối: tạo participation, suy ra tiến độ ban đầu, đánh dấu completion và tạo notification liên quan trong cùng transaction trước khi trả `ChallengeResponse`.
 - Progress được ghi bằng atomic max tại database để request đồng thời không thể ghi lùi.
 - Đạt mục tiêu đặt `CompletedAt` đúng một lần và tạo tối đa một notification `CHALLENGE` link `/challenges/{id}`; event key nullable có unique index riêng, các notification khác không dùng key này.
 
@@ -563,6 +564,7 @@ Invariant:
 | `Title` | `string` | có | 1–160 ký tự |
 | `Message` | `string` | có | 1–500 ký tự |
 | `Link` | `string?` | không | internal path bắt đầu `/` hoặc URL cho phép |
+| `DeduplicationKey` | `string?` | không | tối đa 200 ký tự; unique khi khác `null`, chỉ dùng cho sự kiện cần chống trùng |
 | `ReadAt` | `DateTimeOffset?` | không | `null` là chưa đọc |
 | `CreatedAt` | `DateTimeOffset` | có | UTC |
 | `DeletedAt` | `DateTimeOffset?` | không | cleanup/soft delete |
@@ -655,6 +657,7 @@ Các thao tác sau phải atomic:
 - Create milestone response: tạo một thread item mới cho participant active; author hoặc club manager soft-delete response theo quyền.
 - Send sprint reminder: tạo dấu ngày UTC và notification cho active participant chưa đạt target, còn là club member và khác actor trong cùng transaction; retry cùng ngày không tạo thêm dữ liệu.
 - Complete/cancel reading sprint: đặt trạng thái terminal đúng một lần và không phát side effect khi gọi lại.
+- Join challenge: tạo participation, đồng bộ initial progress/completion và chèn notification chống trùng trong cùng transaction; nếu bất kỳ bước nào lỗi thì không lưu participation.
 - Record reading session: tạo session và cập nhật/tạo library item.
 - Complete book: cập nhật library item, cập nhật challenge participation liên quan và tạo notification hoàn thành nếu đạt mục tiêu.
 - Evaluate reading goal: tính lại tiến độ; nếu lần đầu đạt target thì lưu `CompletedAt` và tạo `Notification(SYSTEM, /goals)` trong cùng lần lưu. Khi list goals, mọi goal pending của owner được đồng bộ trước khi filter status và phân trang; không có client write-progress endpoint.
