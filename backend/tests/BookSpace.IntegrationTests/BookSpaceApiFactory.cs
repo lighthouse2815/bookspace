@@ -12,6 +12,16 @@ public sealed class BookSpaceApiFactory : WebApplicationFactory<Program>
 {
     private readonly string _databasePath =
         Path.Combine(Path.GetTempPath(), $"bookspace-tests-{Guid.NewGuid():N}.db");
+    private readonly Action<IServiceCollection>? _configureTestServices;
+
+    public BookSpaceApiFactory()
+    {
+    }
+
+    internal BookSpaceApiFactory(Action<IServiceCollection> configureTestServices)
+    {
+        _configureTestServices = configureTestServices;
+    }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -25,6 +35,7 @@ public sealed class BookSpaceApiFactory : WebApplicationFactory<Program>
                 options.UseSqlite($"Data Source={_databasePath}"));
             services.AddScoped<IBookSpaceDbContext>(provider =>
                 provider.GetRequiredService<BookSpaceDbContext>());
+            _configureTestServices?.Invoke(services);
         });
     }
 

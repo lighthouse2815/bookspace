@@ -1222,12 +1222,31 @@ Chỉ trả challenge đã xuất bản. Bản nháp chỉ có mặt trong danh 
 Challenge phải đã publish và chưa kết thúc. Application tạo participation, suy ra
 initial progress/completion từ thư viện thật và chèn completion notification liên
 quan trong cùng transaction. Response chỉ được trả sau khi operation này commit;
-nếu operation lỗi thì participation không được lưu. Response `200`:
+nếu lỗi xảy ra trước commit thì toàn bộ transaction rollback. Response `200`:
 `ApiResponse<ChallengeResponse>` đã phản ánh progress vừa commit.
+
+Join dùng serialized, non-deferred SQLite challenge-mutation boundary chung với
+unpublish/delete; write lock được lấy trước khi đọc điều kiện và giữ đến commit.
+Nếu join commit trước, admin mutation đồng thời trả conflict vì đã có participant;
+nếu admin mutation commit trước, join trả conflict hoặc not-found vì challenge
+không còn hợp lệ. Mọi eligibility/precondition read trong boundary là async, nhận
+cùng request cancellation token và không chạy trước khi lấy lock.
+
+Nếu operation ném trước khi bắt đầu commit thì transaction rollback. Application
+không chạy DB work hoặc follow-up read sau commit. Cancellation hoặc mất kết nối
+trong lúc/sau commit tạo commit-ack ambiguity; khi không nhận được response, client
+phải đọc lại detail hoặc `/api/challenges/my`. Retry join đã commit có thể trả
+`409 CHALLENGE_ALREADY_JOINED`.
 
 ### `DELETE /api/challenges/{challengeId}/join` — Authenticated
 
-Response `200`: `ApiResponse<ChallengeResponse>`.
+Application load participation, xóa, đồng bộ trạng thái còn lại và map DTO trong
+cùng transaction. Controller chỉ trả DTO đã commit, không gọi detail/sync lần hai.
+Response `200`: `ApiResponse<ChallengeResponse>` có `isJoined=false`,
+`currentBooks=0`. Retry DELETE sau khi đã rời trả
+`404 CHALLENGE_PARTICIPATION_NOT_FOUND`.
+Nếu cancellation/mất response xảy ra trong lúc hoặc sau commit, client dùng detail
+hoặc `/api/challenges/my` để đối soát.
 
 ### `GET /api/challenges/my?page=1&pageSize=20` — Authenticated
 
@@ -1291,6 +1310,14 @@ Response `200`: `ApiResponse<ChallengeResponse>`.
 ### `DELETE /api/admin/challenges/{challengeId}` — ADMIN
 
 Chỉ draft chưa có participant được xóa mềm. Response `200`: `ApiResponse<null>`.
+
+Guard không có participant của unpublish/delete được đánh giá sau khi lấy cùng
+serialized write lock mà join sử dụng. Thứ tự commit quyết định command thắng:
+join thắng làm admin mutation trả conflict; admin mutation thắng làm join trả
+conflict/not-found. Không có trạng thái commit challenge draft/đã xóa kèm
+participation. Publish `true` và update challenge không thuộc boundary hẹp này.
+Nếu admin không nhận được response trong lúc/sau commit, danh sách quản trị là
+nguồn đối soát trạng thái.
 
 ## 17. Notification API
 

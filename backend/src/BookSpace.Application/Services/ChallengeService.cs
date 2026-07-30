@@ -7,6 +7,8 @@ namespace BookSpace.Application.Services;
 
 public sealed class ChallengeService(
     IBookSpaceDbContext db,
+    IAsyncQueryExecutor queryExecutor,
+    IChallengeMutationBoundary mutationBoundary,
     IChallengeProgressSynchronizer progressSynchronizer) : IChallengeService
 {
     private readonly ServiceMapper _mapper = new(db);
@@ -64,20 +66,32 @@ public sealed class ChallengeService(
         Guid challengeId,
         CancellationToken cancellationToken)
     {
-        var challenge = FindChallenge(challengeId);
-        EnsureAcceptingParticipants(challenge);
-
-        if (db.ChallengeParticipations.Any(x => x.ChallengeId == challengeId && x.UserId == userId))
-        {
-            throw ServiceErrors.Conflict("CHALLENGE_ALREADY_JOINED", "Bạn đã tham gia thử thách.");
-        }
-
-        db.Add(new ChallengeParticipation(challengeId, userId));
+        ReadingChallenge? challenge = null;
         try
         {
-            return await progressSynchronizer.SaveChangesAndSyncAsync(
+            return await progressSynchronizer.ExecuteMutationAndSyncAsync(
                 userId,
-                () => _mapper.Challenge(challenge, userId),
+                async transactionCancellationToken =>
+                {
+                    challenge = await FindChallengeAsync(
+                        challengeId,
+                        transactionCancellationToken);
+                    EnsureAcceptingParticipants(challenge);
+
+                    if (await queryExecutor.AnyAsync(
+                        db.ChallengeParticipations.Where(x =>
+                            x.ChallengeId == challengeId &&
+                            x.UserId == userId),
+                        transactionCancellationToken))
+                    {
+                        throw ServiceErrors.Conflict(
+                            "CHALLENGE_ALREADY_JOINED",
+                            "Bạn đã tham gia thử thách.");
+                    }
+
+                    db.Add(new ChallengeParticipation(challengeId, userId));
+                },
+                () => _mapper.Challenge(challenge!, userId),
                 cancellationToken);
         }
         catch (DuplicateChallengeParticipationException)
@@ -88,14 +102,31 @@ public sealed class ChallengeService(
         }
     }
 
-    public async Task LeaveAsync(Guid userId, Guid challengeId, CancellationToken cancellationToken)
+    public async Task<ChallengeDto> LeaveAsync(
+        Guid userId,
+        Guid challengeId,
+        CancellationToken cancellationToken)
     {
-        FindChallenge(challengeId);
-        var participation = db.ChallengeParticipations.FirstOrDefault(x =>
-            x.ChallengeId == challengeId && x.UserId == userId)
-            ?? throw ServiceErrors.NotFound("CHALLENGE_PARTICIPATION_NOT_FOUND", "Bạn chưa tham gia thử thách.");
-        db.Remove(participation);
-        await db.SaveChangesAsync(cancellationToken);
+        ReadingChallenge? challenge = null;
+        return await progressSynchronizer.ExecuteMutationAndSyncAsync(
+            userId,
+            async transactionCancellationToken =>
+            {
+                challenge = await FindChallengeAsync(
+                    challengeId,
+                    transactionCancellationToken);
+                var participation = await queryExecutor.FirstOrDefaultAsync(
+                    db.ChallengeParticipations.Where(x =>
+                        x.ChallengeId == challengeId &&
+                        x.UserId == userId),
+                    transactionCancellationToken)
+                    ?? throw ServiceErrors.NotFound(
+                        "CHALLENGE_PARTICIPATION_NOT_FOUND",
+                        "Bạn chưa tham gia thử thách.");
+                db.Remove(participation);
+            },
+            () => _mapper.Challenge(challenge!, userId),
+            cancellationToken);
     }
 
     public async Task SyncProgressAsync(Guid userId, CancellationToken cancellationToken)
@@ -152,47 +183,76 @@ public sealed class ChallengeService(
         PublishChallengeRequest request,
         CancellationToken cancellationToken)
     {
-        var challenge = FindChallenge(challengeId);
         if (request.IsPublished)
         {
+            var challenge = FindChallenge(challengeId);
             challenge.Publish();
+            await db.SaveChangesAsync(cancellationToken);
+            return _mapper.Challenge(challenge, null);
         }
-        else
-        {
-            if (db.ChallengeParticipations.Any(x => x.ChallengeId == challenge.Id))
+
+        return await mutationBoundary.ExecuteAsync(
+            async transactionCancellationToken =>
             {
-                throw ServiceErrors.Conflict(
-                    "CHALLENGE_HAS_PARTICIPANTS",
-                    "Không thể chuyển về bản nháp khi thử thách đã có người tham gia.");
-            }
+                var challenge = await FindChallengeAsync(
+                    challengeId,
+                    transactionCancellationToken);
+                if (await queryExecutor.AnyAsync(
+                    db.ChallengeParticipations.Where(x =>
+                        x.ChallengeId == challenge.Id),
+                    transactionCancellationToken))
+                {
+                    throw ServiceErrors.Conflict(
+                        "CHALLENGE_HAS_PARTICIPANTS",
+                        "Không thể chuyển về bản nháp khi thử thách đã có người tham gia.");
+                }
 
-            challenge.Unpublish();
-        }
-
-        await db.SaveChangesAsync(cancellationToken);
-        return _mapper.Challenge(challenge, null);
+                challenge.Unpublish();
+                await db.SaveChangesAsync(transactionCancellationToken);
+                return _mapper.Challenge(challenge, null);
+            },
+            cancellationToken);
     }
 
-    public async Task DeleteAsync(Guid challengeId, CancellationToken cancellationToken)
-    {
-        var challenge = FindChallenge(challengeId);
-        if (challenge.IsPublished)
-        {
-            throw ServiceErrors.Conflict(
-                "CHALLENGE_DELETE_REQUIRES_DRAFT",
-                "Chỉ có thể xóa bản nháp thử thách.");
-        }
+    public Task DeleteAsync(Guid challengeId, CancellationToken cancellationToken) =>
+        mutationBoundary.ExecuteAsync(
+            async transactionCancellationToken =>
+            {
+                var challenge = await FindChallengeAsync(
+                    challengeId,
+                    transactionCancellationToken);
+                if (challenge.IsPublished)
+                {
+                    throw ServiceErrors.Conflict(
+                        "CHALLENGE_DELETE_REQUIRES_DRAFT",
+                        "Chỉ có thể xóa bản nháp thử thách.");
+                }
 
-        if (db.ChallengeParticipations.Any(x => x.ChallengeId == challenge.Id))
-        {
-            throw ServiceErrors.Conflict(
-                "CHALLENGE_HAS_PARTICIPANTS",
-                "Không thể xóa thử thách đã có người tham gia.");
-        }
+                if (await queryExecutor.AnyAsync(
+                    db.ChallengeParticipations.Where(x =>
+                        x.ChallengeId == challenge.Id),
+                    transactionCancellationToken))
+                {
+                    throw ServiceErrors.Conflict(
+                        "CHALLENGE_HAS_PARTICIPANTS",
+                        "Không thể xóa thử thách đã có người tham gia.");
+                }
 
-        challenge.SoftDelete();
-        await db.SaveChangesAsync(cancellationToken);
-    }
+                challenge.SoftDelete();
+                await db.SaveChangesAsync(transactionCancellationToken);
+                return true;
+            },
+            cancellationToken);
+
+    private async Task<ReadingChallenge> FindChallengeAsync(
+        Guid id,
+        CancellationToken cancellationToken) =>
+        await queryExecutor.FirstOrDefaultAsync(
+            db.ReadingChallenges.Where(x => x.Id == id),
+            cancellationToken)
+        ?? throw ServiceErrors.NotFound(
+            "CHALLENGE_NOT_FOUND",
+            "Không tìm thấy thử thách.");
 
     private PageResult<ChallengeDto> Page(
         IQueryable<ReadingChallenge> query,
@@ -220,7 +280,9 @@ public sealed class ChallengeService(
     {
         if (!challenge.IsPublished)
         {
-            throw ServiceErrors.Conflict("CHALLENGE_NOT_PUBLISHED", "Thử thách chưa được xuất bản.");
+            throw ServiceErrors.Conflict(
+                "CHALLENGE_NOT_PUBLISHED",
+                "Thử thách chưa được xuất bản.");
         }
 
         var now = DateTimeOffset.UtcNow;

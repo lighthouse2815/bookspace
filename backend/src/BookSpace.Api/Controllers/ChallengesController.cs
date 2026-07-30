@@ -55,11 +55,11 @@ public sealed class ChallengesController(IChallengeService challengeService) : A
     [HttpDelete("{id:guid}/join")]
     public async Task<ActionResult<ApiResponse<ChallengeDto>>> Leave(
         Guid id,
-        CancellationToken cancellationToken)
-    {
-        await challengeService.LeaveAsync(CurrentUserId, id, cancellationToken);
-        return OkData(
-            await challengeService.GetPublicAsync(id, CurrentUserId, cancellationToken),
+        CancellationToken cancellationToken) =>
+        OkData(
+            await challengeService.LeaveAsync(
+                CurrentUserId,
+                id,
+                cancellationToken),
             "Đã rời thử thách.");
-    }
 }

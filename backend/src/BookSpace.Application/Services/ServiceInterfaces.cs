@@ -150,7 +150,7 @@ public interface IChallengeService
     Task<ChallengeDto> GetPublicAsync(Guid challengeId, Guid? userId, CancellationToken cancellationToken);
     Task SyncProgressAsync(Guid userId, CancellationToken cancellationToken);
     Task<ChallengeDto> JoinAsync(Guid userId, Guid challengeId, CancellationToken cancellationToken);
-    Task LeaveAsync(Guid userId, Guid challengeId, CancellationToken cancellationToken);
+    Task<ChallengeDto> LeaveAsync(Guid userId, Guid challengeId, CancellationToken cancellationToken);
     Task<ChallengeDto> CreateAsync(Guid adminId, SaveChallengeRequest request, CancellationToken cancellationToken);
     Task<ChallengeDto> UpdateAsync(Guid challengeId, SaveChallengeRequest request, CancellationToken cancellationToken);
     Task<ChallengeDto> PublishAsync(Guid challengeId, PublishChallengeRequest request, CancellationToken cancellationToken);

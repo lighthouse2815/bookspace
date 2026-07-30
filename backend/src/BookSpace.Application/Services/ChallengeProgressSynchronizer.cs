@@ -6,36 +6,39 @@ namespace BookSpace.Application.Services;
 
 public sealed class ChallengeProgressSynchronizer(
     IBookSpaceDbContext db,
+    IAsyncQueryExecutor queryExecutor,
+    IChallengeMutationBoundary mutationBoundary,
     IChallengeProgressPersistence persistence,
     TimeProvider timeProvider) : IChallengeProgressSynchronizer
 {
-    public Task SaveChangesAndSyncAsync(
+    public async Task SaveChangesAndSyncAsync(
         Guid userId,
-        CancellationToken cancellationToken) =>
-        persistence.ExecuteMutationTransactionAsync(
-            async transactionCancellationToken =>
-            {
-                await db.SaveChangesAsync(transactionCancellationToken);
-                await SyncCoreAsync(userId, transactionCancellationToken);
-            },
-            cancellationToken);
-
-    public async Task<TResult> SaveChangesAndSyncAsync<TResult>(
-        Guid userId,
-        Func<TResult> resultFactory,
         CancellationToken cancellationToken)
     {
-        TResult? result = default;
-        await persistence.ExecuteMutationTransactionAsync(
+        await mutationBoundary.ExecuteAsync(
             async transactionCancellationToken =>
             {
                 await db.SaveChangesAsync(transactionCancellationToken);
                 await SyncCoreAsync(userId, transactionCancellationToken);
-                result = resultFactory();
+                return true;
             },
             cancellationToken);
-        return result!;
     }
+
+    public Task<TResult> ExecuteMutationAndSyncAsync<TResult>(
+        Guid userId,
+        Func<CancellationToken, Task> mutation,
+        Func<TResult> resultFactory,
+        CancellationToken cancellationToken) =>
+        mutationBoundary.ExecuteAsync(
+            async transactionCancellationToken =>
+            {
+                await mutation(transactionCancellationToken);
+                await db.SaveChangesAsync(transactionCancellationToken);
+                await SyncCoreAsync(userId, transactionCancellationToken);
+                return resultFactory();
+            },
+            cancellationToken);
 
     public Task SyncAsync(Guid userId, CancellationToken cancellationToken) =>
         persistence.ExecuteRetryableSyncTransactionAsync(
@@ -47,35 +50,39 @@ public sealed class ChallengeProgressSynchronizer(
         Guid userId,
         CancellationToken cancellationToken)
     {
-        var participations = db.ChallengeParticipations
-            .Where(x => x.UserId == userId)
-            .Select(x => new ParticipationSnapshot(
-                x.Id,
-                x.ChallengeId,
-                x.CompletedBooks))
-            .ToList();
+        var participations = await queryExecutor.ToListAsync(
+            db.ChallengeParticipations
+                .Where(x => x.UserId == userId)
+                .Select(x => new ParticipationSnapshot(
+                    x.Id,
+                    x.ChallengeId,
+                    x.CompletedBooks)),
+            cancellationToken);
         if (participations.Count == 0)
         {
             return;
         }
 
         var challengeIds = participations.Select(x => x.ChallengeId).ToList();
-        var challenges = db.ReadingChallenges
-            .Where(x => challengeIds.Contains(x.Id))
-            .Select(x => new ChallengeSnapshot(
-                x.Id,
-                x.Title,
-                x.StartsAt,
-                x.EndsAt,
-                x.TargetBooks))
-            .ToDictionary(x => x.Id);
-        var finishedBooks = db.LibraryItems
-            .Where(x =>
-                x.UserId == userId &&
-                x.Status == LibraryStatus.READ &&
-                x.FinishedAt != null)
-            .Select(x => x.FinishedAt!.Value)
-            .ToList();
+        var challengeSnapshots = await queryExecutor.ToListAsync(
+            db.ReadingChallenges
+                .Where(x => challengeIds.Contains(x.Id))
+                .Select(x => new ChallengeSnapshot(
+                    x.Id,
+                    x.Title,
+                    x.StartsAt,
+                    x.EndsAt,
+                    x.TargetBooks)),
+            cancellationToken);
+        var challenges = challengeSnapshots.ToDictionary(x => x.Id);
+        var finishedBooks = await queryExecutor.ToListAsync(
+            db.LibraryItems
+                .Where(x =>
+                    x.UserId == userId &&
+                    x.Status == LibraryStatus.READ &&
+                    x.FinishedAt != null)
+                .Select(x => x.FinishedAt!.Value),
+            cancellationToken);
         var now = timeProvider.GetUtcNow();
 
         foreach (var participation in participations)

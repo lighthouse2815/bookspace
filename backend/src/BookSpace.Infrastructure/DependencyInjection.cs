@@ -44,7 +44,9 @@ public static class DependencyInjection
         services.AddScoped<IClubReadingSprintService, ClubReadingSprintService>();
         services.AddScoped<IChallengeService, ChallengeService>();
         services.AddScoped<IChallengeProgressSynchronizer, ChallengeProgressSynchronizer>();
+        services.AddScoped<IChallengeMutationBoundary, ChallengeMutationBoundary>();
         services.AddScoped<IChallengeProgressPersistence, ChallengeProgressPersistence>();
+        services.AddScoped<IAsyncQueryExecutor, EfAsyncQueryExecutor>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<IReadingInsightsRepository, ReadingInsightsRepository>();

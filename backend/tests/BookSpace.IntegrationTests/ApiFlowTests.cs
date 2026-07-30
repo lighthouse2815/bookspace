@@ -693,9 +693,12 @@ public sealed class ApiFlowTests(BookSpaceApiFactory factory) : IClassFixture<Bo
             new { currentBooks = 0 });
         Assert.Equal(HttpStatusCode.NotFound, removedProgressEndpoint.StatusCode);
 
-        Assert.Equal(
-            HttpStatusCode.OK,
-            (await _client.DeleteAsync($"/api/challenges/{challengeId}/join")).StatusCode);
+        var leaveResponse =
+            await _client.DeleteAsync($"/api/challenges/{challengeId}/join");
+        Assert.Equal(HttpStatusCode.OK, leaveResponse.StatusCode);
+        var leaveData = await ReadDataAsync(leaveResponse);
+        Assert.False(leaveData.GetProperty("isJoined").GetBoolean());
+        Assert.Equal(0, leaveData.GetProperty("currentBooks").GetInt32());
         Assert.Equal(
             HttpStatusCode.NotFound,
             (await _client.DeleteAsync($"/api/challenges/{challengeId}/join")).StatusCode);

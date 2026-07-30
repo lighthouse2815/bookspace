@@ -44,11 +44,11 @@ public sealed class ChallengeProgressConcurrencyTests(BookSpaceApiFactory factor
         await using (var mutationScope = factory.Services.CreateAsyncScope())
         {
             var db = mutationScope.ServiceProvider.GetRequiredService<BookSpaceDbContext>();
-            var persistence = mutationScope.ServiceProvider
-                .GetRequiredService<IChallengeProgressPersistence>();
+            var mutationBoundary = mutationScope.ServiceProvider
+                .GetRequiredService<IChallengeMutationBoundary>();
 
             await Assert.ThrowsAsync<InvalidOperationException>(
-                () => persistence.ExecuteMutationTransactionAsync(
+                () => mutationBoundary.ExecuteAsync<bool>(
                     async cancellationToken =>
                     {
                         db.Add(new ChallengeParticipation(challengeId, readerId));

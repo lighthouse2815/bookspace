@@ -197,6 +197,18 @@ notification trước khi trả DTO. Application sở hữu orchestration nghi�
 Infrastructure chỉ cung cấp transaction, atomic max và dedupe insert. Completion
 event dùng deduplication key có unique index riêng.
 
+Join, unpublish và delete dùng cùng serialized, non-deferred SQLite challenge
+write boundary, lấy lock trước khi đọc điều kiện và giữ đến commit; command thắng
+theo thứ tự commit nên database không thể có challenge draft/đã xóa kèm
+participant. Leave remove, sync và map DTO trong một transaction; controller
+không đọc lại sau commit. Publish `true` và update không thuộc boundary hẹp này.
+Các query eligibility/precondition của các mutation này được materialize async
+qua Application abstraction với cùng cancellation token sau khi boundary lấy
+lock; query progress cũng dùng async executor và token của transaction tương ứng.
+Nếu operation ném trước khi bắt đầu commit thì transaction rollback; application
+không chạy DB work/follow-up read sau commit. Cancellation hoặc mất response trong
+lúc/sau commit yêu cầu client đọc lại detail/`my` để đối soát.
+
 Reading sprint dùng sách catalog nội bộ, metric `PAGES` hoặc `CHAPTERS` và status
 suy ra `PLANNED`, `ACTIVE`, `ENDED` hoặc explicit `COMPLETED`, `CANCELLED`.
 Owner/moderator chỉ sửa luật khi sprint còn `PLANNED`; participant có thể

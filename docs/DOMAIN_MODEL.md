@@ -530,6 +530,7 @@ Invariant:
 - Chỉ `ADMIN` tạo/sửa/xóa/publish.
 - Sau publish không thay đổi `GoalBooks`, `StartDate`, `EndDate`.
 - Chỉ challenge chưa bị xóa, đã publish và chưa hết hạn mới nhận participant mới.
+- Join, unpublish và soft-delete dùng cùng serialized, non-deferred SQLite challenge-mutation boundary, lấy write lock trước khi đọc điều kiện. Thứ tự commit quyết định command thắng; database không thể commit challenge draft/đã xóa đồng thời có participation. Publish `true` và update không thuộc boundary hẹp này.
 
 ### 7.2 `ChallengeParticipation`
 
@@ -549,6 +550,7 @@ Invariant:
 - Client không có endpoint ghi progress. Giá trị lưu là high-water mark, chỉ tăng và bị chặn tại `GoalBooks`, nên thay đổi shelf về sau không làm mất thành tích đã ghi nhận.
 - Mutation thư viện/phiên đọc hoàn tất sách lưu dữ liệu đọc và đồng bộ challenge trong cùng transaction; list, detail, `/my` và dashboard vẫn đồng bộ trước khi map/filter/phân trang có liên quan.
 - Use case join do Application điều phối: tạo participation, suy ra tiến độ ban đầu, đánh dấu completion và tạo notification liên quan trong cùng transaction trước khi trả `ChallengeResponse`.
+- Leave load participation, xóa, đồng bộ trạng thái còn lại và map `ChallengeResponse` trong cùng transaction; controller chỉ trả DTO đã commit, không chạy lần đọc/sync thứ hai.
 - Progress được ghi bằng atomic max tại database để request đồng thời không thể ghi lùi.
 - Đạt mục tiêu đặt `CompletedAt` đúng một lần và tạo tối đa một notification `CHALLENGE` link `/challenges/{id}`; event key nullable có unique index riêng, các notification khác không dùng key này.
 
@@ -657,7 +659,8 @@ Các thao tác sau phải atomic:
 - Create milestone response: tạo một thread item mới cho participant active; author hoặc club manager soft-delete response theo quyền.
 - Send sprint reminder: tạo dấu ngày UTC và notification cho active participant chưa đạt target, còn là club member và khác actor trong cùng transaction; retry cùng ngày không tạo thêm dữ liệu.
 - Complete/cancel reading sprint: đặt trạng thái terminal đúng một lần và không phát side effect khi gọi lại.
-- Join challenge: tạo participation, đồng bộ initial progress/completion và chèn notification chống trùng trong cùng transaction; nếu bất kỳ bước nào lỗi thì không lưu participation.
+- Join/unpublish/delete challenge: lấy serialized, non-deferred SQLite write lock trước eligibility/precondition read; join tạo participation, đồng bộ initial progress/completion và chèn notification chống trùng trong cùng transaction.
+- Leave challenge: load participation, remove, sync các challenge còn lại và map response trong cùng transaction.
 - Record reading session: tạo session và cập nhật/tạo library item.
 - Complete book: cập nhật library item, cập nhật challenge participation liên quan và tạo notification hoàn thành nếu đạt mục tiêu.
 - Evaluate reading goal: tính lại tiến độ; nếu lần đầu đạt target thì lưu `CompletedAt` và tạo `Notification(SYSTEM, /goals)` trong cùng lần lưu. Khi list goals, mọi goal pending của owner được đồng bộ trước khi filter status và phân trang; không có client write-progress endpoint.
@@ -665,3 +668,5 @@ Các thao tác sau phải atomic:
 - Delete review: soft-delete review; like/comment không còn được đọc qua API.
 
 Notification có thể được tạo trong cùng transaction ở Goal 1. Không cần outbox/message broker cho monolith hiện tại.
+
+Transaction atomic chỉ bảo vệ dữ liệu trong database, không cung cấp exactly-once cho response HTTP. Nếu operation ném trước khi bắt đầu commit thì transaction rollback; application không chạy DB work hoặc follow-up read sau commit. Nếu cancellation hoặc mất kết nối xảy ra trong lúc/sau commit, client không được suy ra rollback từ việc thiếu response mà phải `GET` lại trạng thái.

@@ -8,26 +8,6 @@ namespace BookSpace.Infrastructure.Persistence;
 public sealed class ChallengeProgressPersistence(BookSpaceDbContext db)
     : IChallengeProgressPersistence
 {
-    public async Task ExecuteMutationTransactionAsync(
-        Func<CancellationToken, Task> operation,
-        CancellationToken cancellationToken)
-    {
-        // SaveChanges accepts tracked states, so a failed mutation is rolled back
-        // and propagated for a fresh request/DbContext instead of retried here.
-        try
-        {
-            await using var transaction =
-                await db.Database.BeginTransactionAsync(cancellationToken);
-            await operation(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-        }
-        catch (DbUpdateException exception) when (
-            IsChallengeParticipationUniqueViolation(exception))
-        {
-            throw new DuplicateChallengeParticipationException(exception);
-        }
-    }
-
     public async Task ExecuteRetryableSyncTransactionAsync(
         Func<CancellationToken, Task> operation,
         CancellationToken cancellationToken)
@@ -166,20 +146,6 @@ public sealed class ChallengeProgressPersistence(BookSpaceDbContext db)
         } sqliteException &&
         sqliteException.Message.Contains(
             "notifications.DeduplicationKey",
-            StringComparison.OrdinalIgnoreCase);
-
-    private static bool IsChallengeParticipationUniqueViolation(
-        DbUpdateException exception) =>
-        exception.InnerException is SqliteException
-        {
-            SqliteErrorCode: 19,
-            SqliteExtendedErrorCode: 2067
-        } sqliteException &&
-        sqliteException.Message.Contains(
-            "challenge_participations.ChallengeId",
-            StringComparison.OrdinalIgnoreCase) &&
-        sqliteException.Message.Contains(
-            "challenge_participations.UserId",
             StringComparison.OrdinalIgnoreCase);
 
     private static bool IsSqliteBusy(Exception exception)
