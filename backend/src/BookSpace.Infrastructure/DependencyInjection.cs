@@ -43,6 +43,7 @@ public static class DependencyInjection
         services.AddScoped<IClubService, ClubService>();
         services.AddScoped<IClubReadingSprintService, ClubReadingSprintService>();
         services.AddScoped<IChallengeService, ChallengeService>();
+        services.AddScoped<IChallengeProgressSynchronizer, ChallengeProgressSynchronizer>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<IReadingInsightsRepository, ReadingInsightsRepository>();

@@ -2,11 +2,12 @@ using BookSpace.Application.Abstractions;
 using BookSpace.Application.Common;
 using BookSpace.Application.Contracts;
 using BookSpace.Domain.Entities;
-using BookSpace.Domain.Enums;
 
 namespace BookSpace.Application.Services;
 
-public sealed class ChallengeService(IBookSpaceDbContext db) : IChallengeService
+public sealed class ChallengeService(
+    IBookSpaceDbContext db,
+    IChallengeProgressSynchronizer progressSynchronizer) : IChallengeService
 {
     private readonly ServiceMapper _mapper = new(db);
 
@@ -83,70 +84,7 @@ public sealed class ChallengeService(IBookSpaceDbContext db) : IChallengeService
     }
 
     public async Task SyncProgressAsync(Guid userId, CancellationToken cancellationToken)
-    {
-        var participations = db.ChallengeParticipations
-            .Where(x => x.UserId == userId)
-            .ToList();
-        if (participations.Count == 0)
-        {
-            return;
-        }
-
-        var challenges = db.ReadingChallenges
-            .Where(x => participations.Select(p => p.ChallengeId).Contains(x.Id))
-            .ToDictionary(x => x.Id);
-        var completedBooks = db.LibraryItems
-            .Where(x =>
-                x.UserId == userId &&
-                x.Status == LibraryStatus.READ &&
-                x.FinishedAt != null)
-            .Select(x => x.FinishedAt!.Value)
-            .ToList();
-        var changed = false;
-
-        foreach (var participation in participations)
-        {
-            if (!challenges.TryGetValue(participation.ChallengeId, out var challenge))
-            {
-                continue;
-            }
-
-            var next = ChallengeProgress.Derive(
-                completedBooks,
-                challenge.StartsAt,
-                challenge.EndsAt,
-                challenge.TargetBooks,
-                participation.CompletedBooks);
-            if (next <= participation.CompletedBooks)
-            {
-                continue;
-            }
-
-            var wasCompleted = participation.CompletedAt.HasValue;
-            participation.UpdateProgress(next, challenge.TargetBooks);
-            changed = true;
-            var notificationLink = $"/challenges/{challenge.Id}";
-            if (!wasCompleted &&
-                participation.CompletedAt.HasValue &&
-                !db.Notifications.Any(x =>
-                    x.UserId == userId &&
-                    x.Type == NotificationType.CHALLENGE &&
-                    x.Link == notificationLink))
-            {
-                db.Add(new Notification(
-                    userId,
-                    NotificationType.CHALLENGE,
-                    "Hoàn thành thử thách",
-                    $"Chúc mừng! Bạn đã hoàn thành “{challenge.Title}”.",
-                    notificationLink));
-            }
-        }
-
-        if (changed)
-        {
-            await db.SaveChangesAsync(cancellationToken);
-        }
-    }
+        => await progressSynchronizer.SyncAsync(userId, cancellationToken);
 
     public async Task<ChallengeDto> CreateAsync(
         Guid adminId,

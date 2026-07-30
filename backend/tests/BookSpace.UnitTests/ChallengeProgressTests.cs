@@ -1,4 +1,6 @@
 using BookSpace.Application.Services;
+using BookSpace.Domain.Entities;
+using BookSpace.Domain.Enums;
 
 namespace BookSpace.UnitTests;
 
@@ -29,5 +31,20 @@ public sealed class ChallengeProgressTests
         var end = start.AddDays(2);
 
         Assert.Equal(4, ChallengeProgress.Derive([], start, end, 5, 4));
+    }
+
+    [Fact]
+    public void Completion_notification_can_carry_a_deduplication_key()
+    {
+        var key = $"challenge-completed:{Guid.NewGuid():N}:{Guid.NewGuid():N}";
+        var notification = new Notification(
+            Guid.NewGuid(),
+            NotificationType.CHALLENGE,
+            "Hoàn thành thử thách",
+            "Bạn đã hoàn thành thử thách.",
+            "/challenges/example",
+            key);
+
+        Assert.Equal(key, notification.DeduplicationKey);
     }
 }

@@ -30,8 +30,8 @@ public sealed class ChallengesController(IChallengeService challengeService) : A
         OkData(await challengeService.GetPublicAsync(id, OptionalUserId, cancellationToken));
 
     [Authorize]
-    [HttpGet("mine")]
     [HttpGet("my")]
+    [HttpGet("mine")]
     public async Task<ActionResult<ApiResponse<PageResult<ChallengeDto>>>> Mine(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,

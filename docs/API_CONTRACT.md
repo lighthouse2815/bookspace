@@ -200,11 +200,6 @@ Với `GET /users/{id}`, `email` phải là `null` hoặc bị loại khỏi DTO
 | `startDate`, `endDate` | datetime |
 | `status` | `ACTIVE`, `COMPLETED`, `EXPIRED` |
 | `completedAt` | datetime hoặc null |
-
-`currentBooks` và `completedAt` chỉ do server suy ra. Nguồn đếm là `LibraryItem`
-shelf `READ` có `FinishedAt` trong khoảng UTC đóng `[startDate, endDate]`; không
-giới hạn bởi thời điểm join. Giá trị đã ghi nhận không giảm và bị chặn tại
-`goalBooks`.
 | `createdAt`, `updatedAt` | datetime, datetime hoặc null |
 
 `ReadingNoteResponse`:
@@ -409,6 +404,11 @@ manager hiện tại.
 | `isPublished` | boolean |
 | `coverImageUrl` | string hoặc null |
 | `completedAt` | datetime hoặc null |
+
+`currentBooks` và `completedAt` chỉ do server suy ra. Nguồn đếm là `LibraryItem`
+shelf `READ` có `FinishedAt` trong khoảng UTC đóng `[startDate, endDate]`; không
+giới hạn bởi thời điểm join. Giá trị đã ghi nhận không giảm và bị chặn tại
+`goalBooks`.
 
 ### 2.7 Notification và dashboard
 
@@ -1229,11 +1229,14 @@ Response `200`: `ApiResponse<ChallengeResponse>`.
 
 Response `200`: `ApiResponse<PageResult<ChallengeResponse>>`.
 
-Không có endpoint write-progress. Khi principal đã đăng nhập đọc list, detail,
-mine hoặc dashboard, server đồng bộ participation từ dữ liệu thư viện thật
-trước khi map/filter/phân trang. Lần đầu đạt mục tiêu tạo đúng một notification
-`CHALLENGE` với link `/challenges/{challengeId}`; đọc lại qua các surface không
-tạo notification trùng.
+Không có endpoint write-progress. `/api/challenges/my` là route canonical;
+`/api/challenges/mine` được giữ làm alias tương thích. Khi mutation thư viện hoặc
+phiên đọc lần đầu hoàn tất sách, server lưu dữ liệu đọc và đồng bộ challenge
+trong cùng transaction. List, detail, `/my` và dashboard vẫn đồng bộ lại trước
+khi map/filter/phân trang để sửa dữ liệu cũ. Progress dùng atomic max ở database.
+Lần đầu đạt mục tiêu tạo notification `CHALLENGE` với link
+`/challenges/{challengeId}` và event key riêng có unique index; request đồng thời
+hoặc đọc lại qua các surface không tạo notification trùng.
 
 ## 16. Admin challenge API
 

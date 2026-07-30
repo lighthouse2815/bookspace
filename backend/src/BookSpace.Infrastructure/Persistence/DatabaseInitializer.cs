@@ -10,6 +10,7 @@ namespace BookSpace.Infrastructure.Persistence;
 public sealed class DatabaseInitializer(
     BookSpaceDbContext db,
     IPasswordHasher passwordHasher,
+    IChallengeProgressSynchronizer challengeProgressSynchronizer,
     IConfiguration configuration,
     IHostEnvironment environment)
 {
@@ -349,7 +350,6 @@ public sealed class DatabaseInitializer(
             "https://images.unsplash.com/photo-1495446815901-a7297e633e8d?w=1200",
             true);
         var participation = new ChallengeParticipation(challenge.Id, reader.Id);
-        participation.UpdateProgress(2, challenge.TargetBooks);
         db.Add(challenge);
         db.Add(participation);
         var internationalChallenge = new ReadingChallenge(
@@ -387,6 +387,7 @@ public sealed class DatabaseInitializer(
             false));
 
         await db.SaveChangesAsync(cancellationToken);
+        await challengeProgressSynchronizer.SyncAsync(reader.Id, cancellationToken);
         await EnsureReadingSprintDemoAsync(cancellationToken);
     }
 

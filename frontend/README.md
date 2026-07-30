@@ -69,7 +69,7 @@ Trang công khai:
 - `/users/:id`: hồ sơ người đọc và theo dõi
 - `/clubs`, `/clubs/:id`: danh sách và thảo luận câu lạc bộ
 - `/clubs/:clubId/sprints/:sprintId`: tiến độ, leaderboard, timeline và cột mốc của đợt đọc
-- `/challenges`: thử thách đọc
+- `/challenges`, `/challenges/:id`: danh sách và chi tiết thử thách đọc
 - `/login`, `/register`: xác thực
 
 Trang yêu cầu đăng nhập:
@@ -98,6 +98,7 @@ Trang yêu cầu vai trò `ADMIN`:
 
 ```powershell
 npm run typecheck
+npm test
 npm run lint
 npm run build
 ```

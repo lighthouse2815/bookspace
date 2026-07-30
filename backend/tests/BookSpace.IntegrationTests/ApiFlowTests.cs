@@ -433,7 +433,7 @@ public sealed class ApiFlowTests(BookSpaceApiFactory factory) : IClassFixture<Bo
             $"/api/challenges/{challengeId}/progress",
             new { currentBooks = 1 });
         Assert.Equal(HttpStatusCode.NotFound, removedProgressEndpoint.StatusCode);
-        var myChallenges = await GetDataAsync("/api/challenges/mine");
+        var myChallenges = await GetDataAsync("/api/challenges/my");
         Assert.Contains(
             myChallenges.GetProperty("items").EnumerateArray(),
             challenge => challenge.GetProperty("id").GetGuid() == challengeId);
@@ -567,7 +567,7 @@ public sealed class ApiFlowTests(BookSpaceApiFactory factory) : IClassFixture<Bo
             title = $"Thử thách suy ra tiến độ {suffix}",
             description = "Kiểm tra tiến độ từ thư viện.",
             startDate = challengeStart,
-            endDate = DateTimeOffset.UtcNow.AddDays(2),
+            endDate = DateTimeOffset.UtcNow.AddHours(2),
             goalBooks = 1
         });
         Assert.Equal(HttpStatusCode.Created, create.StatusCode);
@@ -576,6 +576,22 @@ public sealed class ApiFlowTests(BookSpaceApiFactory factory) : IClassFixture<Bo
             HttpStatusCode.OK,
             (await _client.PatchAsJsonAsync(
                 $"/api/admin/challenges/{challengeId}/publish",
+                new { isPublished = true })).StatusCode);
+        var joinAfterReadingCreate = await _client.PostAsJsonAsync("/api/admin/challenges", new
+        {
+            title = $"Thử thách tham gia sau khi đọc {suffix}",
+            description = "Kiểm tra FinishedAt trước JoinedAt vẫn được tính.",
+            startDate = challengeStart,
+            endDate = DateTimeOffset.UtcNow.AddHours(2),
+            goalBooks = 1
+        });
+        Assert.Equal(HttpStatusCode.Created, joinAfterReadingCreate.StatusCode);
+        var joinAfterReadingChallengeId =
+            (await ReadDataAsync(joinAfterReadingCreate)).GetProperty("id").GetGuid();
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await _client.PatchAsJsonAsync(
+                $"/api/admin/challenges/{joinAfterReadingChallengeId}/publish",
                 new { isPublished = true })).StatusCode);
 
         await LoginAsync("reader@bookspace.local", "Reader123!");
@@ -588,17 +604,52 @@ public sealed class ApiFlowTests(BookSpaceApiFactory factory) : IClassFixture<Bo
         Assert.Equal(HttpStatusCode.Created, addLibraryItem.StatusCode);
         var libraryItemId = (await ReadDataAsync(addLibraryItem)).GetProperty("id").GetGuid();
 
-        var detail = await GetDataAsync($"/api/challenges/{challengeId}");
+        var completionLink = $"/challenges/{challengeId}";
+        var notificationsAfterReading = await GetDataAsync("/api/notifications?page=1&pageSize=100");
+        Assert.Single(
+            notificationsAfterReading.GetProperty("items").EnumerateArray(),
+            item =>
+                item.GetProperty("type").GetString() == "CHALLENGE" &&
+                item.GetProperty("link").GetString() == completionLink);
+
+        var joinAfterReadingResponse = await _client.PostAsync(
+            $"/api/challenges/{joinAfterReadingChallengeId}/join",
+            null);
+        Assert.Equal(HttpStatusCode.OK, joinAfterReadingResponse.StatusCode);
+        Assert.Equal(
+            1,
+            (await ReadDataAsync(joinAfterReadingResponse))
+                .GetProperty("currentBooks").GetInt32());
+
+        var concurrentDetails = await Task.WhenAll(
+            Enumerable.Range(0, 8)
+                .Select(_ => _client.GetAsync($"/api/challenges/{challengeId}")));
+        Assert.All(concurrentDetails, response => Assert.Equal(HttpStatusCode.OK, response.StatusCode));
+        var detail = await ReadDataAsync(concurrentDetails[0]);
         Assert.Equal(1, detail.GetProperty("currentBooks").GetInt32());
         Assert.NotEqual(JsonValueKind.Null, detail.GetProperty("completedAt").ValueKind);
 
-        await GetDataAsync("/api/challenges?page=1&pageSize=1");
-        await GetDataAsync("/api/challenges/mine?page=1&pageSize=1");
-        await GetDataAsync("/api/dashboard");
+        var challengeList = await GetDataAsync("/api/challenges?page=1&pageSize=100");
+        Assert.Equal(
+            1,
+            challengeList.GetProperty("items").EnumerateArray()
+                .Single(item => item.GetProperty("id").GetGuid() == challengeId)
+                .GetProperty("currentBooks").GetInt32());
+        var myChallenges = await GetDataAsync("/api/challenges/my?page=1&pageSize=100");
+        Assert.Equal(
+            1,
+            myChallenges.GetProperty("items").EnumerateArray()
+                .Single(item => item.GetProperty("id").GetGuid() == challengeId)
+                .GetProperty("currentBooks").GetInt32());
+        var dashboard = await GetDataAsync("/api/dashboard");
+        Assert.Equal(
+            1,
+            dashboard.GetProperty("activeChallenges").EnumerateArray()
+                .Single(item => item.GetProperty("id").GetGuid() == challengeId)
+                .GetProperty("currentBooks").GetInt32());
         await GetDataAsync($"/api/challenges/{challengeId}");
 
         var notifications = await GetDataAsync("/api/notifications?page=1&pageSize=100");
-        var completionLink = $"/challenges/{challengeId}";
         Assert.Single(
             notifications.GetProperty("items").EnumerateArray(),
             item =>
@@ -620,6 +671,9 @@ public sealed class ApiFlowTests(BookSpaceApiFactory factory) : IClassFixture<Bo
 
         Assert.Equal(
             HttpStatusCode.OK,
+            (await _client.DeleteAsync($"/api/challenges/{challengeId}/join")).StatusCode);
+        Assert.Equal(
+            HttpStatusCode.NotFound,
             (await _client.DeleteAsync($"/api/challenges/{challengeId}/join")).StatusCode);
         var afterLeave = await GetDataAsync($"/api/challenges/{challengeId}");
         Assert.False(afterLeave.GetProperty("isJoined").GetBoolean());

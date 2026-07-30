@@ -80,7 +80,11 @@ function ChallengeCard({ challenge }: { challenge: Challenge }) {
               {challenge.isJoined ? 'Rời thử thách' : 'Tham gia thử thách'}
             </Button>
           ) : (
-            <Link to="/login" className="button button-primary button-md w-full">
+            <Link
+              to="/login"
+              state={{ from: `/challenges/${challenge.id}` }}
+              className="button button-primary button-md w-full"
+            >
               Đăng nhập để tham gia
             </Link>
           )}
@@ -103,7 +107,7 @@ export function ChallengesPage() {
         </p>
       </div>
       <div className="mt-10">
-        {challenges.isLoading ? (
+        {challenges.isPending || challenges.isLoading ? (
           <LoadingRows count={6} />
         ) : challenges.isError ? (
           <ErrorState message="Không thể tải thử thách." retry={() => void challenges.refetch()} />

@@ -1,19 +1,31 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { readingService, type LibraryInput, type LibraryUpdate, type SessionInput } from '../services/reading.service'
 import type { Shelf } from '../types/domain'
+import { challengeKeys } from './challengeKeys'
 
 export const readingKeys = {
   library: (shelf?: Shelf) => ['library', shelf ?? 'ALL'] as const,
   sessions: ['reading-sessions'] as const,
 }
 
-function invalidateReadingSummaries(queryClient: ReturnType<typeof useQueryClient>) {
-  return Promise.all([
+function invalidateReadingSummaries(
+  queryClient: ReturnType<typeof useQueryClient>,
+  includeSessions = false,
+) {
+  const invalidations = [
     queryClient.invalidateQueries({ queryKey: ['library'] }),
     queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
     queryClient.invalidateQueries({ queryKey: ['reading-goals'] }),
     queryClient.invalidateQueries({ queryKey: ['reading-insights'] }),
-  ])
+    queryClient.invalidateQueries({ queryKey: challengeKeys.all }),
+    queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+  ]
+
+  if (includeSessions) {
+    invalidations.push(queryClient.invalidateQueries({ queryKey: readingKeys.sessions }))
+  }
+
+  return Promise.all(invalidations)
 }
 
 export function useLibrary(shelf?: Shelf, enabled = true) {
@@ -60,13 +72,6 @@ export function useCreateSession() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: SessionInput) => readingService.createSession(input),
-    onSuccess: () =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: readingKeys.sessions }),
-        queryClient.invalidateQueries({ queryKey: ['library'] }),
-        queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
-        queryClient.invalidateQueries({ queryKey: ['reading-goals'] }),
-        queryClient.invalidateQueries({ queryKey: ['reading-insights'] }),
-      ]),
+    onSuccess: () => invalidateReadingSummaries(queryClient, true),
   })
 }

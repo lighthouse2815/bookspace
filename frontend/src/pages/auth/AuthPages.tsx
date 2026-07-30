@@ -14,6 +14,13 @@ interface FormErrors {
   confirmPassword?: string
 }
 
+function safeReturnPath(state: unknown) {
+  const from = (state as { from?: unknown } | null)?.from
+  return typeof from === 'string' && from.startsWith('/') && !from.startsWith('//')
+    ? from
+    : '/dashboard'
+}
+
 function AuthShell({ children, title, copy }: { children: React.ReactNode; title: string; copy: string }) {
   return (
     <div className="container-page grid min-h-[calc(100dvh-4rem)] items-center gap-10 py-10 lg:grid-cols-2">
@@ -48,8 +55,9 @@ export function LoginPage() {
   const { showToast } = useToast()
   const navigate = useNavigate()
   const location = useLocation()
+  const returnPath = safeReturnPath(location.state)
 
-  if (isAuthenticated) return <Navigate to="/dashboard" replace />
+  if (isAuthenticated) return <Navigate to={returnPath} replace />
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -63,8 +71,7 @@ export function LoginPage() {
     try {
       await login(form)
       showToast('Đăng nhập thành công', 'success')
-      const from = (location.state as { from?: string } | null)?.from || '/dashboard'
-      navigate(from, { replace: true })
+      navigate(returnPath, { replace: true })
     } catch (error) {
       showToast(errorMessage(error, 'Email hoặc mật khẩu không đúng'), 'error')
     } finally {
@@ -110,7 +117,11 @@ export function LoginPage() {
       </form>
       <p className="mt-6 text-center text-sm text-muted">
         Chưa có tài khoản?{' '}
-        <Link to="/register" className="font-semibold text-accent-strong hover:underline">
+        <Link
+          to="/register"
+          state={{ from: returnPath }}
+          className="font-semibold text-accent-strong hover:underline"
+        >
           Đăng ký miễn phí
         </Link>
       </p>
@@ -125,8 +136,10 @@ export function RegisterPage() {
   const { register, isAuthenticated } = useAuth()
   const { showToast } = useToast()
   const navigate = useNavigate()
+  const location = useLocation()
+  const returnPath = safeReturnPath(location.state)
 
-  if (isAuthenticated) return <Navigate to="/dashboard" replace />
+  if (isAuthenticated) return <Navigate to={returnPath} replace />
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -146,7 +159,7 @@ export function RegisterPage() {
         password: form.password,
       })
       showToast('Tài khoản BookSpace đã sẵn sàng', 'success')
-      navigate('/dashboard', { replace: true })
+      navigate(returnPath, { replace: true })
     } catch (error) {
       showToast(errorMessage(error, 'Không thể tạo tài khoản'), 'error')
     } finally {
@@ -202,7 +215,11 @@ export function RegisterPage() {
       </p>
       <p className="mt-5 text-center text-sm text-muted">
         Đã có tài khoản?{' '}
-        <Link to="/login" className="font-semibold text-accent-strong hover:underline">
+        <Link
+          to="/login"
+          state={{ from: returnPath }}
+          className="font-semibold text-accent-strong hover:underline"
+        >
           Đăng nhập
         </Link>
       </p>

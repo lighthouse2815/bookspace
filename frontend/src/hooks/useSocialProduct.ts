@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useAuth } from '../contexts/AuthContext'
 import { accountService } from '../services/account.service'
 import { adminService } from '../services/admin.service'
 import { challengeService } from '../services/challenge.service'
 import { clubService, type SaveClubInput } from '../services/club.service'
 import type { ClubInvitationStatus, ClubMemberRole } from '../types/domain'
+import { challengeKeys, challengeViewerScope } from './challengeKeys'
 import { readingSprintKeys } from './useReadingSprints'
 
 export const clubKeys = {
@@ -236,21 +238,25 @@ export function useCreateClubPostComment(clubId: string, postId: string) {
   })
 }
 
-export const challengeKeys = {
-  all: ['challenges'] as const,
-  lists: ['challenges', 'list'] as const,
-  detail: (id: string) => ['challenges', 'detail', id] as const,
-}
-
 export function useChallenges() {
-  return useQuery({ queryKey: challengeKeys.lists, queryFn: challengeService.challenges })
+  const { user, isLoading } = useAuth()
+  const scope = challengeViewerScope(user?.id)
+
+  return useQuery({
+    queryKey: challengeKeys.lists(scope),
+    queryFn: challengeService.challenges,
+    enabled: !isLoading,
+  })
 }
 
 export function useChallenge(id: string) {
+  const { user, isLoading } = useAuth()
+  const scope = challengeViewerScope(user?.id)
+
   return useQuery({
-    queryKey: challengeKeys.detail(id),
+    queryKey: challengeKeys.detail(scope, id),
     queryFn: () => challengeService.detail(id),
-    enabled: Boolean(id),
+    enabled: Boolean(id) && !isLoading,
   })
 }
 
@@ -260,12 +266,15 @@ export function useAdminChallenges() {
 
 export function useChallengeMembership(id: string, joined: boolean) {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
+  const scope = challengeViewerScope(user?.id)
+
   return useMutation({
     mutationFn: () => (joined ? challengeService.leave(id) : challengeService.join(id)),
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: challengeKeys.lists }),
-        queryClient.invalidateQueries({ queryKey: challengeKeys.detail(id) }),
+        queryClient.invalidateQueries({ queryKey: challengeKeys.lists(scope) }),
+        queryClient.invalidateQueries({ queryKey: challengeKeys.detail(scope, id) }),
         queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
       ])
     },

@@ -1,4 +1,5 @@
 import { ArrowLeft, CalendarBlank, CheckCircle, Flag, Users } from '@phosphor-icons/react'
+import axios from 'axios'
 import { Link, useParams } from 'react-router-dom'
 import { Button } from '../../components/ui/Button'
 import { Progress } from '../../components/ui/Progress'
@@ -8,6 +9,24 @@ import { useToast } from '../../contexts/ToastContext'
 import { useChallenge, useChallengeMembership } from '../../hooks/useSocialProduct'
 import { errorMessage } from '../../lib/api'
 import { formatDate } from '../../lib/format'
+import type { ApiEnvelope } from '../../types/api'
+
+function challengeErrorMessage(error: unknown) {
+  if (axios.isAxiosError(error)) {
+    if (error.response?.status === 404) {
+      return 'Không tìm thấy thử thách hoặc thử thách chưa được xuất bản.'
+    }
+
+    const payload = error.response?.data as Partial<ApiEnvelope<unknown>> | undefined
+    if (payload?.message) return payload.message
+
+    return error.response
+      ? 'Không thể tải chi tiết thử thách. Vui lòng thử lại.'
+      : 'Không thể kết nối tới máy chủ. Vui lòng kiểm tra kết nối và thử lại.'
+  }
+
+  return 'Không thể tải chi tiết thử thách. Vui lòng thử lại.'
+}
 
 export function ChallengeDetailPage() {
   const { id = '' } = useParams()
@@ -39,7 +58,7 @@ export function ChallengeDetailPage() {
     )
   }
 
-  if (challenge.isLoading) {
+  if (challenge.isPending || challenge.isLoading) {
     return <div className="container-page section-space"><LoadingRows count={3} /></div>
   }
 
@@ -47,7 +66,7 @@ export function ChallengeDetailPage() {
     return (
       <div className="container-page section-space">
         <ErrorState
-          message="Không tìm thấy thử thách hoặc thử thách chưa được xuất bản."
+          message={challengeErrorMessage(challenge.error)}
           retry={() => void challenge.refetch()}
         />
       </div>
@@ -119,7 +138,11 @@ export function ChallengeDetailPage() {
                   {item.isJoined ? 'Rời thử thách' : 'Tham gia thử thách'}
                 </Button>
               ) : (
-                <Link to={`/login?returnTo=${encodeURIComponent(`/challenges/${id}`)}`} className="button button-primary button-md w-full">
+                <Link
+                  to="/login"
+                  state={{ from: `/challenges/${id}` }}
+                  className="button button-primary button-md w-full"
+                >
                   Đăng nhập để tham gia
                 </Link>
               )}

@@ -476,6 +476,10 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
             entity.Property(x => x.Title).HasMaxLength(200).IsRequired();
             entity.Property(x => x.Message).HasMaxLength(1000).IsRequired();
             entity.Property(x => x.Link).HasMaxLength(1000);
+            entity.Property(x => x.DeduplicationKey).HasMaxLength(200);
+            entity.HasIndex(x => x.DeduplicationKey)
+                .IsUnique()
+                .HasFilter("\"DeduplicationKey\" IS NOT NULL");
             entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
             entity.Ignore(x => x.IsRead);
             entity.Ignore(x => x.IsDeleted);

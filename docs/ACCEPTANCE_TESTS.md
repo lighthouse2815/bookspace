@@ -335,8 +335,8 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-CHAL-009 | P0 | Join draft/challenge đã kết thúc trả 409. |
 | AC-CHAL-010 | P0 | Join lặp lại trả 409, không tăng participant count. |
 | AC-CHAL-011 | P0 | `currentBooks` đếm shelf `READ` có `finishedAt` trong khoảng UTC đóng `[startDate, endDate]`, không phụ thuộc `joinedAt`; client không có endpoint/UI ghi progress. |
-| AC-CHAL-012 | P0 | Progress đã đồng bộ là high-water mark: không giảm khi shelf đổi về sau, không vượt goal và list/detail/mine/dashboard không trả stale trước filter/phân trang. |
-| AC-CHAL-013 | P0 | Đạt goal đặt `completedAt` một lần và tạo đúng một notification `CHALLENGE` link `/challenges/{id}` dù đọc list/detail/dashboard nhiều lần. |
+| AC-CHAL-012 | P0 | Progress đã đồng bộ là atomic high-water mark: không giảm khi shelf đổi về sau hoặc khi sync đồng thời, không vượt goal và list/detail/`my`/dashboard không trả stale trước filter/phân trang. |
+| AC-CHAL-013 | P0 | Mutation lần đầu hoàn tất sách tạo completion ngay, không cần mở challenge; đạt goal đặt `completedAt` một lần và unique event key bảo đảm đúng một notification `CHALLENGE` link `/challenges/{id}` khi request đồng thời hoặc đọc lại. |
 | AC-CHAL-014 | P0 | `GET /api/challenges/my` chỉ trả challenge principal đã tham gia. |
 | AC-CHAL-015 | P0 | ADMIN chỉ xóa draft chưa có participant; mutation không hợp lệ trả 409. |
 
@@ -481,7 +481,7 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 - Review unique/like/comment.
 - Club membership/post permission.
 - Reading sprint lifecycle, permission, participant idempotency, progress, leaderboard, timeline, milestone/response, reminder deduplication và private-club isolation.
-- Challenge detail published/draft, join/leave ownership, derived progress và completion notification deduplication.
+- Challenge detail published/draft, join/leave/nonparticipant leave, progress từ sách hoàn tất trước/sau join, mutation-time completion, high-water sau đổi shelf và notification dedupe qua nhiều request.
 - Notification ownership.
 - Global error envelope.
 - Database unique constraints.
@@ -498,7 +498,7 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 - Reading Insights query key có timezone offset, route protected và session/goal mutation invalidate cache.
 - Review request top-level `/reviews`.
 - Admin request path `/admin/books` và `/admin/challenges`.
-- Challenge detail deep-link, list-card link và không có manual-progress UI/request.
+- Production App deep-link challenge, loading/error/empty/guest CTA, intended login return, principal-scoped cache, join/leave invalidation, reading-mutation challenge invalidation và không có manual-progress request.
 - Loading/error/empty states cho catalog, library, notifications.
 
 Không đặt ngưỡng coverage phần trăm giả tạo cho Goal 1. Mọi invariant và authorization branch liệt kê trên phải có test trực tiếp.

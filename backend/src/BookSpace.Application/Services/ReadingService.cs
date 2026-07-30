@@ -6,7 +6,9 @@ using BookSpace.Domain.Enums;
 
 namespace BookSpace.Application.Services;
 
-public sealed class ReadingService(IBookSpaceDbContext db) : IReadingService
+public sealed class ReadingService(
+    IBookSpaceDbContext db,
+    IChallengeProgressSynchronizer progressSynchronizer) : IReadingService
 {
     private readonly ServiceMapper _mapper = new(db);
 
@@ -43,7 +45,7 @@ public sealed class ReadingService(IBookSpaceDbContext db) : IReadingService
 
         var item = new LibraryItem(userId, request.BookId, request.Shelf);
         db.Add(item);
-        await db.SaveChangesAsync(cancellationToken);
+        await progressSynchronizer.SaveChangesAndSyncAsync(userId, cancellationToken);
         return _mapper.Library(item);
     }
 
@@ -75,7 +77,7 @@ public sealed class ReadingService(IBookSpaceDbContext db) : IReadingService
             item.UpdateProgress(page, book.PageCount);
         }
 
-        await db.SaveChangesAsync(cancellationToken);
+        await progressSynchronizer.SaveChangesAndSyncAsync(userId, cancellationToken);
         return _mapper.Library(item);
     }
 
@@ -93,14 +95,14 @@ public sealed class ReadingService(IBookSpaceDbContext db) : IReadingService
         }
 
         item.UpdateProgress(request.CurrentPage, pageCount);
-        await db.SaveChangesAsync(cancellationToken);
+        await progressSynchronizer.SaveChangesAndSyncAsync(userId, cancellationToken);
         return _mapper.Library(item);
     }
 
     public async Task RemoveLibraryItemAsync(Guid userId, Guid itemId, CancellationToken cancellationToken)
     {
         FindItem(userId, itemId).SoftDelete();
-        await db.SaveChangesAsync(cancellationToken);
+        await progressSynchronizer.SaveChangesAndSyncAsync(userId, cancellationToken);
     }
 
     public PageResult<ReadingSessionDto> GetSessions(Guid userId, int page, int pageSize)
@@ -148,7 +150,7 @@ public sealed class ReadingService(IBookSpaceDbContext db) : IReadingService
         }
 
         item.UpdateProgress(Math.Min(item.CurrentPage + request.PagesRead, book.PageCount), book.PageCount);
-        await db.SaveChangesAsync(cancellationToken);
+        await progressSynchronizer.SaveChangesAndSyncAsync(userId, cancellationToken);
         return _mapper.Session(session);
     }
 
