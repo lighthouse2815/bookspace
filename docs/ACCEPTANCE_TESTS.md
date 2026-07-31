@@ -133,7 +133,10 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-FOL-014 | P0 | Suggestions loại user đã follow, xếp mutual/follower/books-read/name/id deterministic và vẫn có fallback mutual=0. |
 | AC-FOL-015 | P0 | Directory và suggestions phân trang ở database, page liên tiếp không trùng hoặc bỏ item do tie-break. |
 | AC-FOL-016 | P0 | Follow một suggestion làm item biến mất, search trả `isFollowing=true` và activity công khai của target vào feed. |
-| AC-FOL-017 | P0 | Hai request follow cùng target đồng thời không request nào trả 500; đúng một thành công và một conflict. |
+| AC-FOL-017 | P0 | Hai request follow cùng target đồng thời trả đúng một success và một 409 `ALREADY_FOLLOWING`; chỉ có một relation và một notification. |
+| AC-FOL-018 | P1 | `followerCount` trên discovery khớp public profile kể cả khi relation đến từ tài khoản locked; locked user vẫn không xuất hiện làm candidate. |
+| AC-FOL-019 | P1 | Development seed bỏ qua Hà Linh đã soft-delete, không insert trùng hoặc tự restore; thêm sách đứng đầu alphabet rồi seed lại không làm tăng `booksReadCount`. |
+| AC-FOL-020 | P1 | Search rỗng khóa `DIRECTORY`, search theo tên khóa `SEARCH_MATCH`; suggestions chỉ dùng 5 reason code còn lại. |
 
 ## 6. Catalog công khai
 

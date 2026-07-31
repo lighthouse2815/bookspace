@@ -67,6 +67,7 @@ function userResult(overrides: Record<string, unknown> = {}) {
   return {
     data: profile,
     isLoading: false,
+    isPending: false,
     isError: false,
     error: null,
     refetch: mocks.retry,
@@ -90,7 +91,7 @@ describe('production public profile route', () => {
     renderProfile()
 
     expect(await screen.findByRole('heading', { name: 'Hà Linh' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Đăng nhập để theo dõi' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Đăng nhập để theo dõi Hà Linh' })).toHaveAttribute(
       'href',
       '/login',
     )
@@ -130,5 +131,28 @@ describe('production public profile route', () => {
       'Không thể tải hồ sơ người đọc.',
     )
     expect(screen.queryByText('Không tìm thấy hồ sơ')).not.toBeInTheDocument()
+  })
+
+  it('keeps the profile skeleton visible while auth bootstrap owns the query pause', async () => {
+    mocks.auth.isLoading = true
+    mocks.user.mockReturnValue(
+      userResult({ data: undefined, isLoading: false, isPending: true }),
+    )
+
+    renderProfile()
+
+    expect(document.querySelector('.animate-pulse')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('includes the profile display name in the authenticated follow action', async () => {
+    Object.assign(mocks.auth, {
+      user: { ...profile, id: 'reader-1' },
+      isAuthenticated: true,
+    })
+
+    renderProfile()
+
+    expect(await screen.findByRole('button', { name: 'Theo dõi Hà Linh' })).toBeEnabled()
   })
 })

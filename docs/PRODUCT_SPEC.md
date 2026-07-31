@@ -224,6 +224,7 @@ Tên route là hợp đồng điều hướng Goal 1; thay đổi cần đồng 
 | `/clubs` | Clubs | danh sách câu lạc bộ công khai |
 | `/clubs/:id` | Club detail | thông tin, thành viên, bài đăng và đợt đọc chung theo quyền |
 | `/clubs/:clubId/sprints/:sprintId` | Reading sprint | tiến độ, leaderboard, timeline, quản trị và cột mốc theo quyền |
+| `/people` | People discovery | URL search, danh bạ công khai, gợi ý và follow theo principal |
 | `/users/:id` | Public profile | hồ sơ, thống kê công khai |
 | `/login` | Login | đăng nhập |
 | `/register` | Register | đăng ký |

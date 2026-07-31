@@ -109,6 +109,7 @@ function queryResult(overrides: Record<string, unknown> = {}) {
   return {
     data: page([person]),
     isLoading: false,
+    isPending: false,
     isFetching: false,
     isError: false,
     error: null,
@@ -129,6 +130,7 @@ describe('production people route', () => {
     mocks.suggestions.mockReturnValue({
       data: page([]),
       isLoading: false,
+      isPending: false,
       isError: false,
       error: null,
       refetch: mocks.retrySuggestions,
@@ -149,7 +151,7 @@ describe('production people route', () => {
       'href',
       '/users/person-1',
     )
-    expect(screen.getByRole('link', { name: 'Đăng nhập để theo dõi' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Đăng nhập để theo dõi Minh Anh' })).toHaveAttribute(
       'href',
       '/login',
     )
@@ -179,6 +181,7 @@ describe('production people route', () => {
     mocks.suggestions.mockReturnValue({
       data: page([suggestion]),
       isLoading: false,
+      isPending: false,
       isError: false,
       error: null,
       refetch: mocks.retrySuggestions,
@@ -189,7 +192,7 @@ describe('production people route', () => {
     expect(await screen.findByRole('heading', { name: 'Dành cho bạn' })).toBeInTheDocument()
     expect(screen.getByText(suggestion.reasonText)).toBeInTheDocument()
     expect(screen.getByText('Đang theo dõi bạn')).toBeInTheDocument()
-    await user.click(screen.getAllByRole('button', { name: 'Theo dõi' })[0])
+    await user.click(screen.getByRole('button', { name: 'Theo dõi Hà Linh' }))
     expect(mocks.follow).toHaveBeenCalledWith(suggestion.id, false)
     expect(mocks.mutateFollow).toHaveBeenCalledOnce()
   })
@@ -228,5 +231,76 @@ describe('production people route', () => {
     expect(
       await screen.findByRole('heading', { name: 'Chưa có độc giả để khám phá' }),
     ).toBeInTheDocument()
+  })
+
+  it('renders a loading skeleton while authentication is bootstrapping', async () => {
+    mocks.auth.isLoading = true
+    mocks.people.mockReturnValue(
+      queryResult({ data: undefined, isLoading: false, isPending: true }),
+    )
+
+    renderProductionApp('/people')
+
+    expect(await screen.findByLabelText('Đang tải dữ liệu')).toBeInTheDocument()
+    expect(screen.queryByText('Chưa có độc giả để khám phá')).not.toBeInTheDocument()
+  })
+
+  it('canonicalizes an out-of-range page instead of showing a false empty directory', async () => {
+    mocks.people.mockImplementation((_search: string, requestedPage: number) =>
+      requestedPage === 999
+        ? queryResult({
+            data: {
+              items: [],
+              page: 999,
+              pageSize: 12,
+              totalItems: 1,
+              totalPages: 1,
+            },
+          })
+        : queryResult(),
+    )
+
+    renderProductionApp('/people?page=999')
+
+    await waitFor(() =>
+      expect(screen.getByTestId('current-location')).toHaveTextContent('/people'),
+    )
+    expect(await screen.findByRole('link', { name: 'Minh Anh' })).toBeInTheDocument()
+    expect(screen.queryByText('Chưa có độc giả để khám phá')).not.toBeInTheDocument()
+  })
+
+  it('exposes conditional validation relationships on the search input', async () => {
+    const user = userEvent.setup()
+    renderProductionApp('/people')
+    const input = await screen.findByLabelText('Tên độc giả')
+
+    expect(input).toHaveAttribute('aria-invalid', 'false')
+    expect(input).toHaveAttribute('aria-describedby', 'people-search-hint')
+    await user.type(input, 'a')
+    await user.click(screen.getByRole('button', { name: 'Tìm độc giả' }))
+
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    expect(input).toHaveAttribute(
+      'aria-describedby',
+      'people-search-hint people-search-error',
+    )
+    expect(screen.getByRole('alert')).toHaveTextContent('2 đến 100 ký tự')
+    expect(screen.queryByLabelText('Đang tải dữ liệu')).not.toBeInTheDocument()
+  })
+
+  it('keeps long public names and bios breakable on narrow cards', async () => {
+    const longName = 'TênĐộcGiảKhôngCóKhoảngTrắng'.repeat(5)
+    const longBio = 'TiểuSửCôngKhaiKhôngCóKhoảngTrắng'.repeat(8)
+    mocks.people.mockReturnValue(
+      queryResult({ data: page([{ ...person, displayName: longName, bio: longBio }]) }),
+    )
+
+    renderProductionApp('/people')
+
+    expect(await screen.findByRole('link', { name: longName })).toHaveClass('break-words')
+    expect(screen.getByText(longBio)).toHaveClass('break-words')
+    expect(
+      screen.getByRole('link', { name: `Đăng nhập để theo dõi ${longName}` }),
+    ).toHaveAttribute('href', '/login')
   })
 })

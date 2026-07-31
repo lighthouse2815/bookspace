@@ -140,6 +140,49 @@ if (
     throw 'Một API lõi trả về envelope thất bại.'
 }
 
+$haLinhSearch = @($people.data.items | Where-Object { $_.displayName -eq 'Hà Linh' })
+$haLinhSuggestion = @(
+    $peopleSuggestions.data.items | Where-Object { $_.displayName -eq 'Hà Linh' }
+)
+$suggestionReasons = @(
+    'MUTUAL_FOLLOWS',
+    'FOLLOWS_YOU',
+    'POPULAR_READER',
+    'ACTIVE_READER',
+    'NEW_READER'
+)
+$requiredPeopleFields = @(
+    'id',
+    'displayName',
+    'bio',
+    'avatarUrl',
+    'followerCount',
+    'booksReadCount',
+    'isFollowing',
+    'followsYou',
+    'mutualFollowCount',
+    'reason',
+    'reasonText'
+)
+$searchFields = @($haLinhSearch[0].PSObject.Properties.Name)
+$suggestionFields = @($haLinhSuggestion[0].PSObject.Properties.Name)
+if (
+    $haLinhSearch.Count -ne 1 -or
+    @($requiredPeopleFields | Where-Object { $_ -notin $searchFields }).Count -gt 0 -or
+    $haLinhSearch[0].reason -ne 'SEARCH_MATCH' -or
+    -not $haLinhSearch[0].id -or
+    $null -eq $haLinhSearch[0].followerCount -or
+    $null -eq $haLinhSearch[0].booksReadCount -or
+    ($haLinhSearch[0].PSObject.Properties.Name -contains 'email') -or
+    $haLinhSuggestion.Count -ne 1 -or
+    @($requiredPeopleFields | Where-Object { $_ -notin $suggestionFields }).Count -gt 0 -or
+    $haLinhSuggestion[0].reason -notin $suggestionReasons -or
+    $haLinhSuggestion[0].mutualFollowCount -lt 1 -or
+    -not $haLinhSuggestion[0].followsYou
+) {
+    throw 'People Discovery không trả đúng Hà Linh hoặc public DTO/reason mong đợi.'
+}
+
 if (
     $insightsCalendar.data.daysData.Count -ne 365 -or
     $insightsWeekly.data.items.Count -ne 12 -or

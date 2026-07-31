@@ -2,9 +2,11 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using BookSpace.Application.Abstractions;
 using BookSpace.Domain.Entities;
 using BookSpace.Domain.Enums;
 using BookSpace.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BookSpace.IntegrationTests;
@@ -41,6 +43,10 @@ public sealed class PeopleDiscoveryFlowTests
         Assert.False(result.GetProperty("isFollowing").GetBoolean());
         Assert.False(result.GetProperty("followsYou").GetBoolean());
         Assert.Equal(0, result.GetProperty("mutualFollowCount").GetInt32());
+        Assert.Equal("SEARCH_MATCH", result.GetProperty("reason").GetString());
+        Assert.Equal(
+            "Phù hợp với tên hiển thị bạn đang tìm.",
+            result.GetProperty("reasonText").GetString());
 
         var emailSearch = await ReadDataAsync(
             await client.GetAsync("/api/users?search=private-search-marker"));
@@ -53,6 +59,15 @@ public sealed class PeopleDiscoveryFlowTests
             .ToList();
         Assert.DoesNotContain("Locked Reader", names);
         Assert.DoesNotContain("Deleted Reader", names);
+        Assert.All(
+            directory.GetProperty("items").EnumerateArray(),
+            item =>
+            {
+                Assert.Equal("DIRECTORY", item.GetProperty("reason").GetString());
+                Assert.Equal(
+                    "Độc giả đang hoạt động trên BookSpace.",
+                    item.GetProperty("reasonText").GetString());
+            });
 
         foreach (var invalidSearch in new[] { "a", new string('x', 101) })
         {
@@ -66,6 +81,38 @@ public sealed class PeopleDiscoveryFlowTests
                 envelope.GetProperty("message").GetString(),
                 StringComparison.Ordinal);
         }
+    }
+
+    [Fact]
+    public async Task Discovery_follower_count_matches_the_public_profile_observable_count()
+    {
+        using var factory = new BookSpaceApiFactory();
+        using var client = factory.CreateClient();
+        Guid adminId;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BookSpaceDbContext>();
+            var admin = db.UserSet.Single(user => user.Email == "admin@bookspace.local");
+            var lockedFollower = new User(
+                "locked-follower@bookspace.local",
+                "hash",
+                "Locked Follower");
+            lockedFollower.Lock();
+            db.Add(lockedFollower);
+            db.Add(new Follow(lockedFollower.Id, admin.Id));
+            await db.SaveChangesAsync();
+            adminId = admin.Id;
+        }
+
+        var profile = await ReadDataAsync(await client.GetAsync($"/api/users/{adminId}"));
+        var search = await ReadDataAsync(
+            await client.GetAsync("/api/users?search=Qu%E1%BA%A3n%20tr%E1%BB%8B"));
+        var discoveryItem = Assert.Single(search.GetProperty("items").EnumerateArray());
+
+        Assert.Equal(
+            profile.GetProperty("followerCount").GetInt32(),
+            discoveryItem.GetProperty("followerCount").GetInt32());
+        Assert.Equal(2, discoveryItem.GetProperty("followerCount").GetInt32());
     }
 
     [Fact]
@@ -225,23 +272,168 @@ public sealed class PeopleDiscoveryFlowTests
     }
 
     [Fact]
-    public async Task Concurrent_duplicate_follow_never_returns_internal_server_error()
+    public async Task Concurrent_duplicate_follow_returns_stable_conflict_and_writes_once()
     {
         using var factory = new BookSpaceApiFactory();
         using var client = factory.CreateClient();
         await LoginAsync(client, "reader@bookspace.local", "Reader123!");
         var suggestions = await ReadDataAsync(await client.GetAsync("/api/users/suggestions"));
         var targetId = suggestions.GetProperty("items")[0].GetProperty("id").GetGuid();
+        Guid readerId;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BookSpaceDbContext>();
+            readerId = db.UserSet.Single(user => user.Email == "reader@bookspace.local").Id;
+        }
 
         var responses = await Task.WhenAll(
             client.PostAsync($"/api/users/{targetId}/follow", null),
             client.PostAsync($"/api/users/{targetId}/follow", null));
 
-        Assert.DoesNotContain(
+        Assert.Single(responses, response => response.StatusCode == HttpStatusCode.OK);
+        var conflict = Assert.Single(
             responses,
-            response => response.StatusCode == HttpStatusCode.InternalServerError);
-        Assert.Contains(responses, response => response.StatusCode == HttpStatusCode.OK);
-        Assert.Contains(responses, response => response.StatusCode == HttpStatusCode.Conflict);
+            response => response.StatusCode == HttpStatusCode.Conflict);
+        var conflictEnvelope = await ReadEnvelopeAsync(conflict);
+        Assert.Equal("ALREADY_FOLLOWING", conflictEnvelope.GetProperty("code").GetString());
+
+        await using var verificationScope = factory.Services.CreateAsyncScope();
+        var verificationDb = verificationScope.ServiceProvider.GetRequiredService<BookSpaceDbContext>();
+        Assert.Equal(
+            1,
+            await verificationDb.FollowSet.IgnoreQueryFilters().CountAsync(
+                follow => follow.FollowerId == readerId && follow.FollowingId == targetId));
+        Assert.Equal(
+            1,
+            await verificationDb.NotificationSet.IgnoreQueryFilters().CountAsync(
+                notification =>
+                    notification.UserId == targetId &&
+                    notification.Type == NotificationType.FOLLOW &&
+                    notification.Link == $"/users/{readerId}"));
+    }
+
+    [Fact]
+    public async Task Follow_boundary_does_not_swallow_a_different_unique_constraint()
+    {
+        using var factory = new BookSpaceApiFactory();
+        using var client = factory.CreateClient();
+        _ = await client.GetAsync("/health");
+        Guid readerId;
+        Guid targetId;
+        const string duplicateKey = "follow-boundary-other-constraint";
+
+        await using (var setupScope = factory.Services.CreateAsyncScope())
+        {
+            var db = setupScope.ServiceProvider.GetRequiredService<BookSpaceDbContext>();
+            readerId = db.UserSet.Single(user => user.Email == "reader@bookspace.local").Id;
+            var target = new User("boundary-target@bookspace.local", "hash", "Boundary Target");
+            db.Add(target);
+            db.Add(new Notification(
+                readerId,
+                NotificationType.SYSTEM,
+                "Thông báo kiểm thử",
+                "Khóa này dùng để tạo unique conflict ngoài follow.",
+                deduplicationKey: duplicateKey));
+            await db.SaveChangesAsync();
+            targetId = target.Id;
+        }
+
+        await using (var mutationScope = factory.Services.CreateAsyncScope())
+        {
+            var boundary = mutationScope.ServiceProvider.GetRequiredService<IFollowMutationBoundary>();
+            await Assert.ThrowsAsync<DbUpdateException>(() => boundary.TryCreateAsync(
+                new Follow(readerId, targetId),
+                new Notification(
+                    targetId,
+                    NotificationType.FOLLOW,
+                    "Thông báo trùng khóa",
+                    "Boundary không được nuốt conflict này.",
+                    deduplicationKey: duplicateKey),
+                CancellationToken.None));
+        }
+
+        await using var verificationScope = factory.Services.CreateAsyncScope();
+        var verificationDb = verificationScope.ServiceProvider.GetRequiredService<BookSpaceDbContext>();
+        Assert.False(await verificationDb.FollowSet.IgnoreQueryFilters().AnyAsync(
+            follow => follow.FollowerId == readerId && follow.FollowingId == targetId));
+    }
+
+    [Fact]
+    public async Task Development_seed_skips_a_soft_deleted_discovery_reader_without_duplication_or_restore()
+    {
+        using var factory = new BookSpaceApiFactory();
+        using var client = factory.CreateClient();
+        _ = await client.GetAsync("/health");
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BookSpaceDbContext>();
+            var discoveryReader = db.UserSet.Single(
+                user => user.Email == "ha.linh.discovery@bookspace.local");
+            discoveryReader.SoftDelete();
+            await db.SaveChangesAsync();
+        }
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var initializer = scope.ServiceProvider.GetRequiredService<DatabaseInitializer>();
+            await initializer.InitializeAsync();
+        }
+
+        await using var verificationScope = factory.Services.CreateAsyncScope();
+        var verificationDb = verificationScope.ServiceProvider.GetRequiredService<BookSpaceDbContext>();
+        var matchingUsers = await verificationDb.UserSet
+            .IgnoreQueryFilters()
+            .Where(user => user.Email == "ha.linh.discovery@bookspace.local")
+            .ToListAsync();
+        var discoveryReaderAfterRestart = Assert.Single(matchingUsers);
+        Assert.True(discoveryReaderAfterRestart.IsDeleted);
+    }
+
+    [Fact]
+    public async Task Development_seed_keeps_the_discovery_book_fixture_stable_when_catalog_order_changes()
+    {
+        using var factory = new BookSpaceApiFactory();
+        using var client = factory.CreateClient();
+        _ = await client.GetAsync("/health");
+        Guid discoveryReaderId;
+        Guid originalBookId;
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BookSpaceDbContext>();
+            discoveryReaderId = db.UserSet.Single(
+                user => user.Email == "ha.linh.discovery@bookspace.local").Id;
+            originalBookId = Assert.Single(
+                db.LibraryItemSet.Where(item => item.UserId == discoveryReaderId)).BookId;
+            db.Add(new Book(
+                "! Sách đứng đầu danh mục",
+                "Dữ liệu kiểm thử tính ổn định của seed.",
+                "9780000000001",
+                null,
+                100,
+                2026));
+            await db.SaveChangesAsync();
+        }
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var initializer = scope.ServiceProvider.GetRequiredService<DatabaseInitializer>();
+            await initializer.InitializeAsync();
+        }
+
+        await using var verificationScope = factory.Services.CreateAsyncScope();
+        var verificationDb = verificationScope.ServiceProvider.GetRequiredService<BookSpaceDbContext>();
+        var items = await verificationDb.LibraryItemSet
+            .Where(item => item.UserId == discoveryReaderId)
+            .ToListAsync();
+        Assert.Equal(originalBookId, Assert.Single(items).BookId);
+        Assert.Equal(
+            "9786043458168",
+            await verificationDb.BookSet
+                .Where(book => book.Id == originalBookId)
+                .Select(book => book.Isbn)
+                .SingleAsync());
     }
 
     private static async Task LoginAsync(HttpClient client, string email, string password)

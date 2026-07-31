@@ -23,14 +23,14 @@ export function CurrentProfileRedirect() {
 
 export function ProfilePage() {
   const { id } = useParams()
-  const { user: currentUser, isAuthenticated } = useAuth()
+  const { user: currentUser, isAuthenticated, isLoading: isAuthLoading } = useAuth()
   const location = useLocation()
   const profile = useUser(id)
   const { showToast } = useToast()
   const ownProfile = currentUser?.id === id
   const follow = useFollowUser(id ?? '', Boolean(profile.data?.isFollowing))
 
-  if (profile.isLoading) {
+  if (isAuthLoading || profile.isPending) {
     return (
       <div className="container-page section-space">
         <div className="h-48 animate-pulse rounded-2xl bg-surface-muted" />
@@ -81,6 +81,8 @@ export function ProfilePage() {
                 <Button
                   variant={profile.data.isFollowing ? 'secondary' : 'primary'}
                   loading={follow.isPending}
+                  disabled={follow.isPending}
+                  aria-label={`${profile.data.isFollowing ? 'Bỏ theo dõi' : 'Theo dõi'} ${profile.data.displayName}`}
                   icon={
                     profile.data.isFollowing ? <UserMinus size={18} /> : <UserPlus size={18} />
                   }
@@ -103,6 +105,7 @@ export function ProfilePage() {
                 <Link
                   to="/login"
                   state={{ from: `${location.pathname}${location.search}` }}
+                  aria-label={`Đăng nhập để theo dõi ${profile.data.displayName}`}
                   className="button button-primary button-md"
                 >
                   Đăng nhập để theo dõi

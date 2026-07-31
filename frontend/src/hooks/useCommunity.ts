@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useIsMutating, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../contexts/AuthContext'
 import { communityService } from '../services/community.service'
 import type { PageResult } from '../types/api'
@@ -30,6 +30,11 @@ export const userKeys = {
 export const feedKeys = {
   all: ['feed'] as const,
   scoped: (scope: string) => [...feedKeys.all, scope] as const,
+}
+
+export const followKeys = {
+  all: ['follow-mutation'] as const,
+  target: (scope: string, targetId: string) => [...followKeys.all, scope, targetId] as const,
 }
 
 export function useFeed() {
@@ -177,8 +182,11 @@ export function useFollowUser(targetId: string, isFollowing: boolean) {
   const { user } = useAuth()
   const queryClient = useQueryClient()
   const scope = viewerScope(user?.id)
+  const mutationKey = followKeys.target(scope, targetId)
+  const relatedMutationCount = useIsMutating({ mutationKey })
 
-  return useMutation({
+  const mutation = useMutation({
+    mutationKey,
     mutationFn: () =>
       isFollowing ? communityService.unfollow(targetId) : communityService.follow(targetId),
     onSuccess: async (profile) => {
@@ -225,4 +233,9 @@ export function useFollowUser(targetId: string, isFollowing: boolean) {
       ])
     },
   })
+
+  return {
+    ...mutation,
+    isPending: mutation.isPending || relatedMutationCount > 0,
+  }
 }

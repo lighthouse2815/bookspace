@@ -106,6 +106,8 @@ Rule:
   vẫn accent-sensitive và không tự gộp các dấu tiếng Việt khác nhau.
 - Count, ranking, `Skip` và `Take` chạy trong database. Không materialize toàn bộ
   user IDs trước pagination và không map từng row bằng query riêng.
+- `FollowerCount` dùng cùng observable relation count với public profile; locked
+  user không là candidate nhưng relation hiện hành của họ vẫn được tính nhất quán.
 - Suggestions xếp mutual follow giảm dần, tiếp theo follower count, books-read
   count, `DisplayName`, rồi `Id`; Application sở hữu thứ tự và reason ổn định.
 - Không cần thêm column, migration hoặc index mới. Unique/index follow hiện hữu

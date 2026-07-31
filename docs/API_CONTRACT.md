@@ -127,7 +127,7 @@ Với `GET /users/{id}`, `email` phải là `null` hoặc bị loại khỏi DTO
 | `displayName` | string |
 | `bio` | string hoặc null |
 | `avatarUrl` | string hoặc null |
-| `followerCount` | integer |
+| `followerCount` | integer; cùng observable relation count với public profile |
 | `booksReadCount` | integer |
 | `isFollowing` | boolean; guest luôn `false` |
 | `followsYou` | boolean; guest luôn `false` |
@@ -519,6 +519,10 @@ chỉ so khớp `DisplayName`; không tìm email. SQLite `NOCASE` hỗ trợ
 case-insensitive cho ASCII và vẫn accent-sensitive. Kết quả loại user locked,
 soft-deleted và loại principal nếu request có JWT hợp lệ. Response:
 `ApiResponse<PageResult<UserDiscoveryItem>>`, xếp `displayName`, rồi `id`.
+Mỗi item dùng `reason=DIRECTORY` khi search rỗng hoặc `reason=SEARCH_MATCH` khi
+search theo tên; `reasonText` là chuỗi tiếng Việt ổn định tương ứng.
+`followerCount` khớp public profile và vì vậy vẫn tính relation hiện hành từ tài
+khoản locked; tài khoản locked vẫn bị loại khỏi danh sách candidate.
 
 Search ngoài giới hạn trả 400:
 
@@ -540,6 +544,18 @@ Loại principal, user đã follow, locked và soft-deleted. Xếp
 trong `MUTUAL_FOLLOWS`, `FOLLOWS_YOU`, `POPULAR_READER`, `ACTIVE_READER`,
 `NEW_READER`. Response:
 `ApiResponse<PageResult<UserDiscoveryItem>>`.
+
+Reason code theo scope:
+
+| Code | Endpoint/scope |
+|---|---|
+| `DIRECTORY` | `GET /api/users` với search rỗng |
+| `SEARCH_MATCH` | `GET /api/users` với search tên hợp lệ |
+| `MUTUAL_FOLLOWS` | suggestions có mutual follow |
+| `FOLLOWS_YOU` | suggestions khi candidate đang follow principal |
+| `POPULAR_READER` | suggestions fallback có follower |
+| `ACTIVE_READER` | suggestions fallback có sách đã đọc |
+| `NEW_READER` | suggestions fallback còn lại |
 
 ### `PATCH /api/users/me` — Authenticated
 

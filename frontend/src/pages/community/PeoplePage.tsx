@@ -60,7 +60,7 @@ function PeopleRow({
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <Link
             to={`/users/${person.id}`}
-            className="font-bold text-heading transition-colors hover:text-accent-strong focus-visible:focus-ring"
+            className="break-words font-bold text-heading transition-colors hover:text-accent-strong focus-visible:focus-ring"
           >
             {person.displayName}
           </Link>
@@ -69,7 +69,7 @@ function PeopleRow({
           ) : null}
         </div>
         {person.bio ? (
-          <p className="mt-1 line-clamp-2 max-w-2xl text-sm leading-6 text-muted">
+          <p className="mt-1 line-clamp-2 max-w-2xl break-words text-sm leading-6 text-muted">
             {person.bio}
           </p>
         ) : (
@@ -86,7 +86,7 @@ function PeopleRow({
           </span>
         </div>
         {showReason ? (
-          <p className="mt-3 inline-flex items-start gap-2 text-sm font-medium text-accent-strong">
+          <p className="mt-3 inline-flex items-start gap-2 break-words text-sm font-medium text-accent-strong">
             <Sparkle className="mt-0.5 shrink-0" size={16} weight="fill" aria-hidden />
             {person.reasonText}
           </p>
@@ -99,6 +99,7 @@ function PeopleRow({
             size="sm"
             loading={follow.isPending}
             disabled={follow.isPending}
+            aria-label={`${person.isFollowing ? 'Bỏ theo dõi' : 'Theo dõi'} ${person.displayName}`}
             icon={<UserPlus size={17} aria-hidden />}
             onClick={toggleFollow}
           >
@@ -108,6 +109,7 @@ function PeopleRow({
           <Link
             to="/login"
             state={{ from: `${location.pathname}${location.search}` }}
+            aria-label={`Đăng nhập để theo dõi ${person.displayName}`}
             className="button button-secondary button-sm"
           >
             Đăng nhập để theo dõi
@@ -119,7 +121,7 @@ function PeopleRow({
 }
 
 export function PeoplePage() {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, isLoading: isAuthLoading } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const searchParam = searchParams.get('search') ?? ''
   const page = positivePage(searchParams.get('page'))
@@ -134,6 +136,20 @@ export function PeoplePage() {
   useEffect(() => {
     setSearchInput(searchParam)
   }, [searchParam])
+
+  useEffect(() => {
+    if (
+      people.data &&
+      people.data.totalItems > 0 &&
+      people.data.totalPages > 0 &&
+      page > people.data.totalPages
+    ) {
+      const next = new URLSearchParams(searchParams)
+      if (people.data.totalPages === 1) next.delete('page')
+      else next.set('page', String(people.data.totalPages))
+      setSearchParams(next, { replace: true })
+    }
+  }, [page, people.data, searchParams, setSearchParams])
 
   const submitSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -225,7 +241,12 @@ export function PeoplePage() {
                 className="input"
                 placeholder="Ví dụ: Minh Anh"
                 maxLength={101}
-                aria-describedby="people-search-hint people-search-error"
+                aria-describedby={
+                  searchIsValid
+                    ? 'people-search-hint'
+                    : 'people-search-hint people-search-error'
+                }
+                aria-invalid={!searchIsValid}
               />
               <p id="people-search-hint" className="field-hint">
                 Để trống để xem toàn bộ danh sách, hoặc nhập từ 2 đến 100 ký tự.
@@ -247,7 +268,9 @@ export function PeoplePage() {
         </form>
 
         <div className="mt-7">
-          {people.isLoading ? <LoadingRows count={5} /> : null}
+          {isAuthLoading || (searchIsValid && (people.isPending || people.isLoading)) ? (
+            <LoadingRows count={5} />
+          ) : null}
           {people.isError ? (
             <ErrorState
               message={errorMessage(
@@ -276,7 +299,7 @@ export function PeoplePage() {
               />
             </>
           ) : null}
-          {people.data && people.data.items.length === 0 ? (
+          {people.data && people.data.items.length === 0 && people.data.totalItems === 0 ? (
             <EmptyState
               title={normalizedSearch ? 'Chưa tìm thấy độc giả phù hợp' : 'Chưa có độc giả để khám phá'}
               description={

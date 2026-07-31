@@ -92,11 +92,16 @@ function SearchProbe({ renderId }: { renderId: number }) {
   )
 }
 
-function FollowProbe() {
+function FollowProbe({ label = 'Theo dõi' }: { label?: string }) {
   const follow = useFollowUser(target.id, false)
   return (
-    <button type="button" onClick={() => follow.mutate()} disabled={follow.isPending}>
-      Theo dõi
+    <button
+      type="button"
+      aria-label={label}
+      onClick={() => follow.mutate()}
+      disabled={follow.isPending}
+    >
+      {label}
     </button>
   )
 }
@@ -227,5 +232,44 @@ describe('people query ownership and follow invalidation', () => {
     ]) {
       expect(client.getQueryState(key)?.isInvalidated).toBe(true)
     }
+  })
+
+  it('shares pending state across duplicate cards for the same target', async () => {
+    Object.assign(mocks.auth, {
+      user: reader,
+      isAuthenticated: true,
+    })
+    let resolveFollow: ((value: User) => void) | undefined
+    mocks.follow.mockReturnValue(
+      new Promise<User>((resolve) => {
+        resolveFollow = resolve
+      }),
+    )
+    const client = createQueryClient()
+    const user = userEvent.setup()
+    render(
+      <Providers client={client}>
+        <FollowProbe label="Theo dõi từ gợi ý" />
+        <FollowProbe label="Theo dõi từ danh bạ" />
+      </Providers>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Theo dõi từ gợi ý' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Theo dõi từ gợi ý' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Theo dõi từ danh bạ' })).toBeDisabled()
+    })
+    await user.click(screen.getByRole('button', { name: 'Theo dõi từ danh bạ' }))
+    expect(mocks.follow).toHaveBeenCalledOnce()
+
+    resolveFollow?.({
+      ...reader,
+      id: target.id,
+      displayName: target.displayName,
+      isFollowing: true,
+    })
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Theo dõi từ danh bạ' })).toBeEnabled(),
+    )
   })
 })

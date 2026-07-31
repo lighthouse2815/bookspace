@@ -47,6 +47,7 @@ public static class DependencyInjection
         services.AddScoped<IChallengeMutationBoundary, ChallengeMutationBoundary>();
         services.AddScoped<IChallengeParticipationReader, ChallengeParticipationReader>();
         services.AddScoped<IChallengeProgressPersistence, ChallengeProgressPersistence>();
+        services.AddScoped<IFollowMutationBoundary, FollowMutationBoundary>();
         services.AddScoped<IAsyncQueryExecutor, EfAsyncQueryExecutor>();
         services.AddScoped<IUserDiscoveryQuery, UserDiscoveryQuery>();
         services.AddScoped<INotificationService, NotificationService>();

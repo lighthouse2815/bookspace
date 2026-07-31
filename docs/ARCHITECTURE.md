@@ -274,7 +274,10 @@ Query key tối thiểu:
 ["reading-sessions", filters]
 ["book-reviews", bookId, paging]
 ["review-comments", reviewId, paging]
-["feed", paging]
+["people", principalScope, "search", search, paging]
+["people", principalScope, "suggestions", paging]
+["users", principalScope, "detail", userId]
+["feed", principalScope]
 ["clubs", filters]
 ["club", clubId]
 ["club-posts", clubId, paging]
@@ -289,7 +292,8 @@ Mutation phải invalidate đúng consumer:
 
 - Library/progress/session: `library`, `book`, `dashboard`.
 - Review/like/comment: `book-reviews`, `book`, `feed`, `notifications`.
-- Follow: `user`, `followers`, `following`, `feed`, `dashboard`.
+- Follow: principal-scoped `people`, target/current `users`, `followers`,
+  `following`, `feed`, `dashboard`; mutation cùng target dùng shared pending key.
 - Club/member/post/comment: `clubs`, `club`, `club-posts`, `club-comments`.
 - Reading sprint: list/detail/history, participant state, leaderboard, timeline và milestone; mutation đồng thời invalidate club detail và notification khi có recipient.
 - Challenge: `challenges`, `my-challenges`, `dashboard`, `notifications`.

@@ -9,7 +9,8 @@ namespace BookSpace.Application.Services;
 public sealed class UserService(
     IBookSpaceDbContext db,
     IAsyncQueryExecutor queryExecutor,
-    IUserDiscoveryQuery discoveryQuery) : IUserService
+    IUserDiscoveryQuery discoveryQuery,
+    IFollowMutationBoundary followMutationBoundary) : IUserService
 {
     public UserProfile Get(Guid userId, Guid? viewerId)
     {
@@ -95,8 +96,7 @@ public sealed class UserService(
                 !follow.Follower.IsLocked &&
                 followedUserIds.Contains(follow.FollowerId)))
             .ThenByDescending(user => db.Follows.Count(follow =>
-                follow.FollowingId == user.Id &&
-                !follow.Follower.IsLocked))
+                follow.FollowingId == user.Id))
             .ThenByDescending(user => db.LibraryItems.Count(item =>
                 item.UserId == user.Id &&
                 item.Status == LibraryStatus.READ))
@@ -130,15 +130,20 @@ public sealed class UserService(
             throw ServiceErrors.Conflict("ALREADY_FOLLOWING", "Bạn đã theo dõi người dùng này.");
         }
 
-        db.Add(new Follow(userId, targetUserId));
         var actorName = db.Users.Where(x => x.Id == userId).Select(x => x.DisplayName).First();
-        db.Add(new Notification(
-            targetUserId,
-            NotificationType.FOLLOW,
-            "Bạn có người theo dõi mới",
-            $"{actorName} vừa theo dõi bạn.",
-            $"/users/{userId}"));
-        await db.SaveChangesAsync(cancellationToken);
+        var created = await followMutationBoundary.TryCreateAsync(
+            new Follow(userId, targetUserId),
+            new Notification(
+                targetUserId,
+                NotificationType.FOLLOW,
+                "Bạn có người theo dõi mới",
+                $"{actorName} vừa theo dõi bạn.",
+                $"/users/{userId}"),
+            cancellationToken);
+        if (!created)
+        {
+            throw ServiceErrors.Conflict("ALREADY_FOLLOWING", "Bạn đã theo dõi người dùng này.");
+        }
     }
 
     public async Task UnfollowAsync(Guid userId, Guid targetUserId, CancellationToken cancellationToken)
@@ -207,9 +212,7 @@ public sealed class UserService(
                 user.DisplayName,
                 user.Bio,
                 user.AvatarUrl,
-                db.Follows.Count(follow =>
-                    follow.FollowingId == user.Id &&
-                    !follow.Follower.IsLocked),
+                db.Follows.Count(follow => follow.FollowingId == user.Id),
                 db.LibraryItems.Count(item =>
                     item.UserId == user.Id &&
                     item.Status == LibraryStatus.READ),
@@ -227,9 +230,7 @@ public sealed class UserService(
             user.DisplayName,
             user.Bio,
             user.AvatarUrl,
-            db.Follows.Count(follow =>
-                follow.FollowingId == user.Id &&
-                !follow.Follower.IsLocked),
+            db.Follows.Count(follow => follow.FollowingId == user.Id),
             db.LibraryItems.Count(item =>
                 item.UserId == user.Id &&
                 item.Status == LibraryStatus.READ),

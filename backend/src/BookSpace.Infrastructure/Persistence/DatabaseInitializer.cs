@@ -401,17 +401,24 @@ public sealed class DatabaseInitializer(
         var reader = await db.UserSet.FirstOrDefaultAsync(
             user => user.Email == "reader@bookspace.local",
             cancellationToken);
-        var demoBook = await db.BookSet
-            .OrderBy(book => book.Title)
-            .FirstOrDefaultAsync(cancellationToken);
+        var demoBook = await db.BookSet.FirstOrDefaultAsync(
+            book => book.Isbn == "9786043458168",
+            cancellationToken);
         if (admin is null || reader is null || demoBook is null)
         {
             return;
         }
 
-        var discoveryReader = await db.UserSet.FirstOrDefaultAsync(
-            user => user.Email == "ha.linh.discovery@bookspace.local",
-            cancellationToken);
+        var discoveryReader = await db.UserSet
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(
+                user => user.Email == "ha.linh.discovery@bookspace.local",
+                cancellationToken);
+        if (discoveryReader?.IsDeleted == true)
+        {
+            return;
+        }
+
         if (discoveryReader is null)
         {
             discoveryReader = new User(
