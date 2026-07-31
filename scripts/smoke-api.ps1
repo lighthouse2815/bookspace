@@ -192,7 +192,7 @@ foreach ($suggestionItem in $suggestionItems) {
     }
 }
 if ($peopleSmokeInvalid) {
-    throw 'People Discovery không trả đúng public DTO, PageResult hoặc reason mong đợi.'
+    throw 'People Discovery public DTO, PageResult hoặc reason không hợp lệ.'
 }
 
 if (
