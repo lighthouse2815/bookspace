@@ -1,5 +1,6 @@
-import { render, screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import type { User } from '../../types/domain'
@@ -58,8 +59,20 @@ vi.mock('../../hooks/useCommunity', () => ({
 function renderProfile() {
   return render(
     <MemoryRouter initialEntries={['/users/person-1']}>
+      <LocationProbe />
       <App />
     </MemoryRouter>,
+  )
+}
+
+function LocationProbe() {
+  const location = useLocation()
+  const state = location.state as { from?: string } | null
+  return (
+    <>
+      <output data-testid="current-location">{`${location.pathname}${location.search}`}</output>
+      <output data-testid="location-from">{state?.from ?? ''}</output>
+    </>
   )
 }
 
@@ -88,14 +101,18 @@ describe('production public profile route', () => {
   })
 
   it('offers guest login-return without inventing a username from the id', async () => {
+    const user = userEvent.setup()
     renderProfile()
 
     expect(await screen.findByRole('heading', { name: 'Hà Linh' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Đăng nhập để theo dõi Hà Linh' })).toHaveAttribute(
-      'href',
-      '/login',
-    )
+    const loginLink = screen.getByRole('link', { name: 'Đăng nhập để theo dõi Hà Linh' })
+    expect(loginLink).toHaveAttribute('href', '/login')
     expect(screen.queryByText('@person-1')).not.toBeInTheDocument()
+    await user.click(loginLink)
+    await waitFor(() => {
+      expect(screen.getByTestId('current-location')).toHaveTextContent('/login')
+    })
+    expect(screen.getByTestId('location-from')).toHaveTextContent('/users/person-1')
   })
 
   it('renders a dedicated missing-profile state for 404', async () => {
@@ -154,5 +171,18 @@ describe('production public profile route', () => {
     renderProfile()
 
     expect(await screen.findByRole('button', { name: 'Theo dõi Hà Linh' })).toBeEnabled()
+  })
+
+  it('keeps long public profile text breakable inside the mobile surface', async () => {
+    const longName = 'TênĐộcGiảKhôngCóKhoảngTrắng'.repeat(5)
+    const longBio = 'TiểuSửCôngKhaiKhôngCóKhoảngTrắng'.repeat(8)
+    mocks.user.mockReturnValue(
+      userResult({ data: { ...profile, displayName: longName, bio: longBio } }),
+    )
+
+    renderProfile()
+
+    expect(await screen.findByRole('heading', { name: longName })).toHaveClass('break-words')
+    expect(screen.getByText(longBio)).toHaveClass('break-words')
   })
 })

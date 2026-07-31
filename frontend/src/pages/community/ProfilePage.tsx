@@ -73,7 +73,9 @@ export function ProfilePage() {
               <Avatar src={profile.data.avatarUrl} name={profile.data.displayName} size="xl" />
             </div>
             <div className="min-w-0 flex-1 sm:pb-1">
-              <h1 className="text-2xl font-bold tracking-tight text-heading">{profile.data.displayName}</h1>
+              <h1 className="break-words text-2xl font-bold tracking-tight text-heading">
+                {profile.data.displayName}
+              </h1>
               <p className="mt-1 text-sm text-muted">Hồ sơ độc giả BookSpace</p>
             </div>
             {!ownProfile ? (
@@ -114,7 +116,9 @@ export function ProfilePage() {
             ) : null}
           </div>
           {profile.data.bio ? (
-            <p className="mt-6 max-w-2xl whitespace-pre-line text-sm leading-6 text-body">{profile.data.bio}</p>
+            <p className="mt-6 max-w-2xl whitespace-pre-line break-words text-sm leading-6 text-body">
+              {profile.data.bio}
+            </p>
           ) : ownProfile ? (
             <p className="mt-6 text-sm text-muted">Bạn có thể thêm giới thiệu trong phần cài đặt.</p>
           ) : null}

@@ -93,7 +93,13 @@ vi.mock('../../hooks/useCommunity', () => ({
 
 function LocationProbe() {
   const location = useLocation()
-  return <output data-testid="current-location">{`${location.pathname}${location.search}`}</output>
+  const state = location.state as { from?: string } | null
+  return (
+    <>
+      <output data-testid="current-location">{`${location.pathname}${location.search}`}</output>
+      <output data-testid="location-from">{state?.from ?? ''}</output>
+    </>
+  )
 }
 
 function renderProductionApp(path: string) {
@@ -142,6 +148,18 @@ describe('production people route', () => {
   })
 
   it('renders guest search from URL and keeps a login-return CTA on every result', async () => {
+    const user = userEvent.setup()
+    mocks.people.mockReturnValue(
+      queryResult({
+        data: {
+          items: [person],
+          page: 2,
+          pageSize: 12,
+          totalItems: 24,
+          totalPages: 2,
+        },
+      }),
+    )
     renderProductionApp('/people?search=Minh&page=2')
 
     expect(await screen.findByRole('heading', { name: 'Tìm người cùng nhịp đọc' })).toBeInTheDocument()
@@ -151,11 +169,16 @@ describe('production people route', () => {
       'href',
       '/users/person-1',
     )
-    expect(screen.getByRole('link', { name: 'Đăng nhập để theo dõi Minh Anh' })).toHaveAttribute(
-      'href',
-      '/login',
-    )
+    const loginLink = screen.getByRole('link', { name: 'Đăng nhập để theo dõi Minh Anh' })
+    expect(loginLink).toHaveAttribute('href', '/login')
     expect(screen.queryByText(/@person/)).not.toBeInTheDocument()
+    await user.click(loginLink)
+    await waitFor(() =>
+      expect(screen.getByTestId('current-location')).toHaveTextContent('/login'),
+    )
+    expect(screen.getByTestId('location-from')).toHaveTextContent(
+      '/people?search=Minh&page=2',
+    )
   })
 
   it('writes submitted search to the production URL query string', async () => {

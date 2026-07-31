@@ -141,9 +141,7 @@ if (
 }
 
 $haLinhSearch = @($people.data.items | Where-Object { $_.displayName -eq 'Hà Linh' })
-$haLinhSuggestion = @(
-    $peopleSuggestions.data.items | Where-Object { $_.displayName -eq 'Hà Linh' }
-)
+$suggestionItems = @($peopleSuggestions.data.items)
 $suggestionReasons = @(
     'MUTUAL_FOLLOWS',
     'FOLLOWS_YOU',
@@ -165,8 +163,9 @@ $requiredPeopleFields = @(
     'reasonText'
 )
 $searchFields = @($haLinhSearch[0].PSObject.Properties.Name)
-$suggestionFields = @($haLinhSuggestion[0].PSObject.Properties.Name)
-if (
+$suggestionPageFields = @($peopleSuggestions.data.PSObject.Properties.Name)
+$requiredSuggestionPageFields = @('items', 'page', 'pageSize', 'totalItems', 'totalPages')
+$peopleSmokeInvalid = (
     $haLinhSearch.Count -ne 1 -or
     @($requiredPeopleFields | Where-Object { $_ -notin $searchFields }).Count -gt 0 -or
     $haLinhSearch[0].reason -ne 'SEARCH_MATCH' -or
@@ -174,13 +173,26 @@ if (
     $null -eq $haLinhSearch[0].followerCount -or
     $null -eq $haLinhSearch[0].booksReadCount -or
     ($haLinhSearch[0].PSObject.Properties.Name -contains 'email') -or
-    $haLinhSuggestion.Count -ne 1 -or
-    @($requiredPeopleFields | Where-Object { $_ -notin $suggestionFields }).Count -gt 0 -or
-    $haLinhSuggestion[0].reason -notin $suggestionReasons -or
-    $haLinhSuggestion[0].mutualFollowCount -lt 1 -or
-    -not $haLinhSuggestion[0].followsYou
-) {
-    throw 'People Discovery không trả đúng Hà Linh hoặc public DTO/reason mong đợi.'
+    @(
+        $requiredSuggestionPageFields |
+            Where-Object { $_ -notin $suggestionPageFields }
+    ).Count -gt 0 -or
+    $peopleSuggestions.data.totalItems -lt $suggestionItems.Count
+)
+foreach ($suggestionItem in $suggestionItems) {
+    $suggestionFields = @($suggestionItem.PSObject.Properties.Name)
+    if (
+        @($requiredPeopleFields | Where-Object { $_ -notin $suggestionFields }).Count -gt 0 -or
+        $suggestionItem.reason -notin $suggestionReasons -or
+        -not $suggestionItem.reasonText -or
+        ($suggestionFields -contains 'email')
+    ) {
+        $peopleSmokeInvalid = $true
+        break
+    }
+}
+if ($peopleSmokeInvalid) {
+    throw 'People Discovery không trả đúng public DTO, PageResult hoặc reason mong đợi.'
 }
 
 if (
