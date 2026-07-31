@@ -8,6 +8,7 @@ namespace BookSpace.Application.Services;
 public sealed class ChallengeService(
     IBookSpaceDbContext db,
     IAsyncQueryExecutor queryExecutor,
+    IChallengeParticipationReader participationReader,
     IChallengeMutationBoundary mutationBoundary,
     IChallengeProgressSynchronizer progressSynchronizer) : IChallengeService
 {
@@ -197,9 +198,8 @@ public sealed class ChallengeService(
                 var challenge = await FindChallengeAsync(
                     challengeId,
                     transactionCancellationToken);
-                if (await queryExecutor.AnyAsync(
-                    db.ChallengeParticipations.Where(x =>
-                        x.ChallengeId == challenge.Id),
+                if (await participationReader.AnyPhysicalForChallengeAsync(
+                    challenge.Id,
                     transactionCancellationToken))
                 {
                     throw ServiceErrors.Conflict(
@@ -228,9 +228,8 @@ public sealed class ChallengeService(
                         "Chỉ có thể xóa bản nháp thử thách.");
                 }
 
-                if (await queryExecutor.AnyAsync(
-                    db.ChallengeParticipations.Where(x =>
-                        x.ChallengeId == challenge.Id),
+                if (await participationReader.AnyPhysicalForChallengeAsync(
+                    challenge.Id,
                     transactionCancellationToken))
                 {
                     throw ServiceErrors.Conflict(

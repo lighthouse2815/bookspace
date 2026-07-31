@@ -52,6 +52,7 @@ public sealed class ChallengeProgressPersistence(BookSpaceDbContext db)
 
         var boundedCandidate = Math.Clamp(candidateBooks, 0, targetBooks);
         await db.ChallengeParticipationSet
+            .IgnoreQueryFilters()
             .Where(x =>
                 x.Id == participationId &&
                 (x.CompletedBooks < boundedCandidate ||
@@ -79,6 +80,7 @@ public sealed class ChallengeProgressPersistence(BookSpaceDbContext db)
                 cancellationToken);
 
         var persisted = await db.ChallengeParticipationSet
+            .IgnoreQueryFilters()
             .Where(x => x.Id == participationId)
             .Select(x => new ChallengeProgressWriteResult(
                 x.CompletedBooks,

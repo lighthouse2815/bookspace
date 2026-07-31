@@ -1305,17 +1305,25 @@ Request:
 
 Response `200`: `ApiResponse<ChallengeResponse>`.
 
-Đặt `isPublished=false` chỉ thành công khi challenge chưa có participant.
+Đặt `isPublished=false` chỉ thành công khi challenge không có bất kỳ row vật lý
+`ChallengeParticipation` nào.
 
 ### `DELETE /api/admin/challenges/{challengeId}` — ADMIN
 
-Chỉ draft chưa có participant được xóa mềm. Response `200`: `ApiResponse<null>`.
+Chỉ draft không có bất kỳ row vật lý `ChallengeParticipation` nào được xóa mềm.
+Response `200`: `ApiResponse<null>`.
 
-Guard không có participant của unpublish/delete được đánh giá sau khi lấy cùng
-serialized write lock mà join sử dụng. Thứ tự commit quyết định command thắng:
-join thắng làm admin mutation trả conflict; admin mutation thắng làm join trả
-conflict/not-found. Không có trạng thái commit challenge draft/đã xóa kèm
-participation. Publish `true` và update challenge không thuộc boundary hẹp này.
+Trong guard unpublish/delete, “participant” nghĩa là mọi row vật lý có
+`ChallengeId` tương ứng, bỏ qua global query filters: gồm row có `DeletedAt` và row
+thuộc user có `DeletedAt`. Guard được đánh giá sau khi lấy cùng serialized write
+lock mà join sử dụng, để restoration không làm participation cũ xuất hiện lại trên
+challenge draft/đã xóa. Thứ tự commit quyết định command thắng: join thắng làm
+admin mutation trả conflict; admin mutation thắng làm join trả
+conflict/not-found. Publish `true` và update challenge không thuộc boundary hẹp
+này. Acquire/retry write lock dùng cửa sổ ngắn và tôn trọng request cancellation;
+nếu bị hủy trước khi lấy lock thì callback nghiệp vụ không chạy và không có
+mutation được commit.
+
 Nếu admin không nhận được response trong lúc/sau commit, danh sách quản trị là
 nguồn đối soát trạng thái.
 
@@ -1477,7 +1485,7 @@ thành lỗi của core API.
 | `CHALLENGE_NOT_JOINED` | 404 | chưa tham gia |
 | `CHALLENGE_RULES_LOCKED` | 409 | không đổi mục tiêu hoặc thời gian sau publish |
 | `CHALLENGE_DELETE_REQUIRES_DRAFT` | 409 | chỉ xóa bản nháp |
-| `CHALLENGE_HAS_PARTICIPANTS` | 409 | không unpublish/xóa khi đã có participant |
+| `CHALLENGE_HAS_PARTICIPANTS` | 409 | không unpublish/xóa khi còn bất kỳ row vật lý participation nào, kể cả row bị global filter ẩn |
 | `NOTIFICATION_NOT_FOUND` | 404 | notification không thuộc principal |
 | `ROUTE_NOT_FOUND` | 404 | route hoặc tài nguyên HTTP không tồn tại |
 | `INTERNAL_ERROR` | 500 | lỗi không dự kiến |

@@ -70,6 +70,8 @@ public sealed class ChallengeProgressConcurrencyTests(BookSpaceApiFactory factor
     {
         Guid participationId;
         var completedAt = DateTimeOffset.UtcNow;
+        completedAt = completedAt.AddTicks(
+            -(completedAt.Ticks % TimeSpan.TicksPerMillisecond));
         await using (var setupScope = factory.Services.CreateAsyncScope())
         {
             var db = setupScope.ServiceProvider.GetRequiredService<BookSpaceDbContext>();
@@ -145,6 +147,8 @@ public sealed class ChallengeProgressConcurrencyTests(BookSpaceApiFactory factor
     {
         Guid participationId;
         var completedAt = DateTimeOffset.UtcNow;
+        completedAt = completedAt.AddTicks(
+            -(completedAt.Ticks % TimeSpan.TicksPerMillisecond));
         await using (var setupScope = factory.Services.CreateAsyncScope())
         {
             var db = setupScope.ServiceProvider.GetRequiredService<BookSpaceDbContext>();
@@ -171,6 +175,7 @@ public sealed class ChallengeProgressConcurrencyTests(BookSpaceApiFactory factor
             db.Add(participation);
             await db.SaveChangesAsync();
             await db.ChallengeParticipationSet
+                .IgnoreQueryFilters()
                 .Where(x => x.Id == participationId)
                 .ExecuteUpdateAsync(
                     setters => setters.SetProperty(x => x.CompletedBooks, 2));

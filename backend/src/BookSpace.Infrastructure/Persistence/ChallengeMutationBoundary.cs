@@ -1,4 +1,5 @@
 using System.Data;
+using System.Globalization;
 using BookSpace.Application.Abstractions;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -48,26 +49,95 @@ public sealed class ChallengeMutationBoundary(BookSpaceDbContext db)
         CancellationToken cancellationToken)
     {
         const int maxAttempts = 4;
-        for (var attempt = 1; ; attempt++)
+        const int attemptTimeoutSeconds = 1;
+        cancellationToken.ThrowIfCancellationRequested();
+        var originalTimeout = connection.DefaultTimeout;
+        var originalBusyTimeout = ReadBusyTimeoutMilliseconds(connection);
+        SqliteTransaction? acquiredTransaction = null;
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            try
+            // DefaultTimeout=0 means no timeout in Microsoft.Data.Sqlite.
+            // One second is the shortest public provider timeout; clearing the
+            // native busy handler prevents it from adding another blocking wait.
+            connection.DefaultTimeout = attemptTimeoutSeconds;
+            WriteBusyTimeoutMilliseconds(connection, 0);
+            for (var attempt = 1; ; attempt++)
             {
-                // deferred: false acquires the SQLite write reservation before
-                // eligibility is read, so competing challenge mutations serialize.
-                return connection.BeginTransaction(
-                    IsolationLevel.Serializable,
-                    deferred: false);
-            }
-            catch (SqliteException exception) when (
-                IsSqliteBusy(exception) &&
-                attempt < maxAttempts)
-            {
-                await Task.Delay(
-                    TimeSpan.FromMilliseconds(25 * attempt),
-                    cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    // Microsoft.Data.Sqlite transaction acquisition is synchronous.
+                    // Bound each provider retry window, then use cancellable backoff.
+                    var transaction = connection.BeginTransaction(
+                        IsolationLevel.Serializable,
+                        deferred: false);
+                    acquiredTransaction = transaction;
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        transaction.Dispose();
+                        acquiredTransaction = null;
+                        cancellationToken.ThrowIfCancellationRequested();
+                    }
+
+                    return transaction;
+                }
+                catch (SqliteException exception) when (IsSqliteBusy(exception))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (attempt >= maxAttempts)
+                    {
+                        throw;
+                    }
+
+                    await Task.Delay(
+                        TimeSpan.FromMilliseconds(25 * attempt),
+                        cancellationToken);
+                }
             }
         }
+        finally
+        {
+            connection.DefaultTimeout = originalTimeout;
+            try
+            {
+                WriteBusyTimeoutMilliseconds(connection, originalBusyTimeout);
+            }
+            catch
+            {
+                try
+                {
+                    acquiredTransaction?.Dispose();
+                }
+                catch
+                {
+                    // Preserve the PRAGMA restoration failure.
+                }
+
+                // PRAGMA state belongs to the pooled native handle. Do not let a
+                // connection with a changed busy handler return to the pool.
+                SqliteConnection.ClearPool(connection);
+                throw;
+            }
+        }
+    }
+
+    private static int ReadBusyTimeoutMilliseconds(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "PRAGMA busy_timeout;";
+        return Convert.ToInt32(
+            command.ExecuteScalar(),
+            CultureInfo.InvariantCulture);
+    }
+
+    private static void WriteBusyTimeoutMilliseconds(
+        SqliteConnection connection,
+        int milliseconds)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            $"PRAGMA busy_timeout = {milliseconds.ToString(CultureInfo.InvariantCulture)};";
+        command.ExecuteNonQuery();
     }
 
     private static bool IsChallengeParticipationUniqueViolation(

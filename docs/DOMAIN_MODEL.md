@@ -530,7 +530,7 @@ Invariant:
 - Chỉ `ADMIN` tạo/sửa/xóa/publish.
 - Sau publish không thay đổi `GoalBooks`, `StartDate`, `EndDate`.
 - Chỉ challenge chưa bị xóa, đã publish và chưa hết hạn mới nhận participant mới.
-- Join, unpublish và soft-delete dùng cùng serialized, non-deferred SQLite challenge-mutation boundary, lấy write lock trước khi đọc điều kiện. Thứ tự commit quyết định command thắng; database không thể commit challenge draft/đã xóa đồng thời có participation. Publish `true` và update không thuộc boundary hẹp này.
+- Join, unpublish và soft-delete dùng cùng serialized, non-deferred SQLite challenge-mutation boundary, lấy write lock trước khi đọc điều kiện. Guard admin tính mọi row vật lý `ChallengeParticipation` có cùng `ChallengeId`, kể cả row có `DeletedAt` hoặc thuộc user có `DeletedAt`; global query filters không được che quan hệ lịch sử có thể xuất hiện lại khi restore. Thứ tự commit quyết định command thắng; các use case không tạo mới challenge draft/đã xóa kèm participation vật lý. Nếu dữ liệu cũ đã vi phạm invariant này, unpublish/delete trả conflict và không đổi trạng thái. Publish `true` và update không thuộc boundary hẹp này.
 
 ### 7.2 `ChallengeParticipation`
 
@@ -542,6 +542,7 @@ Invariant:
 | `CurrentBooks` | `int` | có | high-water mark 0..`ReadingChallenge.GoalBooks` do server suy ra |
 | `JoinedAt` | `DateTimeOffset` | có | audit thời điểm tham gia, không thu hẹp cửa sổ tính tiến độ |
 | `CompletedAt` | `DateTimeOffset?` | không | đặt khi đạt mục tiêu |
+| `DeletedAt` | `DateTimeOffset?` | không | global filter có thể ẩn row, nhưng row vật lý vẫn chặn unpublish/delete challenge |
 
 Invariant:
 
@@ -659,7 +660,7 @@ Các thao tác sau phải atomic:
 - Create milestone response: tạo một thread item mới cho participant active; author hoặc club manager soft-delete response theo quyền.
 - Send sprint reminder: tạo dấu ngày UTC và notification cho active participant chưa đạt target, còn là club member và khác actor trong cùng transaction; retry cùng ngày không tạo thêm dữ liệu.
 - Complete/cancel reading sprint: đặt trạng thái terminal đúng một lần và không phát side effect khi gọi lại.
-- Join/unpublish/delete challenge: lấy serialized, non-deferred SQLite write lock trước eligibility/precondition read; join tạo participation, đồng bộ initial progress/completion và chèn notification chống trùng trong cùng transaction.
+- Join/unpublish/delete challenge: lấy serialized, non-deferred SQLite write lock trước eligibility/precondition read; guard admin kiểm tra mọi row participation vật lý bỏ qua global filters, còn join tạo participation, đồng bộ initial progress/completion và chèn notification chống trùng trong cùng transaction.
 - Leave challenge: load participation, remove, sync các challenge còn lại và map response trong cùng transaction.
 - Record reading session: tạo session và cập nhật/tạo library item.
 - Complete book: cập nhật library item, cập nhật challenge participation liên quan và tạo notification hoàn thành nếu đạt mục tiêu.

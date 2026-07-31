@@ -338,7 +338,7 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-CHAL-012 | P0 | Progress đã đồng bộ là atomic high-water mark: không giảm khi shelf đổi về sau hoặc khi sync đồng thời, không vượt goal và list/detail/`my`/dashboard không trả stale trước filter/phân trang. |
 | AC-CHAL-013 | P0 | Mutation lần đầu hoàn tất sách tạo completion ngay, không cần mở challenge; đạt goal đặt `completedAt` một lần và unique event key bảo đảm đúng một notification `CHALLENGE` link `/challenges/{id}` khi request đồng thời hoặc đọc lại. |
 | AC-CHAL-014 | P0 | Route canonical `GET /api/challenges/my` chỉ trả challenge principal đã tham gia; alias tương thích `GET /api/challenges/mine` trả payload tương đương. |
-| AC-CHAL-015 | P0 | Join, unpublish và delete cùng dùng serialized, non-deferred SQLite challenge write boundary lấy lock trước khi đọc điều kiện: join thắng làm admin mutation trả 409; admin mutation thắng làm join trả conflict/not-found; database không có challenge draft/đã xóa kèm participant. |
+| AC-CHAL-015 | P0 | Join, unpublish và delete cùng dùng serialized, non-deferred SQLite challenge write boundary lấy lock trước khi đọc điều kiện: join thắng làm admin mutation trả 409; admin mutation thắng làm join trả conflict/not-found. Guard admin tính mọi row vật lý `ChallengeParticipation` của challenge, kể cả row đã soft-delete hoặc thuộc user đã soft-delete, nên các use case không thể tạo mới challenge draft/đã xóa kèm participation có thể xuất hiện lại khi restore; nếu dữ liệu cũ đã vi phạm thì admin mutation vẫn phải trả 409 và giữ nguyên trạng thái. Acquire/retry lock là ngắn và cancellable; hủy trước khi lấy lock không chạy callback hoặc commit mutation. |
 | AC-CHAL-016 | P0 | Leave load/remove/sync/map trong một transaction và controller không đọc lại: response có `isJoined=false`, `currentBooks=0`; leave lặp lại trả 404. Nếu response bị mất tại/sau commit, client dùng GET detail/`my` để đối soát. |
 
 ## 16. Notifications
@@ -482,7 +482,7 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 - Review unique/like/comment.
 - Club membership/post permission.
 - Reading sprint lifecycle, permission, participant idempotency, progress, leaderboard, timeline, milestone/response, reminder deduplication và private-club isolation.
-- Challenge detail published/draft, atomic join/rollback, concurrent duplicate join 409, serialized join-vs-unpublish/delete, leave không post-read và nonparticipant leave, progress từ sách hoàn tất trước/sau join, deterministic stale-low high-water, repair `CompletedAt`, mutation-time completion và notification dedupe/unique constraint.
+- Challenge detail published/draft, atomic join/rollback, concurrent duplicate join 409, serialized join-vs-unpublish/delete, physical-participation guard, cancellable lock acquisition, leave không post-read và nonparticipant leave, progress từ sách hoàn tất trước/sau join, deterministic stale-low high-water, repair `CompletedAt`, mutation-time completion và notification dedupe/unique constraint.
 - Notification ownership.
 - Global error envelope.
 - Database unique constraints.

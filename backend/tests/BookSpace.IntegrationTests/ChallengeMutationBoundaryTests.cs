@@ -1,9 +1,13 @@
+using System.Data;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using BookSpace.Application.Abstractions;
+using BookSpace.Domain.Entities;
 using BookSpace.Infrastructure.Persistence;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -12,6 +16,222 @@ namespace BookSpace.IntegrationTests;
 
 public sealed class ChallengeMutationBoundaryTests
 {
+    [Fact]
+    public async Task Admin_mutations_count_physical_participations_hidden_by_soft_delete_filters()
+    {
+        await using var factory = new BookSpaceApiFactory();
+        using var admin = factory.CreateClient();
+        await LoginAsync(admin, "admin@bookspace.local", "Admin123!");
+
+        Guid publishedChallengeId;
+        Guid draftChallengeId;
+        Guid activeParticipationId;
+        Guid deletedParticipationId;
+        Guid readerId;
+        await using (var setupScope = factory.Services.CreateAsyncScope())
+        {
+            var db = setupScope.ServiceProvider.GetRequiredService<BookSpaceDbContext>();
+            var adminId = await db.UserSet
+                .Where(x => x.Email == "admin@bookspace.local")
+                .Select(x => x.Id)
+                .SingleAsync();
+            var reader = await db.UserSet
+                .SingleAsync(x => x.Email == "reader@bookspace.local");
+            var now = DateTimeOffset.UtcNow;
+            var publishedChallenge = new ReadingChallenge(
+                adminId,
+                $"Thử thách có độc giả đã xóa {Guid.NewGuid():N}",
+                "Participation vật lý phải chặn việc chuyển về bản nháp.",
+                3,
+                now.AddHours(-1),
+                now.AddHours(1),
+                null,
+                true);
+            var draftChallenge = new ReadingChallenge(
+                adminId,
+                $"Bản nháp có participation đã xóa {Guid.NewGuid():N}",
+                "Participation vật lý phải chặn việc xóa thử thách.",
+                3,
+                now.AddHours(-1),
+                now.AddHours(1),
+                null,
+                false);
+            var activeParticipation =
+                new ChallengeParticipation(publishedChallenge.Id, reader.Id);
+            var deletedParticipation =
+                new ChallengeParticipation(draftChallenge.Id, reader.Id);
+            deletedParticipation.SoftDelete();
+            reader.SoftDelete();
+
+            publishedChallengeId = publishedChallenge.Id;
+            draftChallengeId = draftChallenge.Id;
+            activeParticipationId = activeParticipation.Id;
+            deletedParticipationId = deletedParticipation.Id;
+            readerId = reader.Id;
+            db.Add(publishedChallenge);
+            db.Add(draftChallenge);
+            db.Add(activeParticipation);
+            db.Add(deletedParticipation);
+            await db.SaveChangesAsync();
+        }
+
+        var unpublish = await admin.PatchAsJsonAsync(
+            $"/api/admin/challenges/{publishedChallengeId}/publish",
+            new { isPublished = false });
+        var delete = await admin.DeleteAsync(
+            $"/api/admin/challenges/{draftChallengeId}");
+
+        Assert.Equal(HttpStatusCode.Conflict, unpublish.StatusCode);
+        Assert.Equal(
+            "CHALLENGE_HAS_PARTICIPANTS",
+            (await ReadEnvelopeAsync(unpublish)).GetProperty("code").GetString());
+        Assert.Equal(HttpStatusCode.Conflict, delete.StatusCode);
+        Assert.Equal(
+            "CHALLENGE_HAS_PARTICIPANTS",
+            (await ReadEnvelopeAsync(delete)).GetProperty("code").GetString());
+
+        await using var assertScope = factory.Services.CreateAsyncScope();
+        var assertDb = assertScope.ServiceProvider.GetRequiredService<BookSpaceDbContext>();
+        var challenges = await assertDb.ReadingChallengeSet
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(x => x.Id == publishedChallengeId || x.Id == draftChallengeId)
+            .ToDictionaryAsync(x => x.Id);
+        Assert.True(challenges[publishedChallengeId].IsPublished);
+        Assert.Null(challenges[publishedChallengeId].DeletedAt);
+        Assert.False(challenges[draftChallengeId].IsPublished);
+        Assert.Null(challenges[draftChallengeId].DeletedAt);
+
+        var participations = await assertDb.ChallengeParticipationSet
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(x =>
+                x.Id == activeParticipationId ||
+                x.Id == deletedParticipationId)
+            .ToDictionaryAsync(x => x.Id);
+        Assert.Equal(2, participations.Count);
+        Assert.Null(participations[activeParticipationId].DeletedAt);
+        Assert.NotNull(participations[deletedParticipationId].DeletedAt);
+        Assert.NotNull(
+            (await assertDb.UserSet
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .SingleAsync(x => x.Id == readerId))
+            .DeletedAt);
+    }
+
+    [Fact]
+    public async Task Mutation_boundary_cancels_quickly_while_another_writer_holds_the_lock()
+    {
+        await using var factory = new BookSpaceApiFactory();
+        using var startupClient = factory.CreateClient();
+
+        Guid challengeId;
+        await using var blockingScope = factory.Services.CreateAsyncScope();
+        var blockingDb =
+            blockingScope.ServiceProvider.GetRequiredService<BookSpaceDbContext>();
+        var adminId = await blockingDb.UserSet
+            .Where(x => x.Email == "admin@bookspace.local")
+            .Select(x => x.Id)
+            .SingleAsync();
+        var now = DateTimeOffset.UtcNow;
+        var challenge = new ReadingChallenge(
+            adminId,
+            $"Thử thách kiểm tra hủy lock {Guid.NewGuid():N}",
+            "Mutation bị hủy không được commit thay đổi.",
+            3,
+            now.AddHours(-1),
+            now.AddHours(1),
+            null,
+            true);
+        challengeId = challenge.Id;
+        blockingDb.Add(challenge);
+        await blockingDb.SaveChangesAsync();
+        await blockingDb.Database.OpenConnectionAsync();
+        var blockingConnection =
+            (SqliteConnection)blockingDb.Database.GetDbConnection();
+        await using var blockingTransaction = blockingConnection.BeginTransaction(
+            IsolationLevel.Serializable,
+            deferred: false);
+
+        await using var mutationScope = factory.Services.CreateAsyncScope();
+        var mutationDb =
+            mutationScope.ServiceProvider.GetRequiredService<BookSpaceDbContext>();
+        var mutationBoundary = mutationScope.ServiceProvider
+            .GetRequiredService<IChallengeMutationBoundary>();
+        await mutationDb.Database.OpenConnectionAsync();
+        var mutationConnection =
+            (SqliteConnection)mutationDb.Database.GetDbConnection();
+        const int sentinelBusyTimeoutMilliseconds = 4321;
+        await using (var configureBusyTimeout = mutationConnection.CreateCommand())
+        {
+            configureBusyTimeout.CommandText =
+                $"PRAGMA busy_timeout = {sentinelBusyTimeoutMilliseconds};";
+            await configureBusyTimeout.ExecuteNonQueryAsync();
+        }
+
+        var originalDefaultTimeout = mutationConnection.DefaultTimeout;
+        using var cancellation = new CancellationTokenSource(
+            TimeSpan.FromMilliseconds(100));
+        var callbackEntered = 0;
+        var stopwatch = Stopwatch.StartNew();
+        var mutationTask = Task.Run(
+            () => mutationBoundary.ExecuteAsync(
+                async transactionCancellationToken =>
+                {
+                    transactionCancellationToken.ThrowIfCancellationRequested();
+                    Interlocked.Exchange(ref callbackEntered, 1);
+                    var storedChallenge = await mutationDb.ReadingChallengeSet
+                        .SingleAsync(
+                            x => x.Id == challengeId,
+                            transactionCancellationToken);
+                    storedChallenge.Unpublish();
+                    await mutationDb.SaveChangesAsync(transactionCancellationToken);
+                    return true;
+                },
+                cancellation.Token));
+
+        Exception? observed;
+        try
+        {
+            observed = await Record.ExceptionAsync(
+                () => mutationTask.WaitAsync(TimeSpan.FromSeconds(4)));
+            stopwatch.Stop();
+        }
+        finally
+        {
+            if (stopwatch.IsRunning)
+            {
+                stopwatch.Stop();
+            }
+
+            await blockingTransaction.RollbackAsync();
+        }
+
+        _ = await Record.ExceptionAsync(() => mutationTask);
+        Assert.IsAssignableFrom<OperationCanceledException>(observed);
+        Assert.True(
+            stopwatch.Elapsed < TimeSpan.FromSeconds(3),
+            $"Boundary mất {stopwatch.Elapsed} để quan sát cancellation.");
+        Assert.Equal(0, Volatile.Read(ref callbackEntered));
+        Assert.Equal(originalDefaultTimeout, mutationConnection.DefaultTimeout);
+        await using (var readBusyTimeout = mutationConnection.CreateCommand())
+        {
+            readBusyTimeout.CommandText = "PRAGMA busy_timeout;";
+            Assert.Equal(
+                sentinelBusyTimeoutMilliseconds,
+                Convert.ToInt32(await readBusyTimeout.ExecuteScalarAsync()));
+        }
+
+        await using var assertScope = factory.Services.CreateAsyncScope();
+        var assertDb = assertScope.ServiceProvider.GetRequiredService<BookSpaceDbContext>();
+        var persisted = await assertDb.ReadingChallengeSet
+            .AsNoTracking()
+            .SingleAsync(x => x.Id == challengeId);
+        Assert.True(persisted.IsPublished);
+        Assert.Null(persisted.DeletedAt);
+    }
+
     [Fact]
     public async Task Join_rechecks_eligibility_after_admin_unpublishes_and_deletes()
     {
@@ -206,6 +426,12 @@ public sealed class ChallengeMutationBoundaryTests
     {
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         return document.RootElement.GetProperty("data").Clone();
+    }
+
+    private static async Task<JsonElement> ReadEnvelopeAsync(HttpResponseMessage response)
+    {
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return document.RootElement.Clone();
     }
 
     private sealed class FirstMutationGate
