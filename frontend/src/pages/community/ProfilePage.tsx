@@ -1,15 +1,20 @@
-import { BookOpenText, CalendarBlank, UserMinus, UserPlus, Users } from '@phosphor-icons/react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Navigate, useParams } from 'react-router-dom'
+import {
+  BookOpenText,
+  CalendarBlank,
+  UserCircle,
+  UserMinus,
+  UserPlus,
+  Users,
+} from '@phosphor-icons/react'
+import { Link, Navigate, useLocation, useParams } from 'react-router-dom'
 import { Avatar } from '../../components/ui/Avatar'
 import { Button } from '../../components/ui/Button'
-import { ErrorState } from '../../components/ui/States'
+import { EmptyState, ErrorState } from '../../components/ui/States'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
-import { useUser } from '../../hooks/useCommunity'
-import { errorMessage } from '../../lib/api'
+import { useFollowUser, useUser } from '../../hooks/useCommunity'
+import { errorMessage, isNotFoundError } from '../../lib/api'
 import { formatDate } from '../../lib/format'
-import { communityService } from '../../services/community.service'
 
 export function CurrentProfileRedirect() {
   const { user } = useAuth()
@@ -19,24 +24,33 @@ export function CurrentProfileRedirect() {
 export function ProfilePage() {
   const { id } = useParams()
   const { user: currentUser, isAuthenticated } = useAuth()
+  const location = useLocation()
   const profile = useUser(id)
-  const queryClient = useQueryClient()
   const { showToast } = useToast()
   const ownProfile = currentUser?.id === id
-  const follow = useMutation({
-    mutationFn: () =>
-      profile.data?.isFollowing ? communityService.unfollow(id!) : communityService.follow(id!),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['users', id] })
-      showToast(profile.data?.isFollowing ? 'Đã bỏ theo dõi' : 'Đã theo dõi người đọc này', 'success')
-    },
-    onError: (error) => showToast(errorMessage(error), 'error'),
-  })
+  const follow = useFollowUser(id ?? '', Boolean(profile.data?.isFollowing))
 
   if (profile.isLoading) {
     return (
       <div className="container-page section-space">
         <div className="h-48 animate-pulse rounded-2xl bg-surface-muted" />
+      </div>
+    )
+  }
+
+  if (profile.isError && isNotFoundError(profile.error)) {
+    return (
+      <div className="container-page section-space">
+        <EmptyState
+          title="Không tìm thấy hồ sơ"
+          description="Độc giả này không còn hoạt động hoặc đường dẫn không chính xác."
+          icon={UserCircle}
+          action={
+            <Link to="/people" className="button button-secondary button-sm">
+              Xem danh sách độc giả
+            </Link>
+          }
+        />
       </div>
     )
   }
@@ -60,7 +74,7 @@ export function ProfilePage() {
             </div>
             <div className="min-w-0 flex-1 sm:pb-1">
               <h1 className="text-2xl font-bold tracking-tight text-heading">{profile.data.displayName}</h1>
-              <p className="mt-1 text-sm text-muted">@{profile.data.username || profile.data.id.slice(0, 8)}</p>
+              <p className="mt-1 text-sm text-muted">Hồ sơ độc giả BookSpace</p>
             </div>
             {!ownProfile ? (
               isAuthenticated ? (
@@ -70,11 +84,30 @@ export function ProfilePage() {
                   icon={
                     profile.data.isFollowing ? <UserMinus size={18} /> : <UserPlus size={18} />
                   }
-                  onClick={() => follow.mutate()}
+                  onClick={() =>
+                    follow.mutate(undefined, {
+                      onSuccess: () =>
+                        showToast(
+                          profile.data.isFollowing
+                            ? 'Đã bỏ theo dõi'
+                            : 'Đã theo dõi người đọc này',
+                          'success',
+                        ),
+                      onError: (error) => showToast(errorMessage(error), 'error'),
+                    })
+                  }
                 >
                   {profile.data.isFollowing ? 'Đang theo dõi' : 'Theo dõi'}
                 </Button>
-              ) : null
+              ) : (
+                <Link
+                  to="/login"
+                  state={{ from: `${location.pathname}${location.search}` }}
+                  className="button button-primary button-md"
+                >
+                  Đăng nhập để theo dõi
+                </Link>
+              )
             ) : null}
           </div>
           {profile.data.bio ? (

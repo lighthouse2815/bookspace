@@ -47,6 +47,10 @@ export function errorMessage(error: unknown, fallback = 'Đã có lỗi xảy ra
   return error instanceof Error ? error.message : fallback
 }
 
+export function isNotFoundError(error: unknown) {
+  return axios.isAxiosError(error) && error.response?.status === 404
+}
+
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const tokens = getStoredTokens()
   if (tokens?.accessToken) config.headers.Authorization = `Bearer ${tokens.accessToken}`

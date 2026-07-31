@@ -6,13 +6,110 @@ using BookSpace.Domain.Enums;
 
 namespace BookSpace.Application.Services;
 
-public sealed class UserService(IBookSpaceDbContext db) : IUserService
+public sealed class UserService(
+    IBookSpaceDbContext db,
+    IAsyncQueryExecutor queryExecutor,
+    IUserDiscoveryQuery discoveryQuery) : IUserService
 {
     public UserProfile Get(Guid userId, Guid? viewerId)
     {
         var user = db.Users.FirstOrDefault(x => x.Id == userId)
                    ?? throw ServiceErrors.NotFound("USER_NOT_FOUND", "Không tìm thấy người dùng.");
         return Map(user, viewerId);
+    }
+
+    public async Task<PageResult<UserDiscoveryItem>> SearchAsync(
+        string? search,
+        Guid? viewerId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        var normalizedSearch = search?.Trim();
+        if (!string.IsNullOrEmpty(normalizedSearch) &&
+            normalizedSearch.Length is < 2 or > 100)
+        {
+            throw new UseCaseException(
+                "INVALID_USER_SEARCH",
+                "Từ khóa tìm kiếm độc giả phải có từ 2 đến 100 ký tự.");
+        }
+
+        var users = db.Users.Where(user => !user.IsLocked);
+        if (viewerId.HasValue)
+        {
+            users = users.Where(user => user.Id != viewerId.Value);
+        }
+
+        if (!string.IsNullOrEmpty(normalizedSearch))
+        {
+            users = discoveryQuery.ApplyDisplayNameSearch(users, normalizedSearch);
+        }
+
+        var total = await queryExecutor.CountAsync(users, cancellationToken);
+        var (normalizedPage, size, skip) = Paging.Normalize(page, pageSize);
+        var candidates = await queryExecutor.ToListAsync(
+            ProjectDiscovery(
+                    users
+                        .OrderBy(user => user.DisplayName)
+                        .ThenBy(user => user.Id),
+                    viewerId)
+                .Skip(skip)
+                .Take(size),
+            cancellationToken);
+        var reason = string.IsNullOrEmpty(normalizedSearch)
+            ? ("DIRECTORY", "Độc giả đang hoạt động trên BookSpace.")
+            : ("SEARCH_MATCH", "Phù hợp với tên hiển thị bạn đang tìm.");
+        var items = candidates
+            .Select(candidate => ToDiscoveryItem(candidate, reason.Item1, reason.Item2))
+            .ToList();
+
+        return PageResult<UserDiscoveryItem>.Create(items, normalizedPage, size, total);
+    }
+
+    public async Task<PageResult<UserDiscoveryItem>> GetSuggestionsAsync(
+        Guid userId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        if (!await queryExecutor.AnyAsync(
+                db.Users.Where(user => user.Id == userId),
+                cancellationToken))
+        {
+            throw ServiceErrors.NotFound("USER_NOT_FOUND", "Không tìm thấy người dùng.");
+        }
+
+        var followedUserIds = db.Follows
+            .Where(follow => follow.FollowerId == userId)
+            .Select(follow => follow.FollowingId);
+        var users = db.Users.Where(user =>
+            !user.IsLocked &&
+            user.Id != userId &&
+            !followedUserIds.Contains(user.Id));
+
+        var total = await queryExecutor.CountAsync(users, cancellationToken);
+        var (normalizedPage, size, skip) = Paging.Normalize(page, pageSize);
+        var orderedUsers = users
+            .OrderByDescending(user => db.Follows.Count(follow =>
+                follow.FollowingId == user.Id &&
+                !follow.Follower.IsLocked &&
+                followedUserIds.Contains(follow.FollowerId)))
+            .ThenByDescending(user => db.Follows.Count(follow =>
+                follow.FollowingId == user.Id &&
+                !follow.Follower.IsLocked))
+            .ThenByDescending(user => db.LibraryItems.Count(item =>
+                item.UserId == user.Id &&
+                item.Status == LibraryStatus.READ))
+            .ThenBy(user => user.DisplayName)
+            .ThenBy(user => user.Id);
+        var candidates = await queryExecutor.ToListAsync(
+            ProjectDiscovery(orderedUsers, userId)
+                .Skip(skip)
+                .Take(size),
+            cancellationToken);
+        var items = candidates.Select(ToSuggestedDiscoveryItem).ToList();
+
+        return PageResult<UserDiscoveryItem>.Create(items, normalizedPage, size, total);
     }
 
     public async Task<UserProfile> UpdateAsync(Guid userId, UpdateProfileRequest request, CancellationToken cancellationToken)
@@ -99,6 +196,94 @@ public sealed class UserService(IBookSpaceDbContext db) : IUserService
             viewerId.HasValue && db.Follows.Any(x => x.FollowerId == viewerId.Value && x.FollowingId == user.Id),
             user.CreatedAt);
 
+    private IQueryable<DiscoveryCandidate> ProjectDiscovery(
+        IQueryable<User> users,
+        Guid? viewerId)
+    {
+        if (!viewerId.HasValue)
+        {
+            return users.Select(user => new DiscoveryCandidate(
+                user.Id,
+                user.DisplayName,
+                user.Bio,
+                user.AvatarUrl,
+                db.Follows.Count(follow =>
+                    follow.FollowingId == user.Id &&
+                    !follow.Follower.IsLocked),
+                db.LibraryItems.Count(item =>
+                    item.UserId == user.Id &&
+                    item.Status == LibraryStatus.READ),
+                false,
+                false,
+                0));
+        }
+
+        var viewer = viewerId.Value;
+        var followedUserIds = db.Follows
+            .Where(follow => follow.FollowerId == viewer)
+            .Select(follow => follow.FollowingId);
+        return users.Select(user => new DiscoveryCandidate(
+            user.Id,
+            user.DisplayName,
+            user.Bio,
+            user.AvatarUrl,
+            db.Follows.Count(follow =>
+                follow.FollowingId == user.Id &&
+                !follow.Follower.IsLocked),
+            db.LibraryItems.Count(item =>
+                item.UserId == user.Id &&
+                item.Status == LibraryStatus.READ),
+            followedUserIds.Contains(user.Id),
+            db.Follows.Any(follow =>
+                follow.FollowerId == user.Id &&
+                follow.FollowingId == viewer),
+            db.Follows.Count(follow =>
+                follow.FollowingId == user.Id &&
+                !follow.Follower.IsLocked &&
+                followedUserIds.Contains(follow.FollowerId))));
+    }
+
+    private static UserDiscoveryItem ToDiscoveryItem(
+        DiscoveryCandidate candidate,
+        string reason,
+        string reasonText) =>
+        new(
+            candidate.Id,
+            candidate.DisplayName,
+            candidate.Bio,
+            candidate.AvatarUrl,
+            candidate.FollowerCount,
+            candidate.BooksReadCount,
+            candidate.IsFollowing,
+            candidate.FollowsYou,
+            candidate.MutualFollowCount,
+            reason,
+            reasonText);
+
+    private static UserDiscoveryItem ToSuggestedDiscoveryItem(DiscoveryCandidate candidate)
+    {
+        var (reason, reasonText) = candidate switch
+        {
+            { MutualFollowCount: > 0 } => (
+                "MUTUAL_FOLLOWS",
+                $"{candidate.MutualFollowCount} người bạn theo dõi cũng theo dõi độc giả này."),
+            { FollowsYou: true } => (
+                "FOLLOWS_YOU",
+                "Độc giả này đang theo dõi bạn."),
+            { FollowerCount: > 0 } => (
+                "POPULAR_READER",
+                "Được nhiều độc giả BookSpace theo dõi."),
+            { BooksReadCount: > 0 } => (
+                "ACTIVE_READER",
+                "Đang xây dựng hành trình đọc trên BookSpace."),
+            _ => (
+                "NEW_READER",
+                "Một độc giả bạn có thể muốn làm quen.")
+        };
+
+        return ToDiscoveryItem(candidate, reason, reasonText);
+    }
+
     private void EnsureUser(Guid userId)
     {
         if (!db.Users.Any(x => x.Id == userId))
@@ -106,4 +291,15 @@ public sealed class UserService(IBookSpaceDbContext db) : IUserService
             throw ServiceErrors.NotFound("USER_NOT_FOUND", "Không tìm thấy người dùng.");
         }
     }
+
+    private sealed record DiscoveryCandidate(
+        Guid Id,
+        string DisplayName,
+        string? Bio,
+        string? AvatarUrl,
+        int FollowerCount,
+        int BooksReadCount,
+        bool IsFollowing,
+        bool FollowsYou,
+        int MutualFollowCount);
 }

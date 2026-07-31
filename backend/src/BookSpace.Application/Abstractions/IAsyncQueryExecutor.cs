@@ -13,4 +13,8 @@ public interface IAsyncQueryExecutor
     Task<bool> AnyAsync<T>(
         IQueryable<T> query,
         CancellationToken cancellationToken);
+
+    Task<int> CountAsync<T>(
+        IQueryable<T> query,
+        CancellationToken cancellationToken);
 }

@@ -6,9 +6,8 @@ export type ReadingGoalStatus = 'ACTIVE' | 'COMPLETED' | 'EXPIRED'
 
 export interface User {
   id: string
-  email: string
+  email?: string | null
   displayName: string
-  username?: string
   bio?: string
   avatarUrl?: string
   role: UserRole
@@ -17,6 +16,20 @@ export interface User {
   booksReadCount?: number
   isFollowing?: boolean
   joinedAt?: string
+}
+
+export interface UserDiscoveryItem {
+  id: string
+  displayName: string
+  bio?: string
+  avatarUrl?: string
+  followerCount: number
+  booksReadCount: number
+  isFollowing: boolean
+  followsYou: boolean
+  mutualFollowCount: number
+  reason: string
+  reasonText: string
 }
 
 export interface AuthTokens {

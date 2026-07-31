@@ -1,6 +1,12 @@
 import { api, unwrap } from '../lib/api'
 import type { ApiEnvelope, PageResult } from '../types/api'
-import type { FeedItem, Review, ReviewComment, User } from '../types/domain'
+import type {
+  FeedItem,
+  Review,
+  ReviewComment,
+  User,
+  UserDiscoveryItem,
+} from '../types/domain'
 
 export const communityService = {
   feed: async (page = 1) =>
@@ -55,6 +61,20 @@ export const communityService = {
     unwrap(await api.delete<ApiEnvelope<null>>(`/review-comments/${commentId}`)),
 
   user: async (id: string) => unwrap(await api.get<ApiEnvelope<User>>(`/users/${id}`)),
+
+  people: async (search: string, page = 1, pageSize = 20) =>
+    unwrap(
+      await api.get<ApiEnvelope<PageResult<UserDiscoveryItem>>>('/users', {
+        params: { search: search || undefined, page, pageSize },
+      }),
+    ),
+
+  suggestions: async (page = 1, pageSize = 20) =>
+    unwrap(
+      await api.get<ApiEnvelope<PageResult<UserDiscoveryItem>>>('/users/suggestions', {
+        params: { page, pageSize },
+      }),
+    ),
 
   follow: async (id: string) =>
     unwrap(await api.post<ApiEnvelope<User>>(`/users/${id}/follow`)),

@@ -66,6 +66,7 @@ Trang công khai:
 - `/explore`: khám phá sách, chủ đề, câu lạc bộ và thử thách
 - `/books`: catalog, tìm kiếm, lọc và phân trang
 - `/books/:id`: chi tiết sách, thư viện, đánh giá và bình luận
+- `/people`: danh bạ độc giả công khai, tìm theo tên, gợi ý và follow trực tiếp
 - `/users/:id`: hồ sơ người đọc và theo dõi
 - `/clubs`, `/clubs/:id`: danh sách và thảo luận câu lạc bộ
 - `/clubs/:clubId/sprints/:sprintId`: tiến độ, leaderboard, timeline và cột mốc của đợt đọc
@@ -136,3 +137,7 @@ src/
 ```
 
 Khi backend thay đổi một endpoint nhỏ, ưu tiên sửa module tương ứng trong `src/services` thay vì đưa logic gọi API vào component.
+
+Các query có dữ liệu phụ thuộc người xem như people, profile và feed dùng key có
+scope `guest` hoặc `User.Id`. UI chờ auth bootstrap trước khi gọi API để cache
+của khách, tài khoản A và tài khoản B không dùng lại `isFollowing` của nhau.

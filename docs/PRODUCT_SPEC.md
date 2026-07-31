@@ -83,7 +83,7 @@ Goal 1 không thêm vai trò nhân viên, nhà cung cấp hoặc quản trị h�
 
 | Bounded context | Năng lực lõi | Phụ thuộc |
 |---|---|---|
-| Identity & Profile | tài khoản, phiên đăng nhập, hồ sơ, theo dõi | không |
+| Identity & Profile | tài khoản, phiên đăng nhập, hồ sơ, tìm độc giả, gợi ý theo dõi | không |
 | Catalog | sách, tác giả, thể loại, tìm kiếm | không |
 | Reading | thư viện, trạng thái đọc, tiến độ, phiên đọc, mục tiêu đọc, ghi chú riêng tư | Identity, Catalog |
 | Community | review, like, comment, feed | Identity, Catalog, Reading |
@@ -103,6 +103,19 @@ Khách nhập tên hiển thị, email và mật khẩu. Hệ thống chuẩn h�
 ### UC-02 — Đăng nhập và duy trì phiên
 
 Thành viên đăng nhập bằng email/mật khẩu để nhận access token ngắn hạn và refresh token có thể thu hồi. Refresh token được xoay vòng; logout thu hồi token hiện tại.
+
+### UC-02A — Khám phá độc giả
+
+Khách xem danh bạ hồ sơ công khai và tìm duy nhất theo `DisplayName`; email không
+tham gia tìm kiếm và không xuất hiện trong DTO discovery. Search rỗng là danh bạ
+mặc định, còn search khác rỗng được trim và phải dài 2-100 ký tự. User bị lock
+hoặc soft delete không discoverable.
+
+Thành viên thấy gợi ý chưa follow, loại chính mình. Ranking dùng mutual follows
+giảm dần, rồi follower count, books-read count, `DisplayName` và `Id`. Mutual là
+số người X mà principal follow và X cũng follow candidate. Fallback vẫn trả
+candidate hợp lệ khi mutual bằng 0. Follow từ card dùng contract follow hiện hữu,
+sau đó gợi ý, profile, feed và dashboard được làm mới theo principal.
 
 ### UC-03 — Khám phá sách
 
@@ -310,7 +323,9 @@ Seed tối thiểu thêm:
 - 6 tác giả, 5 thể loại, 12 sách có số trang và ảnh bìa hợp lệ.
 - 3 mục thư viện ở đủ ba trạng thái cho reader.
 - 2 phiên đọc, 2 review có bình luận/like.
-- 2 hồ sơ người dùng để kiểm tra follow/feed.
+- 3 hồ sơ người dùng để kiểm tra discovery/follow/feed; `Hà Linh` là hồ sơ demo
+  không công bố credential đăng nhập, follow reader và được admin follow để tạo
+  một gợi ý mutual thực tế cho `reader@bookspace.local`.
 - 1 câu lạc bộ công khai có bài đăng.
 - 1 challenge `PUBLISHED` đang diễn ra và 1 challenge `DRAFT`.
 - Một số thông báo đã đọc/chưa đọc.

@@ -45,6 +45,9 @@ const FeedPage = lazy(() =>
 const ProfilePage = lazy(() =>
   import('./pages/community/ProfilePage').then((module) => ({ default: module.ProfilePage })),
 )
+const PeoplePage = lazy(() =>
+  import('./pages/community/PeoplePage').then((module) => ({ default: module.PeoplePage })),
+)
 const CurrentProfileRedirect = lazy(() =>
   import('./pages/community/ProfilePage').then((module) => ({
     default: module.CurrentProfileRedirect,
@@ -122,6 +125,7 @@ export default function App() {
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />
           <Route path="users/:id" element={<ProfilePage />} />
+          <Route path="people" element={<PeoplePage />} />
           <Route path="clubs" element={<ClubsPage />} />
           <Route path="clubs/:id" element={<ClubDetailPage />} />
           <Route path="clubs/:clubId/sprints/:sprintId" element={<ReadingSprintPage />} />

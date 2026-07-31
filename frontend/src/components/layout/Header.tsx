@@ -10,6 +10,7 @@ import {
   Plus,
   SignOut,
   Sun,
+  Users,
   UsersThree,
   X,
 } from '@phosphor-icons/react'
@@ -23,6 +24,7 @@ import { Logo } from './Logo'
 
 const publicLinks = [
   { to: '/explore', label: 'Khám phá', icon: Compass },
+  { to: '/people', label: 'Độc giả', icon: Users },
   { to: '/clubs', label: 'Câu lạc bộ', icon: UsersThree },
   { to: '/challenges', label: 'Thử thách', icon: Books },
 ]

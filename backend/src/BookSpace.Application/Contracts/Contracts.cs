@@ -23,6 +23,19 @@ public sealed record UserProfile(
     bool IsFollowing,
     DateTimeOffset JoinedAt);
 
+public sealed record UserDiscoveryItem(
+    Guid Id,
+    string DisplayName,
+    string? Bio,
+    string? AvatarUrl,
+    int FollowerCount,
+    int BooksReadCount,
+    bool IsFollowing,
+    bool FollowsYou,
+    int MutualFollowCount,
+    string Reason,
+    string ReasonText);
+
 public sealed record RegisterRequest(
     [Required, EmailAddress] string Email,
     [Required, MinLength(8), MaxLength(100)] string Password,

@@ -25,6 +25,7 @@ public sealed class DatabaseInitializer(
 
         if (await db.UserSet.AnyAsync(cancellationToken))
         {
+            await EnsurePeopleDiscoveryDemoAsync(cancellationToken);
             await EnsureReadingSprintDemoAsync(cancellationToken);
             return;
         }
@@ -388,7 +389,75 @@ public sealed class DatabaseInitializer(
 
         await db.SaveChangesAsync(cancellationToken);
         await challengeProgressSynchronizer.SyncAsync(reader.Id, cancellationToken);
+        await EnsurePeopleDiscoveryDemoAsync(cancellationToken);
         await EnsureReadingSprintDemoAsync(cancellationToken);
+    }
+
+    private async Task EnsurePeopleDiscoveryDemoAsync(CancellationToken cancellationToken)
+    {
+        var admin = await db.UserSet.FirstOrDefaultAsync(
+            user => user.Email == "admin@bookspace.local",
+            cancellationToken);
+        var reader = await db.UserSet.FirstOrDefaultAsync(
+            user => user.Email == "reader@bookspace.local",
+            cancellationToken);
+        var demoBook = await db.BookSet
+            .OrderBy(book => book.Title)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (admin is null || reader is null || demoBook is null)
+        {
+            return;
+        }
+
+        var discoveryReader = await db.UserSet.FirstOrDefaultAsync(
+            user => user.Email == "ha.linh.discovery@bookspace.local",
+            cancellationToken);
+        if (discoveryReader is null)
+        {
+            discoveryReader = new User(
+                "ha.linh.discovery@bookspace.local",
+                passwordHasher.Hash($"{Guid.NewGuid():N}!Aa1"),
+                "Hà Linh");
+            discoveryReader.UpdateProfile(
+                "Hà Linh",
+                "Thích tản văn, truyện ngắn và những cuộc trò chuyện chậm về sách.",
+                "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=400");
+            db.Add(discoveryReader);
+        }
+
+        if (!await db.FollowSet.AnyAsync(
+                follow =>
+                    follow.FollowerId == admin.Id &&
+                    follow.FollowingId == discoveryReader.Id,
+                cancellationToken))
+        {
+            db.Add(new Follow(admin.Id, discoveryReader.Id));
+        }
+
+        if (!await db.FollowSet.AnyAsync(
+                follow =>
+                    follow.FollowerId == discoveryReader.Id &&
+                    follow.FollowingId == reader.Id,
+                cancellationToken))
+        {
+            db.Add(new Follow(discoveryReader.Id, reader.Id));
+        }
+
+        if (!await db.LibraryItemSet.AnyAsync(
+                item =>
+                    item.UserId == discoveryReader.Id &&
+                    item.BookId == demoBook.Id,
+                cancellationToken))
+        {
+            var completedBook = new LibraryItem(
+                discoveryReader.Id,
+                demoBook.Id,
+                LibraryStatus.READ);
+            completedBook.UpdateProgress(demoBook.PageCount, demoBook.PageCount);
+            db.Add(completedBook);
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
     }
 
     private async Task EnsureReadingSprintDemoAsync(CancellationToken cancellationToken)

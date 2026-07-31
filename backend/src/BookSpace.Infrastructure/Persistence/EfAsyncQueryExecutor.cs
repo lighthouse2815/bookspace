@@ -19,4 +19,9 @@ public sealed class EfAsyncQueryExecutor : IAsyncQueryExecutor
         IQueryable<T> query,
         CancellationToken cancellationToken) =>
         query.AnyAsync(cancellationToken);
+
+    public Task<int> CountAsync<T>(
+        IQueryable<T> query,
+        CancellationToken cancellationToken) =>
+        query.CountAsync(cancellationToken);
 }

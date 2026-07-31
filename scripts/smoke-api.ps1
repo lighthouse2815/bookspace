@@ -48,6 +48,14 @@ if (-not $login.success -or -not $login.data.accessToken) {
 }
 
 $token = $login.data.accessToken
+$people = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/users?search=H%C3%A0%20Linh&page=1&pageSize=20' `
+    -AccessToken $token
+$peopleSuggestions = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/users/suggestions?page=1&pageSize=20' `
+    -AccessToken $token
 $books = Invoke-BookSpaceRequest -Method Get -Path '/api/books?page=1&pageSize=8' -AccessToken $token
 $dashboard = Invoke-BookSpaceRequest -Method Get -Path '/api/dashboard' -AccessToken $token
 $library = Invoke-BookSpaceRequest -Method Get -Path '/api/library?page=1&pageSize=20' -AccessToken $token
@@ -109,6 +117,8 @@ $insightsMonthly = Invoke-BookSpaceRequest `
     -AccessToken $token
 
 if (
+    -not $people.success -or
+    -not $peopleSuggestions.success -or
     -not $books.success -or
     -not $dashboard.success -or
     -not $library.success -or
@@ -141,6 +151,8 @@ if (
 [pscustomobject]@{
     Health = $health
     User = $login.data.user.email
+    PeopleSearchResults = $people.data.totalItems
+    PeopleSuggestions = $peopleSuggestions.data.totalItems
     Books = $books.data.totalItems
     LibraryItems = $library.data.totalItems
     BooksRead = $dashboard.data.booksRead

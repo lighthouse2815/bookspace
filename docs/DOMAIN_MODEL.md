@@ -90,6 +90,28 @@ Invariant:
 - Cả hai user phải đang hoạt động.
 - Unfollow xóa quan hệ; không ảnh hưởng nội dung lịch sử.
 
+### 2.4 People Discovery read model
+
+`UserDiscoveryItem` là projection công khai riêng, không phải entity và không
+reuse `UserSummary` vì model đó có thể chứa email. Projection chỉ gồm `Id`,
+`DisplayName`, `Bio`, `AvatarUrl`, `FollowerCount`, `BooksReadCount`,
+`IsFollowing`, `FollowsYou`, `MutualFollowCount`, `Reason` và `ReasonText`.
+
+Rule:
+
+- Candidate phải chưa soft delete, không locked; suggestions còn loại principal
+  và user principal đã follow.
+- Search chỉ áp dụng trên `DisplayName`, trim input, không đọc email.
+- SQLite query dùng `NOCASE`: không phân biệt hoa/thường cho ký tự ASCII, nhưng
+  vẫn accent-sensitive và không tự gộp các dấu tiếng Việt khác nhau.
+- Count, ranking, `Skip` và `Take` chạy trong database. Không materialize toàn bộ
+  user IDs trước pagination và không map từng row bằng query riêng.
+- Suggestions xếp mutual follow giảm dần, tiếp theo follower count, books-read
+  count, `DisplayName`, rồi `Id`; Application sở hữu thứ tự và reason ổn định.
+- Không cần thêm column, migration hoặc index mới. Unique/index follow hiện hữu
+  đủ cho v1; chỉ thêm normalized display name nếu có bằng chứng sản phẩm cần
+  Unicode case folding rộng hơn SQLite `NOCASE`.
+
 ## 3. Bounded context Catalog
 
 ### 3.1 `Author`

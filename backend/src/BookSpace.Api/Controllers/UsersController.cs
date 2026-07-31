@@ -11,6 +11,34 @@ namespace BookSpace.Api.Controllers;
 public sealed class UsersController(IUserService userService) : ApiControllerBase
 {
     [AllowAnonymous]
+    [HttpGet]
+    public async Task<ActionResult<ApiResponse<PageResult<UserDiscoveryItem>>>> Search(
+        [FromQuery] string? search,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default) =>
+        OkData(
+            await userService.SearchAsync(
+                search,
+                OptionalUserId,
+                page,
+                pageSize,
+                cancellationToken));
+
+    [Authorize]
+    [HttpGet("suggestions")]
+    public async Task<ActionResult<ApiResponse<PageResult<UserDiscoveryItem>>>> Suggestions(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default) =>
+        OkData(
+            await userService.GetSuggestionsAsync(
+                CurrentUserId,
+                page,
+                pageSize,
+                cancellationToken));
+
+    [AllowAnonymous]
     [HttpGet("{id:guid}")]
     public ActionResult<ApiResponse<UserProfile>> Get(Guid id) =>
         OkData(userService.Get(id, OptionalUserId));

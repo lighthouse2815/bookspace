@@ -17,6 +17,17 @@ public interface IAuthService
 public interface IUserService
 {
     UserProfile Get(Guid userId, Guid? viewerId);
+    Task<PageResult<UserDiscoveryItem>> SearchAsync(
+        string? search,
+        Guid? viewerId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken);
+    Task<PageResult<UserDiscoveryItem>> GetSuggestionsAsync(
+        Guid userId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken);
     Task<UserProfile> UpdateAsync(Guid userId, UpdateProfileRequest request, CancellationToken cancellationToken);
     Task FollowAsync(Guid userId, Guid targetUserId, CancellationToken cancellationToken);
     Task UnfollowAsync(Guid userId, Guid targetUserId, CancellationToken cancellationToken);

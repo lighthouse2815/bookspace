@@ -111,6 +111,8 @@ Role là `USER | ADMIN`; trạng thái kệ sách là `WANT_TO_READ | READING | 
 | POST | `/api/auth/refresh` | Public |
 | POST | `/api/auth/logout` | Public |
 | GET | `/api/auth/me` | User |
+| GET | `/api/users?search=&page=1&pageSize=20` | Public |
+| GET | `/api/users/suggestions?page=1&pageSize=20` | User |
 | GET | `/api/users/{id}` | Public |
 | PATCH | `/api/users/me` | User |
 | POST / DELETE | `/api/users/{id}/follow` | User |
@@ -251,7 +253,7 @@ dotnet build BookSpace.sln
 dotnet test BookSpace.sln --no-build
 ```
 
-Integration tests khởi động API thật bằng `WebApplicationFactory`, dùng SQLite file tạm và kiểm tra health, OpenAPI, auth, RBAC, catalog, thư viện, phiên đọc, mục tiêu đọc, ghi chú riêng tư, dashboard, Reading Insights, club reading sprint và admin CRUD.
+Integration tests khởi động API thật bằng `WebApplicationFactory`, dùng SQLite file tạm và kiểm tra health, OpenAPI, auth, RBAC, people discovery, follow graph, catalog, thư viện, phiên đọc, mục tiêu đọc, ghi chú riêng tư, dashboard, Reading Insights, club reading sprint và admin CRUD.
 
 Tạo migration mới sau khi thay đổi persistence model:
 

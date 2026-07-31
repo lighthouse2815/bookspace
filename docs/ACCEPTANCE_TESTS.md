@@ -125,6 +125,15 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-FOL-006 | P0 | Followers/following trả PageResult và chỉ chứa quan hệ hiện hành. |
 | AC-FOL-007 | P0 | Follower/following/books-read counters trên profile khớp database sau mutation. |
 | AC-FOL-008 | P0 | User không tồn tại trả 404 `USER_NOT_FOUND`. |
+| AC-FOL-009 | P0 | Public directory/search chỉ trả `UserDiscoveryItem`, không có email/password/token/library detail. |
+| AC-FOL-010 | P0 | Search trim input, case-insensitive cho ASCII, accent-sensitive, chỉ tìm `DisplayName`; email không match. |
+| AC-FOL-011 | P0 | Search khác rỗng ngoài 2-100 ký tự trả 400 `INVALID_USER_SEARCH` với message tiếng Việt. |
+| AC-FOL-012 | P0 | Directory và suggestions loại user locked/soft-deleted; request có principal còn loại chính mình. |
+| AC-FOL-013 | P0 | Search authenticated trả đúng `isFollowing`, `followsYou`, `mutualFollowCount`; guest nhận false/false/0. |
+| AC-FOL-014 | P0 | Suggestions loại user đã follow, xếp mutual/follower/books-read/name/id deterministic và vẫn có fallback mutual=0. |
+| AC-FOL-015 | P0 | Directory và suggestions phân trang ở database, page liên tiếp không trùng hoặc bỏ item do tie-break. |
+| AC-FOL-016 | P0 | Follow một suggestion làm item biến mất, search trả `isFollowing=true` và activity công khai của target vào feed. |
+| AC-FOL-017 | P0 | Hai request follow cùng target đồng thời không request nào trả 500; đúng một thành công và một conflict. |
 
 ## 6. Catalog công khai
 
@@ -379,6 +388,7 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-WEB-005 | P0 | `/login` | validation, login, redirect intended route |
 | AC-WEB-006 | P0 | `/register` | validation, register, session bootstrap |
 | AC-WEB-007 | P0 | `/users/:id` | hồ sơ công khai, follow/unfollow |
+| AC-WEB-007A | P0 | `/people` | URL search, directory pagination, guest CTA, suggestions có reason và follow/unfollow trực tiếp |
 | AC-WEB-008 | P0 | `/clubs` | list/search và empty state |
 | AC-WEB-009 | P0 | `/clubs/:id` | detail, join/leave, posts theo quyền |
 | AC-WEB-009A | P0 | `/clubs/:clubId/sprints/:sprintId` | join/leave, progress, leaderboard, timeline, manager controls và milestone thread theo permission DTO |
@@ -422,6 +432,8 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 | AC-WEB-029 | P1 | Layout dùng được ở 360px, 768px, 1280px; không có overflow ngang ngoài thành phần chủ đích. |
 | AC-WEB-030 | P1 | Form có label, keyboard focus, disabled/loading state và error gắn đúng field. |
 | AC-WEB-031 | P1 | Màu chữ/nút/focus đạt contrast cơ bản ở light và dark theme. |
+| AC-WEB-032 | P0 | People/profile/feed query chờ auth bootstrap và dùng principal-scoped key; guest, account A và account B không dùng lại relationship state. |
+| AC-WEB-033 | P0 | Follow dùng response server để cập nhật state, chặn double click và invalidate people, target/current profile counters, followers/following, feed và dashboard. |
 
 ## 19. Security và isolation
 

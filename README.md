@@ -17,7 +17,7 @@ adapter can connect the two products later without sharing databases.
 - Personal reading goals with progress calculated from real reading activity
 - Private reading notes, quotes, page references and searchable tags
 - Ratings, reviews, comments and reactions
-- Reader profiles, follows and social feed
+- Public reader discovery, relationship-aware suggestions, profiles, follows and social feed
 - Book clubs with private invitations, member roles, shared current books, discussions and collaborative reading sprints
 - Reading challenges with server-derived progress from completed library books
 - In-app notifications
@@ -137,6 +137,9 @@ Development seeding creates:
 | Reader | `reader@bookspace.local` | `Reader123!` |
 
 These accounts are for the Development environment only.
+Development seed also creates the non-login demo profile `Hà Linh`, whose follow
+graph and public reading activity give the seeded reader a real discovery
+suggestion.
 
 ## Run with Docker
 

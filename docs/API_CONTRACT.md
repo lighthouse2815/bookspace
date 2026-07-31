@@ -119,6 +119,24 @@ Danh sách rỗng trả `items: []`. Metadata nằm trong body, không nằm tro
 
 Với `GET /users/{id}`, `email` phải là `null` hoặc bị loại khỏi DTO công khai; frontend không được hiển thị email người khác.
 
+`UserDiscoveryItem` là DTO công khai riêng:
+
+| Field | Kiểu |
+|---|---|
+| `id` | UUID |
+| `displayName` | string |
+| `bio` | string hoặc null |
+| `avatarUrl` | string hoặc null |
+| `followerCount` | integer |
+| `booksReadCount` | integer |
+| `isFollowing` | boolean; guest luôn `false` |
+| `followsYou` | boolean; guest luôn `false` |
+| `mutualFollowCount` | integer; guest luôn `0` |
+| `reason` | stable string code |
+| `reasonText` | chuỗi tiếng Việt ổn định |
+
+DTO này không có email, password hash, token, role hoặc chi tiết library.
+
 `AuthSessionResponse`:
 
 | Field | Kiểu |
@@ -493,6 +511,35 @@ Response `200`: `ApiResponse<null>`. Logout lặp lại là idempotent.
 Response `200`: `ApiResponse<UserResponse>`.
 
 ## 4. User API
+
+### `GET /api/users?search=&page=1&pageSize=20` — Public
+
+Search rỗng trả danh bạ mặc định. Search khác rỗng được trim, dài 2-100 ký tự và
+chỉ so khớp `DisplayName`; không tìm email. SQLite `NOCASE` hỗ trợ
+case-insensitive cho ASCII và vẫn accent-sensitive. Kết quả loại user locked,
+soft-deleted và loại principal nếu request có JWT hợp lệ. Response:
+`ApiResponse<PageResult<UserDiscoveryItem>>`, xếp `displayName`, rồi `id`.
+
+Search ngoài giới hạn trả 400:
+
+```json
+{
+  "success": false,
+  "message": "Từ khóa tìm kiếm độc giả phải có từ 2 đến 100 ký tự.",
+  "data": null,
+  "code": "INVALID_USER_SEARCH",
+  "timestamp": "2026-07-31T00:00:00Z"
+}
+```
+
+### `GET /api/users/suggestions?page=1&pageSize=20` — USER, ADMIN
+
+Loại principal, user đã follow, locked và soft-deleted. Xếp
+`mutualFollowCount DESC`, `followerCount DESC`, `booksReadCount DESC`,
+`displayName ASC`, `id ASC`; vẫn trả fallback có mutual bằng 0. `reason` là một
+trong `MUTUAL_FOLLOWS`, `FOLLOWS_YOU`, `POPULAR_READER`, `ACTIVE_READER`,
+`NEW_READER`. Response:
+`ApiResponse<PageResult<UserDiscoveryItem>>`.
 
 ### `PATCH /api/users/me` — Authenticated
 
@@ -1406,6 +1453,7 @@ thành lỗi của core API.
 | `ACCOUNT_UNAVAILABLE` | 400 | tài khoản bị khóa hoặc không còn khả dụng |
 | `FORBIDDEN` | 403 | không đủ quyền |
 | `USER_NOT_FOUND` | 404 | user không tồn tại |
+| `INVALID_USER_SEARCH` | 400 | search độc giả khác rỗng ngoài 2-100 ký tự |
 | `CANNOT_FOLLOW_SELF` | 400 | tự follow |
 | `ALREADY_FOLLOWING` | 409 | follow trùng |
 | `BOOK_NOT_FOUND` | 404 | sách không tồn tại |
