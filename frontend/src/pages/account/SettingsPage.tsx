@@ -1,9 +1,13 @@
 import {
+  Bell,
   ClockCounterClockwise,
   Eye,
+  Heart,
   LockKey,
   ShieldCheck,
+  Trophy,
   UserCircle,
+  UsersThree,
   type Icon as PhosphorIcon,
 } from '@phosphor-icons/react'
 import { useEffect, useState, type FormEvent } from 'react'
@@ -16,6 +20,10 @@ import { themeOptions } from '../../contexts/theme-options'
 import { useToast } from '../../contexts/ToastContext'
 import { errorMessage } from '../../lib/api'
 import { useUpdateProfilePrivacy, useUser } from '../../hooks/useCommunity'
+import {
+  useNotificationPreferences,
+  useUpdateNotificationPreferences,
+} from '../../hooks/useNotifications'
 import { communityService } from '../../services/community.service'
 
 export function SettingsPage() {
@@ -24,6 +32,8 @@ export function SettingsPage() {
   const { showToast } = useToast()
   const profile = useUser(user?.id)
   const updatePrivacy = useUpdateProfilePrivacy(user?.id)
+  const notificationPreferences = useNotificationPreferences()
+  const updateNotificationPreferences = useUpdateNotificationPreferences()
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     displayName: user?.displayName ?? '',
@@ -36,6 +46,16 @@ export function SettingsPage() {
   })
   const isReadingShelfPublic = profile.data?.privacy?.isReadingShelfPublic
   const isReadingActivityPublic = profile.data?.privacy?.isReadingActivityPublic
+  const [notificationSettings, setNotificationSettings] = useState({
+    isFollowNotificationEnabled: true,
+    isReviewNotificationEnabled: true,
+    isClubNotificationEnabled: true,
+    isChallengeNotificationEnabled: true,
+  })
+  const followNotifications = notificationPreferences.data?.isFollowNotificationEnabled
+  const reviewNotifications = notificationPreferences.data?.isReviewNotificationEnabled
+  const clubNotifications = notificationPreferences.data?.isClubNotificationEnabled
+  const challengeNotifications = notificationPreferences.data?.isChallengeNotificationEnabled
 
   useEffect(() => {
     if (isReadingShelfPublic !== undefined && isReadingActivityPublic !== undefined) {
@@ -51,6 +71,35 @@ export function SettingsPage() {
       })
     }
   }, [isReadingActivityPublic, isReadingShelfPublic])
+
+  useEffect(() => {
+    if (
+      followNotifications === undefined ||
+      reviewNotifications === undefined ||
+      clubNotifications === undefined ||
+      challengeNotifications === undefined
+    ) {
+      return
+    }
+
+    setNotificationSettings((current) => {
+      if (
+        current.isFollowNotificationEnabled === followNotifications &&
+        current.isReviewNotificationEnabled === reviewNotifications &&
+        current.isClubNotificationEnabled === clubNotifications &&
+        current.isChallengeNotificationEnabled === challengeNotifications
+      ) {
+        return current
+      }
+
+      return {
+        isFollowNotificationEnabled: followNotifications,
+        isReviewNotificationEnabled: reviewNotifications,
+        isClubNotificationEnabled: clubNotifications,
+        isChallengeNotificationEnabled: challengeNotifications,
+      }
+    })
+  }, [challengeNotifications, clubNotifications, followNotifications, reviewNotifications])
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -81,6 +130,16 @@ export function SettingsPage() {
       showToast('Quyền riêng tư hồ sơ đã được cập nhật', 'success')
     } catch (error) {
       showToast(errorMessage(error, 'Không thể cập nhật quyền riêng tư'), 'error')
+    }
+  }
+
+  const submitNotificationPreferences = async (event: FormEvent) => {
+    event.preventDefault()
+    try {
+      await updateNotificationPreferences.mutateAsync(notificationSettings)
+      showToast('Tùy chọn thông báo đã được cập nhật', 'success')
+    } catch (error) {
+      showToast(errorMessage(error, 'Không thể cập nhật tùy chọn thông báo'), 'error')
     }
   }
 
@@ -127,6 +186,87 @@ export function SettingsPage() {
             </Button>
           </div>
         </form>
+      </section>
+
+      <section className="mt-6 surface p-5 sm:p-7">
+        <div className="flex items-start gap-4 border-b border-border pb-6">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent-strong">
+            <Bell size={23} weight="duotone" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-heading">Thông báo bạn muốn nhận</h2>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-muted">
+              Tắt một nhóm sẽ ngăn các sự kiện mới thuộc nhóm đó tạo thông báo. Những thông báo cũ vẫn được giữ trong lịch sử.
+            </p>
+          </div>
+        </div>
+
+        {notificationPreferences.isLoading ? (
+          <div className="mt-6 h-56 animate-pulse rounded-2xl bg-surface-muted" />
+        ) : notificationPreferences.isError ? (
+          <p className="mt-6 text-sm text-red-600" role="alert">
+            Không thể tải tùy chọn thông báo. Hãy tải lại trang.
+          </p>
+        ) : (
+          <form onSubmit={submitNotificationPreferences} className="mt-6 space-y-3">
+            <PrivacyChoice
+              checked={notificationSettings.isFollowNotificationEnabled}
+              icon={UserCircle}
+              title="Người theo dõi mới"
+              description="Nhận thông báo khi một độc giả bắt đầu theo dõi bạn."
+              onChange={(checked) =>
+                setNotificationSettings((value) => ({
+                  ...value,
+                  isFollowNotificationEnabled: checked,
+                }))
+              }
+            />
+            <PrivacyChoice
+              checked={notificationSettings.isReviewNotificationEnabled}
+              icon={Heart}
+              title="Tương tác với đánh giá"
+              description="Nhận thông báo khi đánh giá của bạn có lượt thích hoặc bình luận mới."
+              onChange={(checked) =>
+                setNotificationSettings((value) => ({
+                  ...value,
+                  isReviewNotificationEnabled: checked,
+                }))
+              }
+            />
+            <PrivacyChoice
+              checked={notificationSettings.isClubNotificationEnabled}
+              icon={UsersThree}
+              title="Câu lạc bộ và đợt đọc chung"
+              description="Nhận lời mời, cập nhật thành viên, thảo luận và lời nhắc đọc chung."
+              onChange={(checked) =>
+                setNotificationSettings((value) => ({
+                  ...value,
+                  isClubNotificationEnabled: checked,
+                }))
+              }
+            />
+            <PrivacyChoice
+              checked={notificationSettings.isChallengeNotificationEnabled}
+              icon={Trophy}
+              title="Thử thách đọc"
+              description="Nhận thông báo khi tiến độ thử thách đạt cột mốc hoàn thành."
+              onChange={(checked) =>
+                setNotificationSettings((value) => ({
+                  ...value,
+                  isChallengeNotificationEnabled: checked,
+                }))
+              }
+            />
+            <div className="flex flex-col gap-3 pt-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="inline-flex items-center gap-2 text-xs text-muted">
+                <LockKey size={15} /> Thông báo hệ thống luôn bật để giữ các cập nhật quan trọng.
+              </p>
+              <Button type="submit" loading={updateNotificationPreferences.isPending}>
+                Lưu tùy chọn thông báo
+              </Button>
+            </div>
+          </form>
+        )}
       </section>
 
       <section className="mt-6 surface p-5 sm:p-7">

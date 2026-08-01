@@ -1082,7 +1082,7 @@ public sealed class ClubReadingSprintService(
             .Select(x => x.UserId)
             .Distinct()
             .ToList();
-        db.AddRange(recipientIds.Select(userId =>
+        NotificationDelivery.AddRangeIfEnabled(db, recipientIds.Select(userId =>
             new Notification(userId, NotificationType.CLUB, title, message, link)));
     }
 
@@ -1109,7 +1109,7 @@ public sealed class ClubReadingSprintService(
             .Select(x => x.UserId)
             .Distinct()
             .ToList();
-        db.AddRange(recipientIds.Select(userId =>
+        NotificationDelivery.AddRangeIfEnabled(db, recipientIds.Select(userId =>
             new Notification(userId, NotificationType.CLUB, title, message, link)));
     }
 

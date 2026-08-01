@@ -14,10 +14,12 @@ import {
   UsersThree,
   X,
 } from '@phosphor-icons/react'
-import { useState } from 'react'
+import { QueryClientContext } from '@tanstack/react-query'
+import { useContext, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
+import { useUnreadNotificationCount } from '../../hooks/useNotifications'
 import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
 import { Logo } from './Logo'
@@ -33,6 +35,7 @@ export function Header() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
   const { user, isAuthenticated, logout } = useAuth()
+  const queryClient = useContext(QueryClientContext)
   const { isDark, toggleTheme } = useTheme()
   const navigate = useNavigate()
 
@@ -78,9 +81,13 @@ export function Header() {
           </button>
           {isAuthenticated && user ? (
             <>
-              <Link to="/notifications" className="icon-button" aria-label="Thông báo">
-                <Bell size={19} />
-              </Link>
+              {queryClient ? (
+                <NotificationBell />
+              ) : (
+                <Link to="/notifications" className="icon-button" aria-label="Thông báo">
+                  <Bell size={19} />
+                </Link>
+              )}
               <div className="relative hidden sm:block">
                 <button
                   type="button"
@@ -222,5 +229,25 @@ export function Header() {
         </nav>
       ) : null}
     </header>
+  )
+}
+
+function NotificationBell() {
+  const unreadNotifications = useUnreadNotificationCount()
+  const count = unreadNotifications.data?.count ?? 0
+
+  return (
+    <Link
+      to="/notifications"
+      className="icon-button relative"
+      aria-label={count ? `Thông báo, ${count} chưa đọc` : 'Thông báo'}
+    >
+      <Bell size={19} />
+      {count ? (
+        <span className="absolute -right-1 -top-1 grid min-h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white">
+          {count > 99 ? '99+' : count}
+        </span>
+      ) : null}
+    </Link>
   )
 }

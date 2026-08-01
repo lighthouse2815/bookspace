@@ -137,8 +137,10 @@ public sealed class UserService(
 
     public async Task FollowAsync(Guid userId, Guid targetUserId, CancellationToken cancellationToken)
     {
-        _ = db.Users.FirstOrDefault(x => x.Id == targetUserId)
-            ?? throw ServiceErrors.NotFound("USER_NOT_FOUND", "Không tìm thấy người dùng cần theo dõi.");
+        var targetUser = db.Users.FirstOrDefault(x => x.Id == targetUserId)
+                         ?? throw ServiceErrors.NotFound(
+                             "USER_NOT_FOUND",
+                             "Không tìm thấy người dùng cần theo dõi.");
         if (db.Follows.Any(x => x.FollowerId == userId && x.FollowingId == targetUserId))
         {
             throw ServiceErrors.Conflict("ALREADY_FOLLOWING", "Bạn đã theo dõi người dùng này.");
@@ -147,12 +149,14 @@ public sealed class UserService(
         var actorName = db.Users.Where(x => x.Id == userId).Select(x => x.DisplayName).First();
         var created = await followMutationBoundary.TryCreateAsync(
             new Follow(userId, targetUserId),
-            new Notification(
-                targetUserId,
-                NotificationType.FOLLOW,
-                "Bạn có người theo dõi mới",
-                $"{actorName} vừa theo dõi bạn.",
-                $"/users/{userId}"),
+            targetUser.AllowsNotification(NotificationType.FOLLOW)
+                ? new Notification(
+                    targetUserId,
+                    NotificationType.FOLLOW,
+                    "Bạn có người theo dõi mới",
+                    $"{actorName} vừa theo dõi bạn.",
+                    $"/users/{userId}")
+                : null,
             cancellationToken);
         if (!created)
         {

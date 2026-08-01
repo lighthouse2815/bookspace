@@ -6,6 +6,7 @@ import { SettingsPage } from './SettingsPage'
 
 const mocks = vi.hoisted(() => ({
   updatePrivacy: vi.fn(),
+  updateNotificationPreferences: vi.fn(),
   updateProfile: vi.fn(),
   toast: vi.fn(),
 }))
@@ -53,10 +54,28 @@ vi.mock('../../hooks/useCommunity', () => ({
   }),
 }))
 
+vi.mock('../../hooks/useNotifications', () => ({
+  useNotificationPreferences: () => ({
+    data: {
+      isFollowNotificationEnabled: true,
+      isReviewNotificationEnabled: true,
+      isClubNotificationEnabled: false,
+      isChallengeNotificationEnabled: true,
+    },
+    isLoading: false,
+    isError: false,
+  }),
+  useUpdateNotificationPreferences: () => ({
+    mutateAsync: (...args: unknown[]) => mocks.updateNotificationPreferences(...args),
+    isPending: false,
+  }),
+}))
+
 describe('profile privacy settings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.updatePrivacy.mockResolvedValue({})
+    mocks.updateNotificationPreferences.mockResolvedValue({})
   })
 
   it('loads server visibility and saves both public profile switches', async () => {
@@ -81,6 +100,35 @@ describe('profile privacy settings', () => {
     })
     expect(mocks.toast).toHaveBeenCalledWith(
       'Quyền riêng tư hồ sơ đã được cập nhật',
+      'success',
+    )
+  })
+
+  it('loads and saves notification preferences while keeping system notifications on', async () => {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <SettingsPage />
+      </MemoryRouter>,
+    )
+
+    const follow = await screen.findByRole('checkbox', { name: /Người theo dõi mới/ })
+    const club = screen.getByRole('checkbox', { name: /Câu lạc bộ và đợt đọc chung/ })
+    expect(follow).toBeChecked()
+    expect(club).not.toBeChecked()
+    expect(screen.getByText(/Thông báo hệ thống luôn bật/)).toBeInTheDocument()
+
+    await user.click(follow)
+    await user.click(screen.getByRole('button', { name: 'Lưu tùy chọn thông báo' }))
+
+    expect(mocks.updateNotificationPreferences).toHaveBeenCalledWith({
+      isFollowNotificationEnabled: false,
+      isReviewNotificationEnabled: true,
+      isClubNotificationEnabled: false,
+      isChallengeNotificationEnabled: true,
+    })
+    expect(mocks.toast).toHaveBeenCalledWith(
+      'Tùy chọn thông báo đã được cập nhật',
       'success',
     )
   })

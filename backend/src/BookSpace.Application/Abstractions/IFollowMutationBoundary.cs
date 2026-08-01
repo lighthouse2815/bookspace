@@ -6,6 +6,6 @@ public interface IFollowMutationBoundary
 {
     Task<bool> TryCreateAsync(
         Follow follow,
-        Notification notification,
+        Notification? notification,
         CancellationToken cancellationToken);
 }

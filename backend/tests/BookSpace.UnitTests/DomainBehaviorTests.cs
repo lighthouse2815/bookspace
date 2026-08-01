@@ -84,6 +84,26 @@ public sealed class DomainBehaviorTests
     }
 
     [Fact]
+    public void Notification_preferences_default_to_enabled_and_system_cannot_be_disabled()
+    {
+        var user = new User("reader@example.com", "hash", "Bạn đọc");
+
+        Assert.True(user.AllowsNotification(NotificationType.FOLLOW));
+        Assert.True(user.AllowsNotification(NotificationType.REVIEW_LIKE));
+        Assert.True(user.AllowsNotification(NotificationType.COMMENT));
+        Assert.True(user.AllowsNotification(NotificationType.CLUB));
+        Assert.True(user.AllowsNotification(NotificationType.CHALLENGE));
+        user.UpdateNotificationPreferences(false, false, false, false);
+
+        Assert.False(user.AllowsNotification(NotificationType.FOLLOW));
+        Assert.False(user.AllowsNotification(NotificationType.REVIEW_LIKE));
+        Assert.False(user.AllowsNotification(NotificationType.COMMENT));
+        Assert.False(user.AllowsNotification(NotificationType.CLUB));
+        Assert.False(user.AllowsNotification(NotificationType.CHALLENGE));
+        Assert.True(user.AllowsNotification(NotificationType.SYSTEM));
+    }
+
+    [Fact]
     public void Review_rating_must_be_between_one_and_five()
     {
         var error = Assert.Throws<DomainException>(() =>

@@ -25,6 +25,10 @@ public sealed class User : Entity
     public bool IsLocked { get; private set; }
     public bool IsReadingShelfPublic { get; private set; }
     public bool IsReadingActivityPublic { get; private set; }
+    public bool IsFollowNotificationEnabled { get; private set; } = true;
+    public bool IsReviewNotificationEnabled { get; private set; } = true;
+    public bool IsClubNotificationEnabled { get; private set; } = true;
+    public bool IsChallengeNotificationEnabled { get; private set; } = true;
 
     public ICollection<Follow> Followers { get; } = new List<Follow>();
     public ICollection<Follow> Following { get; } = new List<Follow>();
@@ -49,6 +53,37 @@ public sealed class User : Entity
 
         IsReadingShelfPublic = isReadingShelfPublic;
         IsReadingActivityPublic = isReadingActivityPublic;
+        Touch();
+    }
+
+    public bool AllowsNotification(NotificationType type) => type switch
+    {
+        NotificationType.FOLLOW => IsFollowNotificationEnabled,
+        NotificationType.REVIEW_LIKE or NotificationType.COMMENT => IsReviewNotificationEnabled,
+        NotificationType.CLUB => IsClubNotificationEnabled,
+        NotificationType.CHALLENGE => IsChallengeNotificationEnabled,
+        NotificationType.SYSTEM => true,
+        _ => true
+    };
+
+    public void UpdateNotificationPreferences(
+        bool isFollowNotificationEnabled,
+        bool isReviewNotificationEnabled,
+        bool isClubNotificationEnabled,
+        bool isChallengeNotificationEnabled)
+    {
+        if (IsFollowNotificationEnabled == isFollowNotificationEnabled &&
+            IsReviewNotificationEnabled == isReviewNotificationEnabled &&
+            IsClubNotificationEnabled == isClubNotificationEnabled &&
+            IsChallengeNotificationEnabled == isChallengeNotificationEnabled)
+        {
+            return;
+        }
+
+        IsFollowNotificationEnabled = isFollowNotificationEnabled;
+        IsReviewNotificationEnabled = isReviewNotificationEnabled;
+        IsClubNotificationEnabled = isClubNotificationEnabled;
+        IsChallengeNotificationEnabled = isChallengeNotificationEnabled;
         Touch();
     }
 

@@ -46,6 +46,10 @@ Aggregate root của tài khoản và hồ sơ.
 | `IsLocked` | `bool` | có | khóa đăng nhập nhưng không xóa dữ liệu |
 | `IsReadingShelfPublic` | `bool` | có | mặc định `false`; cho phép người khác xem kệ sách chi tiết |
 | `IsReadingActivityPublic` | `bool` | có | mặc định `false`; cho phép người khác xem timeline trên hồ sơ |
+| `IsFollowNotificationEnabled` | `bool` | có | mặc định `true`; nhận sự kiện follower mới |
+| `IsReviewNotificationEnabled` | `bool` | có | mặc định `true`; nhận like/comment review |
+| `IsClubNotificationEnabled` | `bool` | có | mặc định `true`; nhận sự kiện club và sprint |
+| `IsChallengeNotificationEnabled` | `bool` | có | mặc định `true`; nhận sự kiện challenge |
 | `CreatedAt` | `DateTimeOffset` | có | UTC |
 | `UpdatedAt` | `DateTimeOffset` | có | không trước `CreatedAt` |
 | `DeletedAt` | `DateTimeOffset?` | không | tài khoản bị vô hiệu hóa/soft delete |
@@ -622,7 +626,9 @@ Invariant:
 - `CHALLENGE`
 - `SYSTEM`
 
-Chỉ người nhận được truy cập và đánh dấu đọc. `mark read` và `mark all read` là idempotent.
+Chỉ người nhận được truy cập và đánh dấu đọc. `mark read` và `mark all read` là idempotent. Query category ánh xạ `REVIEW` tới cả `REVIEW_LIKE` và `COMMENT`; các category còn lại ánh xạ một-một với type.
+
+Preference của `User` được kiểm tra trước khi insert notification mới cho `FOLLOW`, review interaction, `CLUB` và `CHALLENGE`. `SYSTEM` không thể tắt. Preference không lọc ngược lịch sử vì notification đã tạo là bản ghi sự kiện của thời điểm trước đó.
 
 ## 9. Integration model
 

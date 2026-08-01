@@ -20,7 +20,7 @@ adapter can connect the two products later without sharing databases.
 - Public reader discovery, relationship-aware suggestions, privacy-aware reading profiles, follows and social feed
 - Book clubs with private invitations, member roles, shared current books, discussions and collaborative reading sprints
 - Reading challenges with server-derived progress from completed library books
-- In-app notifications
+- In-app notification center with server unread count, category filters, pagination and delivery preferences
 - Member dashboard, rolling activity heatmap, streaks, period reports and finish forecasts
 - Administration for catalog and challenges
 - Optional external book-provider integration

@@ -12,10 +12,14 @@ public sealed class FollowMutationBoundary(BookSpaceDbContext db) : IFollowMutat
 
     public async Task<bool> TryCreateAsync(
         Follow follow,
-        Notification notification,
+        Notification? notification,
         CancellationToken cancellationToken)
     {
-        db.AddRange(follow, notification);
+        db.Add(follow);
+        if (notification is not null)
+        {
+            db.Add(notification);
+        }
 
         try
         {

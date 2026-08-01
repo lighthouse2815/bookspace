@@ -494,6 +494,15 @@ export interface Notification {
   actor?: User
 }
 
+export type NotificationCategory = 'FOLLOW' | 'REVIEW' | 'CLUB' | 'CHALLENGE' | 'SYSTEM'
+
+export interface NotificationPreferences {
+  isFollowNotificationEnabled: boolean
+  isReviewNotificationEnabled: boolean
+  isClubNotificationEnabled: boolean
+  isChallengeNotificationEnabled: boolean
+}
+
 export interface Dashboard {
   booksRead: number
   pagesRead: number

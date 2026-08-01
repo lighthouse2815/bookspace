@@ -191,8 +191,18 @@ public interface IChallengeService
 public interface INotificationService
 {
     NotificationDto GetOne(Guid userId, Guid notificationId);
-    PageResult<NotificationDto> Get(Guid userId, bool? unreadOnly, int page, int pageSize);
-    int GetUnreadCount(Guid userId);
+    PageResult<NotificationDto> Get(
+        Guid userId,
+        bool? unreadOnly,
+        NotificationCategory? category,
+        int page,
+        int pageSize);
+    int GetUnreadCount(Guid userId, NotificationCategory? category);
+    NotificationPreferencesDto GetPreferences(Guid userId);
+    Task<NotificationPreferencesDto> UpdatePreferencesAsync(
+        Guid userId,
+        UpdateNotificationPreferencesRequest request,
+        CancellationToken cancellationToken);
     Task MarkReadAsync(Guid userId, Guid notificationId, CancellationToken cancellationToken);
     Task MarkAllReadAsync(Guid userId, CancellationToken cancellationToken);
 }

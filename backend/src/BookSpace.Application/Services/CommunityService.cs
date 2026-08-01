@@ -105,7 +105,7 @@ public sealed class CommunityService(IBookSpaceDbContext db) : ICommunityService
         if (review.UserId != userId)
         {
             var actorName = db.Users.Where(x => x.Id == userId).Select(x => x.DisplayName).First();
-            db.Add(new Notification(
+            NotificationDelivery.AddIfEnabled(db, new Notification(
                 review.UserId,
                 NotificationType.REVIEW_LIKE,
                 "Đánh giá của bạn được yêu thích",
@@ -157,7 +157,7 @@ public sealed class CommunityService(IBookSpaceDbContext db) : ICommunityService
         if (review.UserId != userId)
         {
             var actorName = db.Users.Where(x => x.Id == userId).Select(x => x.DisplayName).First();
-            db.Add(new Notification(
+            NotificationDelivery.AddIfEnabled(db, new Notification(
                 review.UserId,
                 NotificationType.COMMENT,
                 "Bình luận mới",

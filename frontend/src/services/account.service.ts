@@ -1,14 +1,33 @@
 import { api, unwrap } from '../lib/api'
 import type { ApiEnvelope, PageResult } from '../types/api'
-import type { Dashboard, Notification } from '../types/domain'
+import type {
+  Dashboard,
+  Notification,
+  NotificationCategory,
+  NotificationPreferences,
+} from '../types/domain'
+
+export interface NotificationQuery {
+  unreadOnly?: boolean
+  category?: NotificationCategory
+  page?: number
+  pageSize?: number
+}
 
 export const accountService = {
   dashboard: async () => unwrap(await api.get<ApiEnvelope<Dashboard>>('/dashboard')),
 
-  notifications: async () =>
+  notifications: async ({ unreadOnly, category, page = 1, pageSize = 20 }: NotificationQuery) =>
     unwrap(
       await api.get<ApiEnvelope<PageResult<Notification>>>('/notifications', {
-        params: { page: 1, pageSize: 50 },
+        params: { unreadOnly, category, page, pageSize },
+      }),
+    ),
+
+  unreadNotificationCount: async (category?: NotificationCategory) =>
+    unwrap(
+      await api.get<ApiEnvelope<{ count: number }>>('/notifications/unread-count', {
+        params: { category },
       }),
     ),
 
@@ -17,4 +36,17 @@ export const accountService = {
 
   readAllNotifications: async () =>
     unwrap(await api.patch<ApiEnvelope<null>>('/notifications/read-all')),
+
+  notificationPreferences: async () =>
+    unwrap(
+      await api.get<ApiEnvelope<NotificationPreferences>>('/notifications/preferences'),
+    ),
+
+  updateNotificationPreferences: async (input: NotificationPreferences) =>
+    unwrap(
+      await api.patch<ApiEnvelope<NotificationPreferences>>(
+        '/notifications/preferences',
+        input,
+      ),
+    ),
 }

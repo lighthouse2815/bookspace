@@ -370,6 +370,10 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-NOTI-005 | P0 | User không đọc/mark notification của user khác. |
 | AC-NOTI-006 | P0 | Mark all read đặt toàn bộ notification principal thành đã đọc, unread count bằng 0. |
 | AC-NOTI-007 | P0 | UI badge và `/notifications` cập nhật sau mark read/mark all không reload trang. |
+| AC-NOTI-008 | P0 | List và unread-count lọc đúng category; `REVIEW` gồm cả `REVIEW_LIKE` và `COMMENT`, pagination có tie-break `id desc`; enum số không xác định trả `INVALID_NOTIFICATION_CATEGORY`. |
+| AC-NOTI-009 | P0 | Preference mặc định bật cho follow/review/club/challenge; PATCH lưu đủ bốn flag và chỉ principal đọc/sửa được. |
+| AC-NOTI-010 | P0 | Khi một preference tắt, sự kiện mới tương ứng không insert notification nhưng nghiệp vụ gốc vẫn commit; bật lại cho phép sự kiện sau tạo notification. |
+| AC-NOTI-011 | P0 | `SYSTEM` luôn được tạo dù bốn preference đang tắt; đổi preference không xóa hoặc ẩn notification lịch sử. |
 
 ## 17. Dashboard
 
@@ -412,8 +416,8 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-WEB-012 | P0 | `/library` | ba shelf, update progress, remove item |
 | AC-WEB-013 | P0 | `/journal` | list/create session |
 | AC-WEB-014 | P0 | `/feed` | feed phân trang từ network |
-| AC-WEB-015 | P0 | `/notifications` | list/read/read-all |
-| AC-WEB-016 | P0 | `/settings` | update display name, bio, avatar và hai quyền riêng tư hành trình đọc |
+| AC-WEB-015 | P0 | `/notifications` | server unread count, tab all/unread, category filter, URL pagination, deep-link và optimistic read/read-all |
+| AC-WEB-016 | P0 | `/settings` | update display name, bio, avatar, hai quyền riêng tư đọc và bốn notification preferences |
 | AC-WEB-017 | P0 | `/profile` | hiển thị current user hoặc redirect đúng `/users/:id` |
 | AC-WEB-018 | P0 | `/goals` | list/filter, create/update/delete goal; progress/status hiển thị từ API, không có UI ghi progress tay |
 | AC-WEB-019 | P0 | `/notes` | list/filter/search, create/update/delete note; edit không đổi book và PATCH không gửi `bookId` |
@@ -504,7 +508,7 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 - Club membership/post permission.
 - Reading sprint lifecycle, permission, participant idempotency, progress, leaderboard, timeline, milestone/response, reminder deduplication và private-club isolation.
 - Challenge detail published/draft, atomic join/rollback, concurrent duplicate join 409, serialized join-vs-unpublish/delete, physical-participation guard, cancellable lock acquisition, leave không post-read và nonparticipant leave, progress từ sách hoàn tất trước/sau join, deterministic stale-low high-water, repair `CompletedAt`, mutation-time completion và notification dedupe/unique constraint.
-- Notification ownership.
+- Notification ownership, category filters, preferences và delivery policy.
 - Global error envelope.
 - Database unique constraints.
 - Integration disabled behavior.
@@ -521,7 +525,7 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 - Review request top-level `/reviews`.
 - Admin request path `/admin/books` và `/admin/challenges`.
 - Production App deep-link challenge, loading/error/empty/guest CTA, intended login return, principal-scoped cache, join/leave invalidation, reading-mutation challenge invalidation và không có manual-progress request.
-- Loading/error/empty states cho catalog, library, notifications.
+- Loading/error/empty, filter URL, pagination và optimistic read/read-all cho notifications.
 
 Không đặt ngưỡng coverage phần trăm giả tạo cho Goal 1. Mọi invariant và authorization branch liệt kê trên phải có test trực tiếp.
 

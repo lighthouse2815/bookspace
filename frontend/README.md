@@ -79,8 +79,8 @@ Trang yêu cầu đăng nhập:
 - `/library`: kệ sách cá nhân
 - `/journal`: phiên đọc và nhật ký
 - `/feed`: bảng tin cộng đồng
-- `/notifications`: thông báo
-- `/settings`: hồ sơ, quyền riêng tư hành trình đọc và giao diện
+- `/notifications`: server unread count, tab tất cả/chưa đọc, lọc loại và phân trang
+- `/settings`: hồ sơ, quyền riêng tư hành trình đọc, tùy chọn nhận thông báo và giao diện
 - `/clubs/new`: tạo câu lạc bộ
 - `/clubs/invitations`: chấp nhận hoặc từ chối lời mời
 

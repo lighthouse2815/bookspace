@@ -103,7 +103,7 @@ public sealed class ClubService(
         }
 
         db.Add(new BookClubMember(clubId, userId, ClubMemberRole.MEMBER));
-        db.Add(new Notification(
+        NotificationDelivery.AddIfEnabled(db, new Notification(
             club.OwnerId,
             NotificationType.CLUB,
             "Thành viên mới",
@@ -184,7 +184,7 @@ public sealed class ClubService(
         }
 
         membership.ChangeRole(request.Role);
-        db.Add(new Notification(
+        NotificationDelivery.AddIfEnabled(db, new Notification(
             memberUserId,
             NotificationType.CLUB,
             "Vai trò trong câu lạc bộ đã thay đổi",
@@ -221,7 +221,7 @@ public sealed class ClubService(
 
         LeaveActiveSprintParticipations(clubId, memberUserId);
         membership.SoftDelete();
-        db.Add(new Notification(
+        NotificationDelivery.AddIfEnabled(db, new Notification(
             memberUserId,
             NotificationType.CLUB,
             "Đã rời câu lạc bộ",
@@ -273,7 +273,7 @@ public sealed class ClubService(
             now,
             now.Add(InvitationLifetime));
         db.Add(invitation);
-        db.Add(new Notification(
+        NotificationDelivery.AddIfEnabled(db, new Notification(
             invitedUser.Id,
             NotificationType.CLUB,
             "Lời mời tham gia câu lạc bộ",
@@ -380,7 +380,7 @@ public sealed class ClubService(
 
         if (invitation.InviterId != userId)
         {
-            db.Add(new Notification(
+            NotificationDelivery.AddIfEnabled(db, new Notification(
                 invitation.InviterId,
                 NotificationType.CLUB,
                 "Lời mời đã được chấp nhận",
@@ -602,7 +602,7 @@ public sealed class ClubService(
         db.Add(comment);
         if (post.AuthorId != userId)
         {
-            db.Add(new Notification(
+            NotificationDelivery.AddIfEnabled(db, new Notification(
                 post.AuthorId,
                 NotificationType.CLUB,
                 "Bình luận mới trong câu lạc bộ",
@@ -768,7 +768,7 @@ public sealed class ClubService(
             .Select(x => x.UserId)
             .Distinct()
             .ToList();
-        db.AddRange(recipientIds.Select(userId =>
+        NotificationDelivery.AddRangeIfEnabled(db, recipientIds.Select(userId =>
             new Notification(userId, NotificationType.CLUB, title, message, link)));
     }
 

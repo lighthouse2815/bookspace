@@ -206,7 +206,9 @@ Atomicity của database không đồng nghĩa exactly-once ở HTTP: request b�
 
 ### UC-10 — Thông báo
 
-Các sự kiện follow, like, comment, club và challenge tạo thông báo cho đúng người nhận, trừ khi tác nhân cũng là người nhận. Thành viên chỉ đọc/đánh dấu thông báo của chính mình.
+Các sự kiện follow, like, comment, club và challenge tạo thông báo cho đúng người nhận, trừ khi tác nhân cũng là người nhận. Thành viên chỉ đọc/đánh dấu thông báo của chính mình. Danh sách hỗ trợ trạng thái đã đọc, nhóm `FOLLOW|REVIEW|CLUB|CHALLENGE|SYSTEM` và phân trang; unread count luôn do server tính trên toàn bộ dữ liệu principal.
+
+Tài khoản mặc định nhận follow, tương tác review, club và challenge. Thành viên có thể tắt độc lập bốn nhóm này; preference được kiểm tra tại nguồn tạo sự kiện mới. `SYSTEM` luôn bật để giữ thông báo vận hành quan trọng. Thay đổi preference không xóa hoặc ẩn lịch sử đã tạo.
 
 ### UC-11 — Quản trị catalog
 
@@ -250,8 +252,8 @@ Tên route là hợp đồng điều hướng Goal 1; thay đổi cần đồng 
 | `/insights` | Reading insights | heatmap, streak, báo cáo tuần/tháng, so sánh kỳ và dự báo |
 | `/dashboard` | My dashboard | số sách, trang/phút đọc, challenge |
 | `/profile` | My profile | hồ sơ hiện tại hoặc chuyển tới `/users/:id` |
-| `/settings` | Settings | chỉnh hồ sơ, quyền riêng tư hành trình đọc và giao diện |
-| `/notifications` | Notifications | danh sách và trạng thái chưa đọc |
+| `/settings` | Settings | chỉnh hồ sơ, quyền riêng tư hành trình đọc, notification preferences và giao diện |
+| `/notifications` | Notifications | server unread count, lọc trạng thái/nhóm, phân trang và deep-link |
 | `/clubs/new` | Create club | tạo câu lạc bộ công khai hoặc riêng tư |
 | `/clubs/invitations` | Club invitations | lời mời CLB đang chờ và thao tác chấp nhận/từ chối |
 

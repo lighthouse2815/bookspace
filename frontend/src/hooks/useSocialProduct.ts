@@ -284,7 +284,3 @@ export function useChallengeMembership(id: string, joined: boolean) {
 export function useDashboard() {
   return useQuery({ queryKey: ['dashboard'], queryFn: accountService.dashboard })
 }
-
-export function useNotifications() {
-  return useQuery({ queryKey: ['notifications'], queryFn: accountService.notifications })
-}

@@ -362,6 +362,18 @@ public sealed record NotificationDto(
     DateTimeOffset CreatedAt,
     DateTimeOffset? ReadAt);
 
+public sealed record NotificationPreferencesDto(
+    bool IsFollowNotificationEnabled,
+    bool IsReviewNotificationEnabled,
+    bool IsClubNotificationEnabled,
+    bool IsChallengeNotificationEnabled);
+
+public sealed record UpdateNotificationPreferencesRequest(
+    bool IsFollowNotificationEnabled,
+    bool IsReviewNotificationEnabled,
+    bool IsClubNotificationEnabled,
+    bool IsChallengeNotificationEnabled);
+
 public sealed record DashboardDto(
     int BooksRead,
     int PagesRead,

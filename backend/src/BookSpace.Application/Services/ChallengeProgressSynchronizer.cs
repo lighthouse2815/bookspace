@@ -110,6 +110,11 @@ public sealed class ChallengeProgressSynchronizer(
                 continue;
             }
 
+            if (!NotificationDelivery.IsEnabled(db, userId, NotificationType.CHALLENGE))
+            {
+                continue;
+            }
+
             var notification = new Notification(
                 userId,
                 NotificationType.CHALLENGE,

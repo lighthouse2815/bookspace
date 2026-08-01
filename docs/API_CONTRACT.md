@@ -441,6 +441,8 @@ giới hạn bởi thời điểm join. Giá trị đã ghi nhận không giảm
 
 Notification type: `FOLLOW`, `REVIEW_LIKE`, `COMMENT`, `CLUB`, `CHALLENGE`, `SYSTEM`.
 
+`NotificationPreferencesResponse`: `isFollowNotificationEnabled`, `isReviewNotificationEnabled`, `isClubNotificationEnabled`, `isChallengeNotificationEnabled`. Bốn field là boolean; `SYSTEM` không có flag vì luôn bật.
+
 `DashboardResponse`:
 
 | Field | Kiểu |
@@ -1437,13 +1439,32 @@ nguồn đối soát trạng thái.
 
 Tất cả endpoint chỉ truy cập notification của principal.
 
-### `GET /api/notifications?unreadOnly=false&page=1&pageSize=20`
+### `GET /api/notifications?unreadOnly=false&category=&page=1&pageSize=20`
+
+`category` tùy chọn: `FOLLOW`, `REVIEW`, `CLUB`, `CHALLENGE`, `SYSTEM`. `REVIEW` gồm cả type `REVIEW_LIKE` và `COMMENT`. Kết quả sắp `createdAt desc`, sau đó `id desc` để phân trang ổn định.
 
 Response `200`: `ApiResponse<PageResult<NotificationResponse>>`.
 
-### `GET /api/notifications/unread-count`
+### `GET /api/notifications/unread-count?category=`
 
 Response data: `{ "count": 3 }`.
+
+### `GET /api/notifications/preferences`
+
+Response `200`:
+
+```json
+{
+  "isFollowNotificationEnabled": true,
+  "isReviewNotificationEnabled": true,
+  "isClubNotificationEnabled": true,
+  "isChallengeNotificationEnabled": true
+}
+```
+
+### `PATCH /api/notifications/preferences`
+
+Request và response dùng đủ bốn boolean như GET. Preference áp dụng cho sự kiện mới; notification `SYSTEM` luôn được tạo và lịch sử cũ không bị xóa.
 
 ### `PATCH /api/notifications/{notificationId}/read`
 
@@ -1594,6 +1615,7 @@ thành lỗi của core API.
 | `CHALLENGE_RULES_LOCKED` | 409 | không đổi mục tiêu hoặc thời gian sau publish |
 | `CHALLENGE_DELETE_REQUIRES_DRAFT` | 409 | chỉ xóa bản nháp |
 | `CHALLENGE_HAS_PARTICIPANTS` | 409 | không unpublish/xóa khi còn bất kỳ row vật lý participation nào, kể cả row bị global filter ẩn |
+| `INVALID_NOTIFICATION_CATEGORY` | 400 | category notification không thuộc tập cho phép |
 | `NOTIFICATION_NOT_FOUND` | 404 | notification không thuộc principal |
 | `ROUTE_NOT_FOUND` | 404 | route hoặc tài nguyên HTTP không tồn tại |
 | `INTERNAL_ERROR` | 500 | lỗi không dự kiến |

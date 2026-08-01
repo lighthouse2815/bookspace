@@ -228,8 +228,9 @@ Toàn bộ luồng chạy khi Bookstore integration tắt.
 
 | Method | Endpoint | Auth |
 |---|---|---|
-| GET | `/api/notifications` | User |
-| GET | `/api/notifications/unread-count` | User |
+| GET | `/api/notifications?unreadOnly=&category=&page=&pageSize=` | User |
+| GET | `/api/notifications/unread-count?category=` | User |
+| GET / PATCH | `/api/notifications/preferences` | User |
 | PATCH | `/api/notifications/{id}/read` | User |
 | PATCH | `/api/notifications/read-all` | User |
 | POST / PATCH / DELETE | `/api/admin/books` | Admin |

@@ -119,6 +119,10 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
             entity.Property(x => x.Role).HasConversion<string>().HasMaxLength(20);
             entity.Property(x => x.IsReadingShelfPublic).HasDefaultValue(false);
             entity.Property(x => x.IsReadingActivityPublic).HasDefaultValue(false);
+            entity.Property(x => x.IsFollowNotificationEnabled).HasDefaultValue(true);
+            entity.Property(x => x.IsReviewNotificationEnabled).HasDefaultValue(true);
+            entity.Property(x => x.IsClubNotificationEnabled).HasDefaultValue(true);
+            entity.Property(x => x.IsChallengeNotificationEnabled).HasDefaultValue(true);
             entity.Ignore(x => x.IsDeleted);
         });
 

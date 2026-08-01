@@ -44,3 +44,12 @@ public enum NotificationType
     CHALLENGE,
     SYSTEM
 }
+
+public enum NotificationCategory
+{
+    FOLLOW,
+    REVIEW,
+    CLUB,
+    CHALLENGE,
+    SYSTEM
+}
