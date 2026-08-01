@@ -11,9 +11,9 @@ adapter can connect the two products later without sharing databases.
 ## Product capabilities
 
 - Account registration, login, token refresh and profile management
-- Searchable book, author and category catalog
+- Searchable book, author and category catalog with rule-based personalized recommendations
 - Personal shelves: want to read, reading and read
-- Page progress and reading-session history
+- Page progress, server-backed focus timer and correctable reading-session history
 - Personal reading goals with progress calculated from real reading activity
 - Private reading notes, quotes, page references and searchable tags
 - Ratings, reviews, comments and reactions
@@ -139,7 +139,8 @@ Development seeding creates:
 These accounts are for the Development environment only.
 Development seed also creates the non-login demo profile `Hà Linh`, whose follow
 graph and public reading activity give the seeded reader a real discovery
-suggestion.
+suggestion. The seeded reader and administrator also cover personalized and
+cold-start book recommendation smoke scenarios without requiring machine learning.
 
 ## Run with Docker
 

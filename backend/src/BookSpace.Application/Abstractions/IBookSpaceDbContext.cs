@@ -13,7 +13,9 @@ public interface IBookSpaceDbContext
     IQueryable<BookAuthor> BookAuthors { get; }
     IQueryable<BookCategory> BookCategories { get; }
     IQueryable<LibraryItem> LibraryItems { get; }
+    IQueryable<LibraryItem> LibraryItemsIncludingDeleted { get; }
     IQueryable<ReadingSession> ReadingSessions { get; }
+    IQueryable<ActiveReadingSession> ActiveReadingSessions { get; }
     IQueryable<Review> Reviews { get; }
     IQueryable<ReviewComment> ReviewComments { get; }
     IQueryable<ReviewLike> ReviewLikes { get; }

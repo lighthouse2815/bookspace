@@ -83,25 +83,164 @@ public sealed class ApiFlowTests(BookSpaceApiFactory factory) : IClassFixture<Bo
     }
 
     [Fact]
+    public async Task Book_recommendations_require_authentication()
+    {
+        var response = await _client.GetAsync("/api/books/recommendations");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        var envelope = await ReadEnvelopeAsync(response);
+        Assert.False(envelope.GetProperty("success").GetBoolean());
+        Assert.Equal("UNAUTHORIZED", envelope.GetProperty("code").GetString());
+        Assert.Equal(
+            "Bạn cần đăng nhập để tiếp tục.",
+            envelope.GetProperty("message").GetString());
+    }
+
+    [Fact]
+    public async Task Book_recommendations_exclude_owned_and_deleted_books_and_explain_social_ranking()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var viewerRegistration = await _client.PostAsJsonAsync("/api/auth/register", new
+        {
+            email = $"recommend-viewer-{suffix}@bookspace.local",
+            password = "Reader123!",
+            displayName = "Độc giả nhận đề xuất"
+        });
+        Assert.Equal(HttpStatusCode.Created, viewerRegistration.StatusCode);
+        var viewerAuth = await ReadDataAsync(viewerRegistration);
+        var viewerId = viewerAuth.GetProperty("user").GetProperty("id").GetGuid();
+        var viewerToken = viewerAuth.GetProperty("accessToken").GetString();
+        var followedRegistration = await _client.PostAsJsonAsync("/api/auth/register", new
+        {
+            email = $"recommend-followed-{suffix}@bookspace.local",
+            password = "Reader123!",
+            displayName = "Độc giả được theo dõi"
+        });
+        Assert.Equal(HttpStatusCode.Created, followedRegistration.StatusCode);
+        var followedAuth = await ReadDataAsync(followedRegistration);
+        var followedUserId = followedAuth.GetProperty("user").GetProperty("id").GetGuid();
+
+        Guid ownedBookId;
+        Guid recommendedBookId;
+        Guid deletedBookId;
+        await using (var scope = _factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BookSpaceDbContext>();
+            var ownedBook = new Book(
+                $"Sách đã sở hữu {suffix}",
+                null,
+                null,
+                null,
+                180,
+                2026);
+            var recommendedBook = new Book(
+                $"Sách được theo dõi yêu thích {suffix}",
+                null,
+                null,
+                null,
+                220,
+                2026);
+            var deletedBook = new Book(
+                $"Sách đã xóa {suffix}",
+                null,
+                null,
+                null,
+                160,
+                2026);
+            deletedBook.SoftDelete();
+            db.AddRange(ownedBook, recommendedBook, deletedBook);
+            db.Add(new LibraryItem(
+                viewerId,
+                ownedBook.Id,
+                BookSpace.Domain.Enums.LibraryStatus.WANT_TO_READ));
+            db.Add(new Follow(viewerId, followedUserId));
+            db.Add(new Review(
+                followedUserId,
+                recommendedBook.Id,
+                5,
+                "Đánh giá tích cực dùng cho kiểm thử đề xuất.",
+                false));
+            await db.SaveChangesAsync();
+            ownedBookId = ownedBook.Id;
+            recommendedBookId = recommendedBook.Id;
+            deletedBookId = deletedBook.Id;
+        }
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", viewerToken);
+        var page = await GetDataAsync("/api/books/recommendations?page=1&pageSize=100");
+        var items = page.GetProperty("items").EnumerateArray().ToList();
+
+        Assert.Equal(1, page.GetProperty("page").GetInt32());
+        Assert.Equal(100, page.GetProperty("pageSize").GetInt32());
+        Assert.DoesNotContain(items, item => item.GetProperty("book").GetProperty("id").GetGuid() == ownedBookId);
+        Assert.DoesNotContain(items, item => item.GetProperty("book").GetProperty("id").GetGuid() == deletedBookId);
+        var recommendation = Assert.Single(
+            items,
+            item => item.GetProperty("book").GetProperty("id").GetGuid() == recommendedBookId);
+        Assert.Equal(
+            "FOLLOWED_READER_LIKED",
+            recommendation.GetProperty("reasonCode").GetString());
+        Assert.Equal(
+            "Được độc giả bạn theo dõi đánh giá cao.",
+            recommendation.GetProperty("reasonText").GetString());
+    }
+
+    [Fact]
+    public async Task Cold_start_recommendations_use_fallback_and_keep_stable_pages()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var register = await _client.PostAsJsonAsync("/api/auth/register", new
+        {
+            email = $"recommend-cold-{suffix}@bookspace.local",
+            password = "Reader123!",
+            displayName = "Độc giả cold start"
+        });
+        Assert.Equal(HttpStatusCode.Created, register.StatusCode);
+        var auth = await ReadDataAsync(register);
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", auth.GetProperty("accessToken").GetString());
+
+        var first = await GetDataAsync("/api/books/recommendations?page=1&pageSize=2");
+        var repeatedFirst = await GetDataAsync("/api/books/recommendations?page=1&pageSize=2");
+        var second = await GetDataAsync("/api/books/recommendations?page=2&pageSize=2");
+        var firstItems = first.GetProperty("items").EnumerateArray().ToList();
+        var repeatedFirstItems = repeatedFirst.GetProperty("items").EnumerateArray().ToList();
+        var secondItems = second.GetProperty("items").EnumerateArray().ToList();
+
+        Assert.NotEmpty(firstItems);
+        Assert.All(
+            firstItems.Concat(secondItems),
+            item => Assert.Equal("POPULAR_FALLBACK", item.GetProperty("reasonCode").GetString()));
+        Assert.Equal(
+            firstItems.Select(item => item.GetProperty("book").GetProperty("id").GetGuid()),
+            repeatedFirstItems.Select(item => item.GetProperty("book").GetProperty("id").GetGuid()));
+        Assert.Empty(
+            firstItems.Select(item => item.GetProperty("book").GetProperty("id").GetGuid())
+                .Intersect(secondItems.Select(item => item.GetProperty("book").GetProperty("id").GetGuid())));
+    }
+
+    [Fact]
     public async Task Feed_projects_review_reading_club_and_challenge_activities()
     {
         await LoginAsync("reader@bookspace.local", "Reader123!");
-        var challenges = await GetDataAsync("/api/challenges");
-        var activeChallenge = challenges.GetProperty("items").EnumerateArray()
-            .First(challenge => challenge.GetProperty("isJoined").GetBoolean());
-        var challengeId = activeChallenge.GetProperty("id").GetGuid();
-        var detail = await _client.GetAsync($"/api/challenges/{challengeId}");
-        Assert.Equal(HttpStatusCode.OK, detail.StatusCode);
-
-        var feed = await GetDataAsync("/api/feed");
-        var types = feed.GetProperty("items")
-            .EnumerateArray()
-            .Select(item => item.GetProperty("type").GetString())
-            .ToList();
-        Assert.Contains("REVIEW", types);
-        Assert.Contains("READING_PROGRESS", types);
-        Assert.Contains("CLUB_POST", types);
-        Assert.Contains("CHALLENGE", types);
+        var challengeId = await AddCompletedChallengeActivityAsync();
+        try
+        {
+            var feed = await GetDataAsync("/api/feed");
+            var types = feed.GetProperty("items")
+                .EnumerateArray()
+                .Select(item => item.GetProperty("type").GetString())
+                .ToList();
+            Assert.Contains("REVIEW", types);
+            Assert.Contains("READING_PROGRESS", types);
+            Assert.Contains("CLUB_POST", types);
+            Assert.Contains("CHALLENGE", types);
+        }
+        finally
+        {
+            await RemoveChallengeActivityAsync(challengeId);
+        }
     }
 
     [Theory]
@@ -133,31 +272,37 @@ public sealed class ApiFlowTests(BookSpaceApiFactory factory) : IClassFixture<Bo
         string expectedTypes)
     {
         await LoginAsync("reader@bookspace.local", "Reader123!");
+        Guid? challengeId = null;
         if (string.Equals(type, "challenge", StringComparison.OrdinalIgnoreCase))
         {
-            var challenges = await GetDataAsync("/api/challenges");
-            var joinedChallenge = challenges.GetProperty("items").EnumerateArray()
-                .First(challenge => challenge.GetProperty("isJoined").GetBoolean());
-            var detail = await _client.GetAsync(
-                $"/api/challenges/{joinedChallenge.GetProperty("id").GetGuid()}");
-            Assert.Equal(HttpStatusCode.OK, detail.StatusCode);
+            challengeId = await AddCompletedChallengeActivityAsync();
         }
 
-        var feed = await GetDataAsync($"/api/feed?type={type}&pageSize=100");
-        var allowedTypes = expectedTypes.Split(',').ToHashSet(StringComparer.Ordinal);
-        var items = feed.GetProperty("items").EnumerateArray().ToList();
-
-        Assert.NotEmpty(items);
-        Assert.All(
-            items,
-            item => Assert.Contains(item.GetProperty("type").GetString()!, allowedTypes));
-        if (string.Equals(type, "ReAdInG", StringComparison.Ordinal))
+        try
         {
-            Assert.All(items, item =>
+            var feed = await GetDataAsync($"/api/feed?type={type}&pageSize=100");
+            var allowedTypes = expectedTypes.Split(',').ToHashSet(StringComparer.Ordinal);
+            var items = feed.GetProperty("items").EnumerateArray().ToList();
+
+            Assert.NotEmpty(items);
+            Assert.All(
+                items,
+                item => Assert.Contains(item.GetProperty("type").GetString()!, allowedTypes));
+            if (string.Equals(type, "ReAdInG", StringComparison.Ordinal))
             {
-                Assert.Equal(JsonValueKind.Null, item.GetProperty("content").ValueKind);
-                Assert.False(item.TryGetProperty("note", out _));
-            });
+                Assert.All(items, item =>
+                {
+                    Assert.Equal(JsonValueKind.Null, item.GetProperty("content").ValueKind);
+                    Assert.False(item.TryGetProperty("note", out _));
+                });
+            }
+        }
+        finally
+        {
+            if (challengeId.HasValue)
+            {
+                await RemoveChallengeActivityAsync(challengeId.Value);
+            }
         }
     }
 
@@ -390,7 +535,7 @@ public sealed class ApiFlowTests(BookSpaceApiFactory factory) : IClassFixture<Bo
         await LoginAsync("reader@bookspace.local", "Reader123!");
         var feed = await GetDataAsync("/api/feed");
         var firstFeedItem = feed.GetProperty("items").EnumerateArray().First();
-        Assert.Equal(JsonValueKind.Null, firstFeedItem.GetProperty("actor").GetProperty("email").ValueKind);
+        Assert.False(firstFeedItem.GetProperty("actor").TryGetProperty("email", out _));
 
         _client.DefaultRequestHeaders.Authorization = null;
         var clubs = await GetDataAsync("/api/clubs");
@@ -398,7 +543,7 @@ public sealed class ApiFlowTests(BookSpaceApiFactory factory) : IClassFixture<Bo
         var club = await GetDataAsync($"/api/clubs/{clubId}");
         Assert.True(club.TryGetProperty("posts", out var posts));
         Assert.NotEmpty(posts.EnumerateArray());
-        Assert.Equal(JsonValueKind.Null, club.GetProperty("owner").GetProperty("email").ValueKind);
+        Assert.False(club.GetProperty("owner").TryGetProperty("email", out _));
     }
 
     [Fact]
@@ -847,6 +992,42 @@ public sealed class ApiFlowTests(BookSpaceApiFactory factory) : IClassFixture<Bo
         var data = await ReadDataAsync(response);
         _client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", data.GetProperty("accessToken").GetString());
+    }
+
+    private async Task<Guid> AddCompletedChallengeActivityAsync()
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BookSpaceDbContext>();
+        var reader = db.UserSet.Single(user => user.Email == "reader@bookspace.local");
+        var now = DateTimeOffset.UtcNow;
+        var challenge = new ReadingChallenge(
+            reader.Id,
+            $"Thá»­ thĂ¡ch báº£ng tin {Guid.NewGuid():N}",
+            null,
+            1,
+            now.AddDays(-1),
+            now.AddDays(1),
+            null,
+            true);
+        var participation = new ChallengeParticipation(challenge.Id, reader.Id);
+        participation.UpdateProgress(1, 1);
+        db.AddRange(challenge, participation);
+        await db.SaveChangesAsync();
+        return challenge.Id;
+    }
+
+    private async Task RemoveChallengeActivityAsync(Guid challengeId)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BookSpaceDbContext>();
+        var challenge = db.ReadingChallengeSet.SingleOrDefault(item => item.Id == challengeId);
+        if (challenge is null)
+        {
+            return;
+        }
+
+        db.Remove(challenge);
+        await db.SaveChangesAsync();
     }
 
     private async Task<JsonElement> GetDataAsync(string endpoint)

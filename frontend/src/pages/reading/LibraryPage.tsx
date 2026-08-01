@@ -1,4 +1,4 @@
-import { Books, Trash } from '@phosphor-icons/react'
+import { Books, Play, Trash } from '@phosphor-icons/react'
 import { useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { BookCover } from '../../components/books/BookCover'
@@ -117,6 +117,14 @@ function LibraryRow({ entry }: { entry: LibraryEntry }) {
               <Button type="submit" variant="secondary" size="sm" loading={update.isPending}>
                 Cập nhật
               </Button>
+              <Link
+                to={`/journal?bookId=${entry.bookId}`}
+                className="button button-primary button-sm"
+                aria-label={`Bắt đầu phiên đọc ${entry.book.title}`}
+              >
+                <Play size={16} weight="fill" />
+                Bắt đầu đọc
+              </Link>
             </form>
           </div>
         ) : (

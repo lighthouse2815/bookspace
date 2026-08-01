@@ -1,10 +1,12 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 using BookSpace.Domain.Enums;
 
 namespace BookSpace.Application.Contracts;
 
 public sealed record UserSummary(
     Guid Id,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     string? Email,
     string DisplayName,
     string? AvatarUrl,
@@ -118,6 +120,11 @@ public sealed record BookDetail(
     LibraryStatus? Shelf,
     DateTimeOffset CreatedAt);
 
+public sealed record BookRecommendationDto(
+    BookSummary Book,
+    string ReasonCode,
+    string ReasonText);
+
 public sealed record SaveAuthorRequest(
     [Required, MaxLength(200)] string Name,
     [MaxLength(2000)] string? Biography,
@@ -183,6 +190,28 @@ public sealed record CreateReadingSessionRequest(
     DateTimeOffset? EndedAt,
     [Range(1, 1440)] int DurationMinutes,
     [Range(1, int.MaxValue)] int PagesRead,
+    [MaxLength(1000)] string? Note);
+
+public sealed record CorrectReadingSessionRequest(
+    DateTimeOffset StartedAt,
+    [Range(1, 1440)] int DurationMinutes,
+    [Range(1, int.MaxValue)] int PagesRead,
+    [MaxLength(1000)] string? Note);
+
+public sealed record ActiveReadingSessionDto(
+    Guid Id,
+    Guid BookId,
+    BookSummary? Book,
+    ActiveReadingSessionStatus Status,
+    int StartPage,
+    DateTimeOffset StartedAt,
+    long ElapsedSeconds,
+    DateTimeOffset UpdatedAt);
+
+public sealed record StartActiveReadingSessionRequest(Guid BookId);
+
+public sealed record FinishActiveReadingSessionRequest(
+    [Range(0, int.MaxValue)] int EndingPage,
     [MaxLength(1000)] string? Note);
 
 public sealed record ReviewDto(

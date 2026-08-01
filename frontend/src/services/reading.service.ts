@@ -1,6 +1,11 @@
 import { api, unwrap } from '../lib/api'
 import type { ApiEnvelope, PageResult } from '../types/api'
-import type { LibraryEntry, ReadingSession, Shelf } from '../types/domain'
+import type {
+  ActiveReadingSession,
+  LibraryEntry,
+  ReadingSession,
+  Shelf,
+} from '../types/domain'
 
 export interface LibraryInput {
   bookId: string
@@ -19,6 +24,22 @@ export interface SessionInput {
   endedAt?: string
   durationMinutes: number
   pagesRead: number
+  note?: string
+}
+
+export interface SessionUpdateInput {
+  startedAt: string
+  durationMinutes: number
+  pagesRead: number
+  note?: string | null
+}
+
+export interface StartActiveSessionInput {
+  bookId: string
+}
+
+export interface FinishActiveSessionInput {
+  endingPage: number
   note?: string
 }
 
@@ -48,4 +69,33 @@ export const readingService = {
 
   createSession: async (input: SessionInput) =>
     unwrap(await api.post<ApiEnvelope<ReadingSession>>('/reading-sessions', input)),
+
+  updateSession: async (id: string, input: SessionUpdateInput) =>
+    unwrap(await api.patch<ApiEnvelope<ReadingSession>>(`/reading-sessions/${id}`, input)),
+
+  activeSession: async () =>
+    unwrap(await api.get<ApiEnvelope<ActiveReadingSession | null>>('/reading-sessions/active')),
+
+  startActiveSession: async (input: StartActiveSessionInput) =>
+    unwrap(
+      await api.post<ApiEnvelope<ActiveReadingSession>>('/reading-sessions/active', input),
+    ),
+
+  pauseActiveSession: async () =>
+    unwrap(
+      await api.post<ApiEnvelope<ActiveReadingSession>>('/reading-sessions/active/pause'),
+    ),
+
+  resumeActiveSession: async () =>
+    unwrap(
+      await api.post<ApiEnvelope<ActiveReadingSession>>('/reading-sessions/active/resume'),
+    ),
+
+  finishActiveSession: async (input: FinishActiveSessionInput) =>
+    unwrap(
+      await api.post<ApiEnvelope<ReadingSession>>('/reading-sessions/active/finish', input),
+    ),
+
+  cancelActiveSession: async () =>
+    unwrap(await api.delete<ApiEnvelope<null>>('/reading-sessions/active')),
 }

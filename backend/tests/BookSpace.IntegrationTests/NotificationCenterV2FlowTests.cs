@@ -55,6 +55,17 @@ public sealed class NotificationCenterV2FlowTests
                 invalidDocument.RootElement.GetProperty("code").GetString());
         }
 
+        var invalidUnreadCategory = await target.GetAsync(
+            "/api/notifications/unread-count?category=UNKNOWN");
+        Assert.Equal(HttpStatusCode.BadRequest, invalidUnreadCategory.StatusCode);
+        using (var invalidUnreadDocument = JsonDocument.Parse(
+                   await invalidUnreadCategory.Content.ReadAsStringAsync()))
+        {
+            Assert.Equal(
+                "INVALID_NOTIFICATION_CATEGORY",
+                invalidUnreadDocument.RootElement.GetProperty("code").GetString());
+        }
+
         var enabled = await target.PatchAsJsonAsync(
             "/api/notifications/preferences",
             new

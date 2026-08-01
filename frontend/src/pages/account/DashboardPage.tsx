@@ -1,4 +1,4 @@
-import { BookOpenText, Fire, Flag, Hourglass, Lightning, TrendUp } from '@phosphor-icons/react'
+import { BookOpenText, Fire, Flag, Hourglass, Lightning, Play, TrendUp } from '@phosphor-icons/react'
 import { Link } from 'react-router-dom'
 import { BookCover } from '../../components/books/BookCover'
 import { Progress } from '../../components/ui/Progress'
@@ -110,26 +110,33 @@ export function DashboardPage() {
           {data.currentlyReading.length ? (
             <div className="mt-6 space-y-4">
               {data.currentlyReading.map((entry) => (
-                <Link
-                  key={entry.id}
-                  to={`/books/${entry.book.id}`}
-                  className="flex gap-4 rounded-xl p-2 transition-colors hover:bg-surface-muted"
-                >
-                  <BookCover
-                    src={entry.book.coverImageUrl}
-                    title={entry.book.title}
-                    className="h-24 w-16 shrink-0 rounded-lg"
-                  />
+                <article key={entry.id} className="flex gap-4 rounded-xl p-2 transition-colors hover:bg-surface-muted">
+                  <Link to={`/books/${entry.book.id}`} aria-label={`Xem ${entry.book.title}`}>
+                    <BookCover
+                      src={entry.book.coverImageUrl}
+                      title={entry.book.title}
+                      className="h-24 w-16 shrink-0 rounded-lg"
+                    />
+                  </Link>
                   <div className="min-w-0 flex-1 py-1">
-                    <h3 className="truncate font-semibold text-heading">{entry.book.title}</h3>
+                    <Link to={`/books/${entry.book.id}`} className="block truncate font-semibold text-heading hover:text-accent-strong">
+                      {entry.book.title}
+                    </Link>
                     <p className="mt-1 text-sm text-muted">{entry.book.author?.name}</p>
                     <Progress
                       value={entry.progressPercent}
                       label={`${entry.currentPage}/${entry.book.pageCount ?? '?'} trang`}
                       className="mt-4"
                     />
+                    <Link
+                      to={`/journal?bookId=${entry.bookId}`}
+                      className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-accent-strong hover:underline"
+                    >
+                      <Play size={14} weight="fill" />
+                      Bắt đầu phiên đọc
+                    </Link>
                   </div>
-                </Link>
+                </article>
               ))}
             </div>
           ) : (

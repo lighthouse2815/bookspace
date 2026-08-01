@@ -44,7 +44,11 @@ public static class DependencyInjection
         services.AddScoped<IClubReadingSprintService, ClubReadingSprintService>();
         services.AddScoped<IChallengeService, ChallengeService>();
         services.AddScoped<IChallengeProgressSynchronizer, ChallengeProgressSynchronizer>();
-        services.AddScoped<IChallengeMutationBoundary, ChallengeMutationBoundary>();
+        services.AddScoped<ChallengeMutationBoundary>();
+        services.AddScoped<IChallengeMutationBoundary>(provider =>
+            provider.GetRequiredService<ChallengeMutationBoundary>());
+        services.AddScoped<IReadingMutationBoundary>(provider =>
+            provider.GetRequiredService<ChallengeMutationBoundary>());
         services.AddScoped<IChallengeParticipationReader, ChallengeParticipationReader>();
         services.AddScoped<IChallengeProgressPersistence, ChallengeProgressPersistence>();
         services.AddScoped<IFollowMutationBoundary, FollowMutationBoundary>();

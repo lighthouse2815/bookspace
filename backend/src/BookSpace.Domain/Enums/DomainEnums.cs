@@ -13,6 +13,12 @@ public enum LibraryStatus
     READ
 }
 
+public enum ActiveReadingSessionStatus
+{
+    RUNNING,
+    PAUSED
+}
+
 public enum ClubMemberRole
 {
     OWNER,

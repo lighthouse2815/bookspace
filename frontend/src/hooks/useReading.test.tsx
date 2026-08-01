@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { challengeKeys, challengeViewerScope } from './challengeKeys'
+import { recommendationKeys } from './recommendationKeys'
 import { useUpdateLibrary } from './useReading'
 
 const mocks = vi.hoisted(() => ({
@@ -11,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   challengeQuery: vi.fn(),
   notificationsQuery: vi.fn(),
   feedQuery: vi.fn(),
+  recommendationsQuery: vi.fn(),
 }))
 
 vi.mock('../services/reading.service', () => ({
@@ -53,6 +55,10 @@ function ReadingProgressProbe() {
     queryKey: ['feed', 'reader-1', 'ALL', 1, 10],
     queryFn: mocks.feedQuery,
   })
+  const recommendations = useQuery({
+    queryKey: recommendationKeys.page('reader-1', 1, 12),
+    queryFn: mocks.recommendationsQuery,
+  })
   const update = useUpdateLibrary()
 
   return (
@@ -64,6 +70,9 @@ function ReadingProgressProbe() {
         {notifications.data?.length ?? 'Đang tải'}
       </output>
       <output data-testid="feed-count">{feed.data?.length ?? 'Đang tải'}</output>
+      <output data-testid="recommendation-count">
+        {recommendations.data?.length ?? 'Đang tải'}
+      </output>
       <button
         type="button"
         disabled={update.isPending}
@@ -89,6 +98,7 @@ describe('reading mutation challenge invalidation', () => {
     let currentBooks = 0
     let notificationCount = 0
     let feedCount = 0
+    let recommendationCount = 0
     mocks.challengeQuery.mockImplementation(async () => ({ currentBooks }))
     mocks.notificationsQuery.mockImplementation(async () =>
       Array.from({ length: notificationCount }, (_, index) => ({ id: `${index}` })),
@@ -96,10 +106,14 @@ describe('reading mutation challenge invalidation', () => {
     mocks.feedQuery.mockImplementation(async () =>
       Array.from({ length: feedCount }, (_, index) => ({ id: `${index}` })),
     )
+    mocks.recommendationsQuery.mockImplementation(async () =>
+      Array.from({ length: recommendationCount }, (_, index) => ({ id: `${index}` })),
+    )
     mocks.updateLibrary.mockImplementation(async () => {
       currentBooks = 1
       notificationCount = 1
       feedCount = 1
+      recommendationCount = 1
       return { id: 'library-item-1', shelf: 'READ' }
     })
     const client = createQueryClient()
@@ -114,6 +128,7 @@ describe('reading mutation challenge invalidation', () => {
       expect(mocks.challengeQuery).toHaveBeenCalledOnce()
       expect(mocks.notificationsQuery).toHaveBeenCalledOnce()
       expect(mocks.feedQuery).toHaveBeenCalledOnce()
+      expect(mocks.recommendationsQuery).toHaveBeenCalledOnce()
       expect(screen.getByTestId('challenge-progress')).toHaveTextContent('0')
     })
 
@@ -126,9 +141,11 @@ describe('reading mutation challenge invalidation', () => {
       expect(mocks.challengeQuery).toHaveBeenCalledTimes(2)
       expect(mocks.notificationsQuery).toHaveBeenCalledTimes(2)
       expect(mocks.feedQuery).toHaveBeenCalledTimes(2)
+      expect(mocks.recommendationsQuery).toHaveBeenCalledTimes(2)
       expect(screen.getByTestId('challenge-progress')).toHaveTextContent('1')
       expect(screen.getByTestId('notification-count')).toHaveTextContent('1')
       expect(screen.getByTestId('feed-count')).toHaveTextContent('1')
+      expect(screen.getByTestId('recommendation-count')).toHaveTextContent('1')
     })
   })
 })

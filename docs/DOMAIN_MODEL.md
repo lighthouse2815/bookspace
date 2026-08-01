@@ -198,6 +198,46 @@ Khóa duy nhất `(BookId, AuthorId)`. Không liên kết entity đã soft delet
 
 Khóa duy nhất `(BookId, CategoryId)`. Một sách có thể chưa có category, nhưng phải có tác giả.
 
+### 3.6 `BookRecommendation`
+
+`BookRecommendation` là read model theo principal, không phải domain entity và
+không có table/migration riêng. Projection loại mọi sách đang có `LibraryItem`
+active hoặc review còn hoạt động của principal, bất kể shelf/rating, rồi loại sách
+soft delete trước khi count hoặc phân trang.
+
+Nguồn tín hiệu hợp lệ:
+
+- Thư viện active của principal và review 4–5 sao còn hoạt động do chính
+  principal viết cung cấp tập author/category sở thích.
+- Review 4–5 sao còn hoạt động của user active mà principal đang follow cung cấp
+  social signal; tuyệt đối không đọc library của những user này.
+- Rating trung bình và review count từ toàn bộ review công khai còn hoạt động cung
+  cấp cold-start/global fallback; review của user locked hoặc soft delete không
+  được tính.
+
+Vector xếp hạng xác định, theo thứ tự giảm dần trừ tie-break cuối:
+
+1. Số review 4–5 sao của các user principal đang follow cho book.
+2. Có author trùng tập sở thích của principal.
+3. Số category trùng tập sở thích của principal.
+4. Rating trung bình từ review công khai.
+5. Số review công khai.
+6. `Book.Id asc`.
+
+Reason code lấy tín hiệu ưu tiên đầu tiên có giá trị:
+
+| Code | Điều kiện |
+|---|---|
+| `FOLLOWED_READER_LIKED` | có ít nhất một review 4–5 sao từ user đang follow |
+| `MATCHED_AUTHOR` | author trùng sở thích principal |
+| `MATCHED_CATEGORY` | có category trùng sở thích principal |
+| `POPULAR_FALLBACK` | không có tín hiệu cá nhân/social phía trên |
+
+Read model không đọc `ReadingSession`, `ReadingNote`, library của user khác hoặc
+provider Bookstore; không dùng machine learning. Mọi filter và ranking được áp
+dụng trước count/phân trang để không tạo trang rỗng giả hoặc làm lộ candidate đã
+bị loại.
+
 ## 4. Bounded context Reading
 
 ### 4.1 `LibraryItem`
@@ -217,7 +257,9 @@ Aggregate cho trạng thái một cuốn sách trong thư viện một người.
 
 Invariant:
 
-- Unique active `(UserId, BookId)`.
+- Unique `(UserId, BookId)` cho toàn bộ lifecycle. Khi người dùng bắt đầu đọc lại
+  một sách đã soft-delete khỏi thư viện, hệ thống restore đúng logical row đó thay
+  vì tạo identity thứ hai; tiến độ high-water cũ được giữ nguyên.
 - `WANT_TO_READ`: `CurrentPage = 0`, `FinishedAt = null`.
 - `READING`: `StartedAt != null`, `0 <= CurrentPage < PageCount`, `FinishedAt = null`.
 - `READ`: `StartedAt != null`, `CurrentPage = PageCount`, `FinishedAt != null`.
@@ -236,16 +278,61 @@ Nhật ký một phiên đọc đã hoàn tất.
 | `StartedAt` | `DateTimeOffset` | có | không ở tương lai quá 5 phút |
 | `EndedAt` | `DateTimeOffset?` | không | không trước `StartedAt` |
 | `PagesRead` | `int` | có | 1..`Book.PageCount` |
-| `DurationMinutes` | `int` | có | 1..1.440 |
-| `Note` | `string?` | không | tối đa 2.000 |
+| `DurationMinutes` | `int` | có | manual/correction 1..1.440; Focus dùng active time server và có thể vượt 1.440 để phiên bị quên vẫn finish/correction được |
+| `Note` | `string?` | không | tối đa 1.000 |
+| `AppliedPagesHighWater` | `int` | có | số trang lớn nhất của session đã từng được áp dụng vào library; field nội bộ, không trả DTO |
 | `CreatedAt`, `UpdatedAt`, `DeletedAt?` | thời gian | có | audit/soft delete |
 
 Invariant:
 
-- Chỉ owner được xem. Reading session là nhật ký append-only trong Goal 1.
+- Chỉ owner được xem. Reading session không có API xóa; owner chỉ correction qua use case có kiểm soát.
 - Một phiên có thể tăng `CurrentPage` của `LibraryItem` tương ứng lên `min(CurrentPage + PagesRead, PageCount)`.
 - Ghi session phải tạo library item `READING` nếu chưa tồn tại.
 - Nếu đạt `PageCount`, library item chuyển `READ` và đặt `FinishedAt`.
+
+Reading session không còn bất biến tuyệt đối: owner có thể correction thời điểm bắt
+đầu, thời lượng, số trang và ghi chú. Correction cập nhật các projection đọc trực
+tiếp từ session nhưng không hạ `LibraryItem.CurrentPage`, challenge high-water hoặc
+`ReadingGoal.CompletedAt`. Nếu `PagesRead` vượt `AppliedPagesHighWater`, chỉ phần
+chênh dương so với high-water đã áp dụng mới được đẩy vào library rồi high-water tăng;
+chuỗi correction `10 -> 5 -> 8` vì vậy không cộng trùng. Session tạo từ Focus Reading giữ thời điểm bắt đầu/kết thúc
+thực tế, còn `DurationMinutes` chỉ tính thời gian active và loại khoảng pause.
+
+### 4.2A `ActiveReadingSession`
+
+Trạng thái server-backed tạm thời của Focus Reading; entity này tách khỏi
+`ReadingSession` để timer đang chạy không đi vào Goals, Insights, Dashboard hoặc Feed.
+
+| Trường | Kiểu | Bắt buộc | Quy tắc |
+|---|---|---:|---|
+| `Id` | `Guid` | có | server tạo |
+| `UserId` | `Guid` | có | owner; unique để mỗi user chỉ có một active session |
+| `BookId` | `Guid` | có | sách trong catalog, chưa hoàn tất |
+| `Status` | `ActiveReadingSessionStatus` | có | `RUNNING` hoặc `PAUSED` |
+| `StartPage` | `int` | có | snapshot tiến độ library lúc start |
+| `StartedAt` | `DateTimeOffset` | có | UTC từ `TimeProvider` server |
+| `LastResumedAt` | `DateTimeOffset?` | không | có khi đang `RUNNING` |
+| `AccumulatedSeconds` | `long` | có | tổng active time đã chốt qua các lần pause |
+| `CreatedAt`, `UpdatedAt` | thời gian | có | audit |
+
+Invariant:
+
+- State machine: `NONE -> RUNNING -> PAUSED <-> RUNNING`; từ `RUNNING|PAUSED` chỉ
+  sang `FINISHED` hoặc `CANCELLED` bằng cách xóa active row.
+- Pause khi đã `PAUSED` và resume khi đã `RUNNING` là idempotent; elapsed không tăng
+  trong trạng thái `PAUSED`.
+- `ElapsedSeconds` là response field do server suy ra từ `AccumulatedSeconds`,
+  `LastResumedAt` và thời điểm hiện tại; client không ghi elapsed.
+- Active DTO cho phép book projection null khi catalog book bị soft-delete giữa
+  phiên, nhưng working row vẫn truy xuất được để pause/resume/cancel phục hồi.
+- Unique `UserId` và mutation boundary/transaction bảo vệ double-start và race giữa
+  pause, resume, finish, cancel.
+- Mọi mutation library/reading đọc, kiểm tra và ghi trong cùng serialized boundary;
+  manual session cùng active book bị chặn. Correction cùng active book chỉ hợp lệ
+  khi không tạo delta dương vượt `AppliedPagesHighWater`.
+- Finish dưới 60 giây hoặc `endingPage <= StartPage` bị từ chối. Active row, completed
+  session, library update và challenge synchronization được commit atomically.
+- Cancel xóa vật lý active row vì đây là working state, không phải history cần phục hồi.
 
 ### 4.3 `ReadingGoal`
 

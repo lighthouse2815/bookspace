@@ -15,15 +15,27 @@ public sealed class NotificationsController(INotificationService notificationSer
     [HttpGet]
     public ActionResult<ApiResponse<PageResult<NotificationDto>>> Notifications(
         [FromQuery] bool? unreadOnly,
-        [FromQuery] NotificationCategory? category,
+        [FromQuery] string? category,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20) =>
-        OkData(notificationService.Get(CurrentUserId, unreadOnly, category, page, pageSize));
+        OkData(
+            notificationService.Get(
+                CurrentUserId,
+                unreadOnly,
+                ParseCategory(category),
+                page,
+                pageSize));
 
     [HttpGet("unread-count")]
     public ActionResult<ApiResponse<object>> UnreadCount(
-        [FromQuery] NotificationCategory? category) =>
-        OkData<object>(new { count = notificationService.GetUnreadCount(CurrentUserId, category) });
+        [FromQuery] string? category) =>
+        OkData<object>(
+            new
+            {
+                count = notificationService.GetUnreadCount(
+                    CurrentUserId,
+                    ParseCategory(category))
+            });
 
     [HttpGet("preferences")]
     public ActionResult<ApiResponse<NotificationPreferencesDto>> Preferences() =>
@@ -54,5 +66,23 @@ public sealed class NotificationsController(INotificationService notificationSer
     {
         await notificationService.MarkAllReadAsync(CurrentUserId, cancellationToken);
         return OkEmptyData("Đã đọc tất cả thông báo.");
+    }
+
+    private static NotificationCategory? ParseCategory(string? category)
+    {
+        if (string.IsNullOrWhiteSpace(category))
+        {
+            return null;
+        }
+
+        if (Enum.TryParse<NotificationCategory>(category, true, out var parsed) &&
+            Enum.IsDefined(parsed))
+        {
+            return parsed;
+        }
+
+        throw new UseCaseException(
+            "INVALID_NOTIFICATION_CATEGORY",
+            "Nhóm thông báo không hợp lệ.");
     }
 }

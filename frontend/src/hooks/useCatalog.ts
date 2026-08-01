@@ -1,5 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
-import { catalogService, type BookQuery } from '../services/catalog.service'
+import { useAuth } from '../contexts/AuthContext'
+import {
+  catalogService,
+  type BookQuery,
+  type RecommendationQuery,
+} from '../services/catalog.service'
+import { recommendationKeys } from './recommendationKeys'
 
 export const catalogKeys = {
   all: ['catalog'] as const,
@@ -21,6 +27,16 @@ export function useBook(id?: string) {
     queryKey: catalogKeys.book(id ?? ''),
     queryFn: () => catalogService.book(id!),
     enabled: Boolean(id),
+  })
+}
+
+export function useBookRecommendations({ page = 1, pageSize = 12 }: RecommendationQuery = {}) {
+  const { user, isLoading } = useAuth()
+  const scope = user?.id ?? 'guest'
+  return useQuery({
+    queryKey: recommendationKeys.page(scope, page, pageSize),
+    queryFn: () => catalogService.recommendations({ page, pageSize }),
+    enabled: Boolean(user) && !isLoading,
   })
 }
 

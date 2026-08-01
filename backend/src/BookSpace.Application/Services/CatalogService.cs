@@ -66,6 +66,118 @@ public sealed class CatalogService(IBookSpaceDbContext db) : ICatalogService
         return PageResult<BookSummary>.Create(items, normalizedPage, size, total);
     }
 
+    public PageResult<BookRecommendationDto> GetRecommendations(
+        Guid userId,
+        int page,
+        int pageSize)
+    {
+        var knownBookIds = db.LibraryItems
+            .Where(item => item.UserId == userId && item.DeletedAt == null)
+            .Select(item => item.BookId)
+            .Concat(db.Reviews
+                .Where(review => review.UserId == userId && review.DeletedAt == null)
+                .Select(review => review.BookId))
+            .Distinct();
+        var candidateBooks = db.Books.Where(book =>
+            book.DeletedAt == null &&
+            !knownBookIds.Contains(book.Id));
+        var (normalizedPage, size, skip) = Paging.Normalize(page, pageSize);
+        var total = candidateBooks.LongCount();
+        var followedUserIds = db.Follows
+            .Where(follow =>
+                follow.FollowerId == userId &&
+                follow.DeletedAt == null &&
+                db.Users.Any(user =>
+                    user.Id == follow.FollowingId &&
+                    !user.IsLocked &&
+                    user.DeletedAt == null))
+            .Select(follow => follow.FollowingId);
+        var preferenceBookIds = db.LibraryItems
+            .Where(item => item.UserId == userId && item.DeletedAt == null)
+            .Select(item => item.BookId)
+            .Concat(db.Reviews
+                .Where(review =>
+                    review.UserId == userId &&
+                    review.Rating >= 4 &&
+                    review.DeletedAt == null)
+                .Select(review => review.BookId))
+            .Distinct();
+        var preferredAuthorIds = db.BookAuthors
+            .Where(link =>
+                link.DeletedAt == null &&
+                preferenceBookIds.Contains(link.BookId) &&
+                db.Books.Any(book => book.Id == link.BookId && book.DeletedAt == null) &&
+                db.Authors.Any(author => author.Id == link.AuthorId && author.DeletedAt == null))
+            .Select(link => link.AuthorId)
+            .Distinct();
+        var preferredCategoryIds = db.BookCategories
+            .Where(link =>
+                link.DeletedAt == null &&
+                preferenceBookIds.Contains(link.BookId) &&
+                db.Books.Any(book => book.Id == link.BookId && book.DeletedAt == null) &&
+                db.Categories.Any(category => category.Id == link.CategoryId && category.DeletedAt == null))
+            .Select(link => link.CategoryId)
+            .Distinct();
+
+        var ranked = candidateBooks
+            .Select(book => new
+            {
+                Book = book,
+                FollowedLikeCount = db.Reviews.Count(review =>
+                    review.BookId == book.Id &&
+                    review.Rating >= 4 &&
+                    review.DeletedAt == null &&
+                    followedUserIds.Contains(review.UserId)),
+                AuthorMatch = db.BookAuthors.Any(link =>
+                    link.BookId == book.Id &&
+                    link.DeletedAt == null &&
+                    preferredAuthorIds.Contains(link.AuthorId)),
+                CategoryMatchCount = db.BookCategories.Count(link =>
+                    link.BookId == book.Id &&
+                    link.DeletedAt == null &&
+                    preferredCategoryIds.Contains(link.CategoryId)),
+                AverageRating = db.Reviews
+                    .Where(review =>
+                        review.BookId == book.Id &&
+                        review.DeletedAt == null &&
+                        db.Users.Any(user =>
+                            user.Id == review.UserId &&
+                            !user.IsLocked &&
+                            user.DeletedAt == null))
+                    .Select(review => (double?)review.Rating)
+                    .Average() ?? 0,
+                ReviewCount = db.Reviews.Count(review =>
+                    review.BookId == book.Id &&
+                    review.DeletedAt == null &&
+                    db.Users.Any(user =>
+                        user.Id == review.UserId &&
+                        !user.IsLocked &&
+                        user.DeletedAt == null))
+            })
+            .OrderByDescending(candidate => candidate.FollowedLikeCount)
+            .ThenByDescending(candidate => candidate.AuthorMatch)
+            .ThenByDescending(candidate => candidate.CategoryMatchCount)
+            .ThenByDescending(candidate => candidate.AverageRating)
+            .ThenByDescending(candidate => candidate.ReviewCount)
+            .ThenBy(candidate => candidate.Book.Id)
+            .Skip(skip)
+            .Take(size)
+            .ToList()
+            .Select(candidate => ToRecommendation(
+                candidate.Book,
+                candidate.FollowedLikeCount,
+                candidate.AuthorMatch,
+                candidate.CategoryMatchCount,
+                userId))
+            .ToList();
+
+        return PageResult<BookRecommendationDto>.Create(
+            ranked,
+            normalizedPage,
+            size,
+            total);
+    }
+
     public BookDetail GetBook(Guid bookId, Guid? viewerId)
     {
         var book = FindBook(bookId);
@@ -241,5 +353,34 @@ public sealed class CatalogService(IBookSpaceDbContext db) : ICatalogService
         {
             throw ServiceErrors.NotFound("CATEGORY_NOT_FOUND", "Có thể loại không tồn tại.");
         }
+    }
+
+    private BookRecommendationDto ToRecommendation(
+        Book book,
+        int followedLikeCount,
+        bool authorMatch,
+        int categoryMatchCount,
+        Guid userId)
+    {
+        var (reasonCode, reasonText) = (followedLikeCount, authorMatch, categoryMatchCount) switch
+        {
+            ( > 0, _, _) => (
+                "FOLLOWED_READER_LIKED",
+                "Được độc giả bạn theo dõi đánh giá cao."),
+            (_, true, _) => (
+                "MATCHED_AUTHOR",
+                "Cùng tác giả với sách bạn quan tâm."),
+            (_, _, > 0) => (
+                "MATCHED_CATEGORY",
+                "Cùng thể loại với sách bạn quan tâm."),
+            _ => (
+                "POPULAR_FALLBACK",
+                "Được cộng đồng BookSpace đánh giá cao.")
+        };
+
+        return new BookRecommendationDto(
+            _mapper.Book(book, userId),
+            reasonCode,
+            reasonText);
     }
 }

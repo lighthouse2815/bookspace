@@ -181,6 +181,23 @@ DTO này không có email, password hash, token, role hoặc chi tiết library.
 
 `shelf` chỉ khác `null` khi request có access token hợp lệ và sách nằm trong thư viện principal.
 
+`BookRecommendationResponse`:
+
+| Field | Kiểu |
+|---|---|
+| `book` | `BookResponse`; `shelf` luôn `null` vì sách đã có trong library hoặc đã được principal review đều bị loại |
+| `reasonCode` | `FOLLOWED_READER_LIKED`, `MATCHED_AUTHOR`, `MATCHED_CATEGORY` hoặc `POPULAR_FALLBACK` |
+| `reasonText` | chuỗi tiếng Việt ổn định tương ứng reason code |
+
+Reason mapping:
+
+| `reasonCode` | `reasonText` |
+|---|---|
+| `FOLLOWED_READER_LIKED` | `Được độc giả bạn theo dõi đánh giá cao.` |
+| `MATCHED_AUTHOR` | `Cùng tác giả với sách bạn quan tâm.` |
+| `MATCHED_CATEGORY` | `Cùng thể loại với sách bạn quan tâm.` |
+| `POPULAR_FALLBACK` | `Được cộng đồng BookSpace đánh giá cao.` |
+
 ### 2.3 Reading
 
 `LibraryEntryResponse`:
@@ -656,6 +673,37 @@ Query:
 
 Response `200`: `ApiResponse<PageResult<BookResponse>>`.
 
+### `GET /api/books/recommendations?page=1&pageSize=12` — Authenticated
+
+`page` mặc định 1, `pageSize` mặc định 12 và vẫn dùng quy tắc normalize/clamp của
+`PageResult<T>`. Response `200`:
+`ApiResponse<PageResult<BookRecommendationResponse>>`.
+
+Candidate chỉ gồm sách active chưa có trong library active của principal ở bất kỳ
+shelf nào và chưa từng được principal review. Ranking áp dụng trước count/phân
+trang, theo vector xác định:
+
+1. Số review 4–5 sao còn hoạt động từ user active principal đang follow, giảm dần.
+2. Có author trùng author trong library/review 4–5 sao của principal.
+3. Số category trùng category trong library/review 4–5 sao của principal, giảm dần.
+4. Average rating từ review công khai còn hoạt động, giảm dần.
+5. Review count công khai, giảm dần.
+6. `book.id asc`.
+
+`reasonCode` là tín hiệu ưu tiên đầu tiên có giá trị theo đúng thứ tự social,
+author, category, fallback. Tài khoản chưa có library/review/follow vẫn nhận
+`POPULAR_FALLBACK` từ aggregate review công khai; book chưa có review vẫn là
+candidate hợp lệ sau các book được cộng đồng đánh giá.
+
+Nguồn riêng tư duy nhất là library/review của chính principal. Với user khác,
+service chỉ đọc review công khai còn hoạt động của tài khoản principal đang
+follow; không đọc library, session hoặc note của họ. Review của user locked hoặc
+soft delete không tham gia social/global signal. Đây là read model rule-based,
+không có entity/migration và không phụ thuộc Bookstore hoặc machine learning.
+
+Không có access token hợp lệ: `401 UNAUTHORIZED` với message
+`Bạn cần đăng nhập để tiếp tục.`.
+
 ### `GET /api/books/{bookId}` — Public
 
 Response `200`: `ApiResponse<BookResponse>`.
@@ -760,7 +808,10 @@ Request:
 }
 ```
 
-Response `201`: `ApiResponse<LibraryEntryResponse>`.
+Response `201`: `ApiResponse<LibraryEntryResponse>`. Nếu logical item từng bị
+soft-delete, API restore đúng row thay vì insert identity mới: `WANT_TO_READ` reset
+progress, `READING` giữ progress high-water cũ, còn `READ` đặt progress bằng page count.
+Item đang active trong library vẫn trả `409 BOOK_ALREADY_IN_LIBRARY`.
 
 ### `PATCH /api/library/{libraryItemId}`
 
@@ -792,7 +843,8 @@ Errors: `LIBRARY_ITEM_NOT_FOUND`, `BOOK_ALREADY_IN_LIBRARY`, `INVALID_READING_PR
 
 ## 8. Reading session API
 
-Reading session là nhật ký append-only trong Goal 1.
+Reading session là history không có API xóa. Owner được correction có kiểm soát qua
+`PATCH`, còn mọi mutation vẫn giữ high-water của library/challenge/completed goal.
 
 ### `GET /api/reading-sessions?page=1&pageSize=20` — Authenticated
 
@@ -817,13 +869,129 @@ Invariant:
 
 - `startedAt` không ở tương lai quá 5 phút.
 - `endedAt >= startedAt` khi có.
-- `durationMinutes` 1..1.440.
+- `durationMinutes` 1..1.440 đối với create/correction thủ công. Focus dùng active
+  time server và có thể vượt 1.440 để timer bị quên không trở thành dữ liệu mắc kẹt;
+  owner có thể correction sau khi finish.
 - Nếu có `endedAt`, chênh lệch cho phép lệch tối đa một phút so với `durationMinutes`.
 - `pagesRead` dương và không vượt số trang sách.
+- `note` tối đa 1.000 ký tự và chỉ được trả cho principal trong reading history.
+- Nếu principal đang có Focus Reading trên cùng `bookId`, request trả
+  `409 ACTIVE_READING_SESSION_EXISTS` để không ghi trùng số trang; manual session
+  cho sách khác vẫn được phép.
 
 Response `201`: `ApiResponse<ReadingSessionResponse>`.
 
-Side effect: tạo library entry `READING` nếu chưa có và tăng tiến độ, tối đa `pageCount`.
+Side effect: tạo hoặc restore logical library entry `READING` nếu chưa có trong
+active query rồi tăng tiến độ, tối đa `pageCount`.
+
+### `PATCH /api/reading-sessions/{sessionId}` — Owner
+
+Correction một phiên đã ghi nhầm. Request là full replacement cho các field có thể sửa;
+`endedAt` mới được server suy ra bằng `startedAt + durationMinutes`:
+
+```json
+{
+  "startedAt": "2026-07-29T09:05:00Z",
+  "durationMinutes": 35,
+  "pagesRead": 22,
+  "note": "Sửa lại số liệu phiên đọc."
+}
+```
+
+Response `200`: `ApiResponse<ReadingSessionResponse>`. Session không thuộc principal
+trả `404 READING_SESSION_NOT_FOUND` để không lộ ownership.
+
+Correction cập nhật Reading history, Goals/Insights/Dashboard và Feed ở lần đọc mới.
+Nó không làm lùi Library, Challenge hoặc goal đã hoàn thành. `ReadingSession` giữ
+`appliedPagesHighWater` nội bộ; chỉ `max(0, pagesRead - appliedPagesHighWater)` được
+cộng thêm vào library, sau đó high-water tăng. Vì vậy chuỗi sửa `10 -> 5 -> 8` không
+cộng thêm trang, còn `10 -> 5 -> 12` chỉ cộng thêm 2 trang.
+
+Khi cùng sách đang có Focus Reading, correction chỉ được đổi note/thời gian hoặc số
+trang không vượt `appliedPagesHighWater`. Correction tạo delta trang dương trả
+`409 ACTIVE_READING_SESSION_EXISTS`; correction cho sách khác vẫn hợp lệ.
+
+### Focus Reading active session — Authenticated
+
+Active session là working state riêng, không xuất hiện trong reading history, Feed,
+Goals, Insights hoặc Dashboard cho đến khi finish. Mỗi principal tối đa một active
+session. `elapsedSeconds` luôn do server tính và không cộng khoảng pause.
+
+`ActiveReadingSessionResponse`:
+
+```json
+{
+  "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+  "bookId": "33333333-3333-3333-3333-333333333333",
+  "book": {},
+  "status": "RUNNING",
+  "startPage": 42,
+  "startedAt": "2026-08-01T09:00:00Z",
+  "elapsedSeconds": 75,
+  "updatedAt": "2026-08-01T09:00:00Z"
+}
+```
+
+`book` chỉ có thể là `null` nếu quản trị viên đã soft-delete sách sau khi timer bắt
+đầu. Trong trạng thái recovery này, GET/pause/resume vẫn trả active DTO để client cho
+phép cancel; finish trả lỗi book không còn khả dụng và không tự làm mất working state.
+
+#### `GET /api/reading-sessions/active`
+
+Response `200`: `ApiResponse<ActiveReadingSessionResponse|null>`; `data=null` khi
+principal không có active session.
+
+#### `POST /api/reading-sessions/active`
+
+Request:
+
+```json
+{ "bookId": "33333333-3333-3333-3333-333333333333" }
+```
+
+Response `201`: active DTO trạng thái `RUNNING`. Server dùng UTC hiện tại, lấy
+`startPage` từ library; book chưa có được thêm `READING`, `WANT_TO_READ` được
+chuyển sang `READING`, còn logical library row từng soft-delete được restore với
+đúng identity và tiến độ high-water cũ. Book đã `READ` trả `409 BOOK_ALREADY_FINISHED`; active khác
+đang tồn tại trả `409 ACTIVE_READING_SESSION_EXISTS`. Unique `UserId` và serialized
+mutation bảo đảm hai start cạnh tranh không cùng commit.
+
+#### `POST /api/reading-sessions/active/pause`
+
+Response `200`: active DTO trạng thái `PAUSED`. Gọi lại khi đã pause là idempotent.
+
+#### `POST /api/reading-sessions/active/resume`
+
+Response `200`: active DTO trạng thái `RUNNING`. Gọi lại khi đang chạy là idempotent.
+
+Pause/resume/finish/cancel khi không có active session trả
+`404 ACTIVE_READING_SESSION_NOT_FOUND`.
+
+#### `POST /api/reading-sessions/active/finish`
+
+Request:
+
+```json
+{
+  "endingPage": 58,
+  "note": "Đã hoàn thành hai chương."
+}
+```
+
+Yêu cầu `elapsedSeconds >= 60`, `endingPage > startPage`, `endingPage` không nhỏ hơn
+current library page và không vượt page count; note tối đa 1.000 ký tự. Response
+`200`: `ApiResponse<ReadingSessionResponse>` với `pagesRead = endingPage - startPage`
+và `durationMinutes = floor(elapsedSeconds / 60)`.
+
+Finish dùng transaction serialized để xóa active row, tạo completed session, cập
+nhật tuyệt đối library và đồng bộ challenge đúng một lần. Goal completion/notification
+được đánh giá trong luồng thành công; Insights, Dashboard và Feed đọc completed
+session vừa tạo. Request không hợp lệ giữ nguyên active session để người dùng sửa.
+
+#### `DELETE /api/reading-sessions/active`
+
+Response `200`: `ApiResponse<null>`. Cancel chỉ xóa working state; không tạo completed
+session và không đổi library, goal, challenge, Feed hoặc Insights.
 
 ## 9. Reading goal API
 
@@ -1579,6 +1747,16 @@ thành lỗi của core API.
 | `INVALID_READING_DATE` | 400 | ngày/giờ session không hợp lệ |
 | `INVALID_READING_DURATION` | 400 | duration session không khớp |
 | `INVALID_PAGES_READ` | 400 | số trang trong session vượt book |
+| `READING_SESSION_NOT_FOUND` | 404 | completed session không tồn tại/không thuộc principal |
+| `ACTIVE_READING_SESSION_EXISTS` | 409 | active focus session xung đột với start, đổi/xóa kệ, manual session hoặc correction tăng trang cùng sách |
+| `ACTIVE_READING_SESSION_NOT_FOUND` | 404 | principal không có active focus session |
+| `ACTIVE_READING_SESSION_CHANGED` | 409 | active session bị mutation cạnh tranh; client phải refetch state |
+| `BOOK_ALREADY_FINISHED` | 409 | không thể start Focus Reading từ book đã ở shelf `READ` |
+| `FOCUS_READING_TOO_SHORT` | 400 | finish trước 60 giây active |
+| `FOCUS_READING_DURATION_OUT_OF_RANGE` | 400 | active duration vượt giới hạn số nguyên có thể lưu |
+| `FOCUS_READING_LIBRARY_ITEM_MISSING` | 409 | library item của active session không còn khả dụng |
+| `INVALID_FOCUS_START_PAGE` | 400 | snapshot trang bắt đầu âm/không hợp lệ |
+| `INVALID_FOCUS_END_PAGE` | 400 | ending page không lớn hơn start page hoặc vượt page count |
 | `READING_GOAL_NOT_FOUND` | 404 | goal không tồn tại/không thuộc principal |
 | `INVALID_READING_GOAL_METRIC` | 400 | metric không thuộc `BOOKS`, `PAGES`, `MINUTES` |
 | `INVALID_READING_GOAL_PERIOD` | 400 | period không thuộc `WEEK`, `MONTH`, `YEAR`, `CUSTOM` |

@@ -67,4 +67,65 @@ public sealed class ReadingController(IReadingService readingService) : ApiContr
         CreatedData(
             await readingService.AddSessionAsync(CurrentUserId, request, cancellationToken),
             "Đã ghi nhận phiên đọc.");
+
+    [HttpPatch("reading-sessions/{sessionId:guid}")]
+    public async Task<ActionResult<ApiResponse<ReadingSessionDto>>> CorrectSession(
+        Guid sessionId,
+        CorrectReadingSessionRequest request,
+        CancellationToken cancellationToken) =>
+        OkData(
+            await readingService.CorrectSessionAsync(
+                CurrentUserId,
+                sessionId,
+                request,
+                cancellationToken),
+            "Đã sửa phiên đọc.");
+
+    [HttpGet("reading-sessions/active")]
+    public ActionResult<ApiResponse<ActiveReadingSessionDto?>> ActiveSession() =>
+        OkData(readingService.GetActiveSession(CurrentUserId));
+
+    [HttpPost("reading-sessions/active")]
+    public async Task<ActionResult<ApiResponse<ActiveReadingSessionDto>>> StartActiveSession(
+        StartActiveReadingSessionRequest request,
+        CancellationToken cancellationToken) =>
+        CreatedData(
+            await readingService.StartActiveSessionAsync(
+                CurrentUserId,
+                request,
+                cancellationToken),
+            "Đã bắt đầu phiên đọc tập trung.");
+
+    [HttpPost("reading-sessions/active/pause")]
+    public async Task<ActionResult<ApiResponse<ActiveReadingSessionDto>>> PauseActiveSession(
+        CancellationToken cancellationToken) =>
+        OkData(
+            await readingService.PauseActiveSessionAsync(CurrentUserId, cancellationToken),
+            "Đã tạm dừng phiên đọc tập trung.");
+
+    [HttpPost("reading-sessions/active/resume")]
+    public async Task<ActionResult<ApiResponse<ActiveReadingSessionDto>>> ResumeActiveSession(
+        CancellationToken cancellationToken) =>
+        OkData(
+            await readingService.ResumeActiveSessionAsync(CurrentUserId, cancellationToken),
+            "Đã tiếp tục phiên đọc tập trung.");
+
+    [HttpPost("reading-sessions/active/finish")]
+    public async Task<ActionResult<ApiResponse<ReadingSessionDto>>> FinishActiveSession(
+        FinishActiveReadingSessionRequest request,
+        CancellationToken cancellationToken) =>
+        OkData(
+            await readingService.FinishActiveSessionAsync(
+                CurrentUserId,
+                request,
+                cancellationToken),
+            "Đã hoàn tất phiên đọc tập trung.");
+
+    [HttpDelete("reading-sessions/active")]
+    public async Task<ActionResult<ApiResponse<object?>>> CancelActiveSession(
+        CancellationToken cancellationToken)
+    {
+        await readingService.CancelActiveSessionAsync(CurrentUserId, cancellationToken);
+        return OkEmptyData("Đã hủy phiên đọc tập trung.");
+    }
 }

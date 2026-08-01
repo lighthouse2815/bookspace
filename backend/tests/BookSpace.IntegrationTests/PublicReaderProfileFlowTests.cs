@@ -24,6 +24,9 @@ public sealed class PublicReaderProfileFlowTests
             });
         Assert.Equal(HttpStatusCode.Created, register.StatusCode);
         var registration = await ReadDataAsync(register);
+        Assert.Equal(
+            "profile-v2@bookspace.local",
+            registration.GetProperty("user").GetProperty("email").GetString());
         var userId = registration.GetProperty("user").GetProperty("id").GetGuid();
         ownerClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
             "Bearer",
@@ -92,6 +95,10 @@ public sealed class PublicReaderProfileFlowTests
         Assert.Single(publicReviews.GetProperty("items").EnumerateArray());
         Assert.DoesNotContain(privateSessionNote, await publicReviewsResponse.Content.ReadAsStringAsync());
         Assert.DoesNotContain(privateReadingNote, await publicReviewsResponse.Content.ReadAsStringAsync());
+        Assert.DoesNotContain(
+            "email",
+            await publicReviewsResponse.Content.ReadAsStringAsync(),
+            StringComparison.OrdinalIgnoreCase);
 
         Assert.Equal(
             HttpStatusCode.OK,

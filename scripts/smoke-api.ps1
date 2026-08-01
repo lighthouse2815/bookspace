@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$BaseUrl = 'http://localhost:5080',
     [string]$Email = 'reader@bookspace.local',
     [string]$Password = 'Reader123!'
@@ -37,7 +37,6 @@ function Invoke-BookSpaceExpectedError {
     param(
         [Parameter(Mandatory)]
         [string]$Path,
-        [Parameter(Mandatory)]
         [string]$AccessToken
     )
 
@@ -101,6 +100,9 @@ if ($health -ne 'Healthy') {
     throw "Health check không hợp lệ: $health"
 }
 
+$unauthorizedRecommendations = Invoke-BookSpaceExpectedError `
+    -Path '/api/books/recommendations?page=1&pageSize=12'
+
 $login = Invoke-BookSpaceRequest `
     -Method Post `
     -Path '/api/auth/login' `
@@ -111,6 +113,14 @@ if (-not $login.success -or -not $login.data.accessToken) {
 }
 
 $token = $login.data.accessToken
+$recommendations = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/books/recommendations?page=1&pageSize=12' `
+    -AccessToken $token
+$recommendationsRepeat = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/books/recommendations?page=1&pageSize=12' `
+    -AccessToken $token
 $feed = Invoke-BookSpaceRequest `
     -Method Get `
     -Path '/api/feed?type=READING&page=1&pageSize=10' `
@@ -129,9 +139,33 @@ $peopleSuggestions = Invoke-BookSpaceRequest `
 $books = Invoke-BookSpaceRequest -Method Get -Path '/api/books?page=1&pageSize=8' -AccessToken $token
 $dashboard = Invoke-BookSpaceRequest -Method Get -Path '/api/dashboard' -AccessToken $token
 $library = Invoke-BookSpaceRequest -Method Get -Path '/api/library?page=1&pageSize=20' -AccessToken $token
+$adminLogin = Invoke-BookSpaceRequest `
+    -Method Post `
+    -Path '/api/auth/login' `
+    -Body @{ email = 'admin@bookspace.local'; password = 'Admin123!' }
+if (-not $adminLogin.success -or -not $adminLogin.data.accessToken) {
+    throw 'Đăng nhập admin cho cold-start recommendation không thành công.'
+}
+$adminToken = $adminLogin.data.accessToken
+$adminLibrary = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/library?page=1&pageSize=20' `
+    -AccessToken $adminToken
+$adminRecommendations = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/books/recommendations?page=1&pageSize=12' `
+    -AccessToken $adminToken
+$adminRecommendationsRepeat = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/books/recommendations?page=1&pageSize=12' `
+    -AccessToken $adminToken
 $readingSessions = Invoke-BookSpaceRequest `
     -Method Get `
     -Path '/api/reading-sessions?page=1&pageSize=20' `
+    -AccessToken $token
+$activeReadingSession = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/reading-sessions/active' `
     -AccessToken $token
 $goals = Invoke-BookSpaceRequest -Method Get -Path '/api/reading-goals?page=1&pageSize=20' -AccessToken $token
 $notes = Invoke-BookSpaceRequest -Method Get -Path '/api/reading-notes?page=1&pageSize=20' -AccessToken $token
@@ -193,11 +227,17 @@ $insightsMonthly = Invoke-BookSpaceRequest `
 if (
     -not $people.success -or
     -not $peopleSuggestions.success -or
+    -not $recommendations.success -or
+    -not $recommendationsRepeat.success -or
+    -not $adminLibrary.success -or
+    -not $adminRecommendations.success -or
+    -not $adminRecommendationsRepeat.success -or
     -not $feed.success -or
     -not $books.success -or
     -not $dashboard.success -or
     -not $library.success -or
     -not $readingSessions.success -or
+    -not $activeReadingSession.success -or
     -not $goals.success -or
     -not $notes.success -or
     -not $clubs.success -or
@@ -214,6 +254,101 @@ if (
     -not $insightsMonthly.success
 ) {
     throw 'Một API lõi trả về envelope thất bại.'
+}
+
+if (
+    $unauthorizedRecommendations.StatusCode -ne 401 -or
+    $null -eq $unauthorizedRecommendations.Payload -or
+    $unauthorizedRecommendations.Payload.success -ne $false -or
+    $unauthorizedRecommendations.Payload.code -ne 'UNAUTHORIZED' -or
+    $unauthorizedRecommendations.Payload.message -ne 'Bạn cần đăng nhập để tiếp tục.'
+) {
+    throw 'Recommendation không trả đúng envelope 401 UNAUTHORIZED tiếng Việt.'
+}
+
+$recommendationItems = @($recommendations.data.items)
+$recommendationItemsRepeat = @($recommendationsRepeat.data.items)
+$recommendationPageFields = @($recommendations.data.PSObject.Properties.Name)
+$requiredRecommendationPageFields = @('items', 'page', 'pageSize', 'totalItems', 'totalPages')
+$requiredRecommendationItemFields = @('book', 'reasonCode', 'reasonText')
+$requiredRecommendationBookFields = @('id', 'title', 'shelf')
+$recommendationReasonTexts = @{
+    FOLLOWED_READER_LIKED = 'Được độc giả bạn theo dõi đánh giá cao.'
+    MATCHED_AUTHOR = 'Cùng tác giả với sách bạn quan tâm.'
+    MATCHED_CATEGORY = 'Cùng thể loại với sách bạn quan tâm.'
+    POPULAR_FALLBACK = 'Được cộng đồng BookSpace đánh giá cao.'
+}
+$ownedBookIds = @($library.data.items | ForEach-Object { [string]$_.bookId })
+$recommendationSmokeInvalid = (
+    @(
+        $requiredRecommendationPageFields |
+            Where-Object { $_ -notin $recommendationPageFields }
+    ).Count -gt 0 -or
+    $recommendations.data.page -ne 1 -or
+    $recommendations.data.pageSize -ne 12 -or
+    $recommendations.data.totalItems -lt $recommendationItems.Count -or
+    $recommendationItems.Count -eq 0
+)
+
+foreach ($recommendationItem in $recommendationItems) {
+    $itemFields = @($recommendationItem.PSObject.Properties.Name)
+    $bookFields = @($recommendationItem.book.PSObject.Properties.Name)
+    $expectedReasonText = $recommendationReasonTexts[[string]$recommendationItem.reasonCode]
+    if (
+        @($requiredRecommendationItemFields | Where-Object { $_ -notin $itemFields }).Count -gt 0 -or
+        @($itemFields | Where-Object { $_ -notin $requiredRecommendationItemFields }).Count -gt 0 -or
+        @($requiredRecommendationBookFields | Where-Object { $_ -notin $bookFields }).Count -gt 0 -or
+        -not $recommendationItem.book.id -or
+        -not $recommendationItem.book.title -or
+        $null -ne $recommendationItem.book.shelf -or
+        [string]::IsNullOrWhiteSpace([string]$expectedReasonText) -or
+        $recommendationItem.reasonText -ne $expectedReasonText -or
+        [string]$recommendationItem.book.id -in $ownedBookIds
+    ) {
+        $recommendationSmokeInvalid = $true
+        break
+    }
+}
+
+$recommendationSignature = @(
+    $recommendationItems |
+        ForEach-Object { '{0}:{1}' -f $_.book.id, $_.reasonCode }
+) -join '|'
+$recommendationRepeatSignature = @(
+    $recommendationItemsRepeat |
+        ForEach-Object { '{0}:{1}' -f $_.book.id, $_.reasonCode }
+) -join '|'
+if (
+    $recommendationItemsRepeat.Count -ne $recommendationItems.Count -or
+    $recommendationRepeatSignature -ne $recommendationSignature
+) {
+    $recommendationSmokeInvalid = $true
+}
+
+if ($recommendationSmokeInvalid) {
+    throw 'Recommendation PageResult, reason mapping, own-library exclusion hoặc ordering không hợp lệ.'
+}
+
+$adminRecommendationItems = @($adminRecommendations.data.items)
+$adminRecommendationItemsRepeat = @($adminRecommendationsRepeat.data.items)
+$adminRecommendationSignature = @(
+    $adminRecommendationItems |
+        ForEach-Object { '{0}:{1}' -f $_.book.id, $_.reasonCode }
+) -join '|'
+$adminRecommendationRepeatSignature = @(
+    $adminRecommendationItemsRepeat |
+        ForEach-Object { '{0}:{1}' -f $_.book.id, $_.reasonCode }
+) -join '|'
+if (
+    $adminLibrary.data.totalItems -ne 0 -or
+    $adminRecommendationItems.Count -eq 0 -or
+    $adminRecommendations.data.page -ne 1 -or
+    $adminRecommendations.data.pageSize -ne 12 -or
+    @($adminRecommendationItems | Where-Object { $_.reasonCode -ne 'POPULAR_FALLBACK' }).Count -gt 0 -or
+    $adminRecommendationItemsRepeat.Count -ne $adminRecommendationItems.Count -or
+    $adminRecommendationRepeatSignature -ne $adminRecommendationSignature
+) {
+    throw 'Cold-start recommendation fallback hoặc ordering không hợp lệ.'
 }
 
 $haLinhSearch = @($people.data.items | Where-Object { $_.displayName -eq 'Hà Linh' })
@@ -331,6 +466,30 @@ if ($feedSmokeInvalid) {
     throw 'Feed filter, paging, ordering or note isolation is invalid.'
 }
 
+if ($null -ne $activeReadingSession.data) {
+    $activeReadingFields = @($activeReadingSession.data.PSObject.Properties.Name)
+    $requiredActiveReadingFields = @(
+        'id',
+        'bookId',
+        'book',
+        'status',
+        'startPage',
+        'startedAt',
+        'elapsedSeconds',
+        'updatedAt'
+    )
+    if (
+        @($requiredActiveReadingFields | Where-Object { $_ -notin $activeReadingFields }).Count -gt 0 -or
+        $activeReadingSession.data.status -notin @('RUNNING', 'PAUSED') -or
+        [long]$activeReadingSession.data.elapsedSeconds -lt 0 -or
+        $activeReadingFields -contains 'note' -or
+        $activeReadingFields -contains 'userId' -or
+        $activeReadingFields -contains 'accumulatedSeconds'
+    ) {
+        throw 'Focus Reading active DTO hoặc privacy contract không hợp lệ.'
+    }
+}
+
 if (
     $invalidFeedType.StatusCode -ne 400 -or
     $null -eq $invalidFeedType.Payload -or
@@ -355,10 +514,13 @@ if (
     User = $login.data.user.email
     PeopleSearchResults = $people.data.totalItems
     PeopleSuggestions = $peopleSuggestions.data.totalItems
+    Recommendations = $recommendations.data.totalItems
+    ColdStartRecommendations = $adminRecommendations.data.totalItems
     ReadingFeedItems = $feed.data.totalItems
     Books = $books.data.totalItems
     LibraryItems = $library.data.totalItems
     ReadingSessions = $readingSessions.data.totalItems
+    FocusSessionState = if ($null -ne $activeReadingSession.data) { $activeReadingSession.data.status } else { 'NONE' }
     BooksRead = $dashboard.data.booksRead
     ReadingGoals = $goals.data.totalItems
     ReadingNotes = $notes.data.totalItems

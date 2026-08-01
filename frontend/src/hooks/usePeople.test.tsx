@@ -13,6 +13,7 @@ import {
   userKeys,
   viewerScope,
 } from './useCommunity'
+import { recommendationKeys } from './recommendationKeys'
 
 const reader: User = {
   id: 'reader-1',
@@ -197,6 +198,7 @@ describe('people query ownership and follow invalidation', () => {
     const targetFollowersKey = userKeys.followers(scope, target.id)
     const actorFollowingKey = userKeys.following(scope, reader.id)
     const feedKey = feedKeys.scoped(scope)
+    const recommendationKey = recommendationKeys.page(scope, 1, 12)
     client.setQueryData(searchKey, page(target))
     client.setQueryData(suggestionsKey, page(target))
     client.setQueryData(targetProfileKey, { ...reader, id: target.id, isFollowing: false })
@@ -204,6 +206,7 @@ describe('people query ownership and follow invalidation', () => {
     client.setQueryData(targetFollowersKey, page(target))
     client.setQueryData(actorFollowingKey, page(target))
     client.setQueryData(feedKey, { items: [], page: 1 })
+    client.setQueryData(recommendationKey, { items: [], page: 1 })
     client.setQueryData(['dashboard'], { booksRead: 1 })
 
     const user = userEvent.setup()
@@ -228,6 +231,7 @@ describe('people query ownership and follow invalidation', () => {
       targetFollowersKey,
       actorFollowingKey,
       feedKey,
+      recommendationKey,
       ['dashboard'],
     ]) {
       expect(client.getQueryState(key)?.isInvalidated).toBe(true)

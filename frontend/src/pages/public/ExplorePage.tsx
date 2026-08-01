@@ -1,23 +1,84 @@
-import { ArrowRight, Books, MagnifyingGlass, UsersThree } from '@phosphor-icons/react'
-import { useState, type FormEvent } from 'react'
+import {
+  ArrowRight,
+  BookmarkSimple,
+  Books,
+  MagnifyingGlass,
+  Sparkle,
+  UsersThree,
+} from '@phosphor-icons/react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { BookCard } from '../../components/books/BookCard'
-import { ErrorState, LoadingGrid, LoadingRows } from '../../components/ui/States'
-import { useBooks, useCategories } from '../../hooks/useCatalog'
+import { Button } from '../../components/ui/Button'
+import { Pagination } from '../../components/ui/Pagination'
+import { EmptyState, ErrorState, LoadingGrid, LoadingRows } from '../../components/ui/States'
+import { useAuth } from '../../contexts/AuthContext'
+import { useToast } from '../../contexts/ToastContext'
+import { useBookRecommendations, useBooks, useCategories } from '../../hooks/useCatalog'
+import { useAddToLibrary } from '../../hooks/useReading'
 import { useChallenges, useClubs } from '../../hooks/useSocialProduct'
+import { errorMessage } from '../../lib/api'
+import type { BookRecommendation } from '../../types/domain'
+
+const RECOMMENDATION_PAGE_SIZE = 12
+
+const recommendationFallbacks: Record<BookRecommendation['reasonCode'], string> = {
+  FOLLOWED_READER_LIKED: 'Được một độc giả bạn theo dõi yêu thích.',
+  MATCHED_AUTHOR: 'Cùng tác giả với những cuốn sách bạn quan tâm.',
+  MATCHED_CATEGORY: 'Hợp với chủ đề bạn thường đọc.',
+  POPULAR_FALLBACK: 'Đang được cộng đồng BookSpace quan tâm.',
+}
+
+function recommendationReason(recommendation: BookRecommendation) {
+  return recommendation.reasonText.trim() || recommendationFallbacks[recommendation.reasonCode]
+}
 
 export function ExplorePage() {
   const [search, setSearch] = useState('')
+  const [recommendationPage, setRecommendationPage] = useState(1)
+  const [pendingBookId, setPendingBookId] = useState<string | null>(null)
+  const pendingBookIdRef = useRef<string | null>(null)
   const navigate = useNavigate()
+  const { isAuthenticated } = useAuth()
+  const { showToast } = useToast()
   const books = useBooks({ sort: 'popular', page: 1, pageSize: 8 })
+  const recommendations = useBookRecommendations({
+    page: recommendationPage,
+    pageSize: RECOMMENDATION_PAGE_SIZE,
+  })
+  const addToLibrary = useAddToLibrary()
   const categories = useCategories()
   const clubs = useClubs()
   const challenges = useChallenges()
+
+  useEffect(() => {
+    const result = recommendations.data
+    if (!result || result.totalItems === 0 || result.totalPages === 0) return
+    if (recommendationPage > result.totalPages) setRecommendationPage(result.totalPages)
+  }, [recommendationPage, recommendations.data])
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
     const query = search.trim()
     navigate(query ? `/books?search=${encodeURIComponent(query)}` : '/books')
+  }
+
+  const saveRecommendation = async (recommendation: BookRecommendation) => {
+    if (pendingBookIdRef.current) return
+    pendingBookIdRef.current = recommendation.book.id
+    setPendingBookId(recommendation.book.id)
+    try {
+      await addToLibrary.mutateAsync({
+        bookId: recommendation.book.id,
+        shelf: 'WANT_TO_READ',
+      })
+      showToast(`Đã thêm “${recommendation.book.title}” vào kệ Muốn đọc`, 'success')
+    } catch (error) {
+      showToast(errorMessage(error, 'Không thể thêm sách vào thư viện'), 'error')
+    } finally {
+      pendingBookIdRef.current = null
+      setPendingBookId(null)
+    }
   }
 
   return (
@@ -47,13 +108,111 @@ export function ExplorePage() {
         </form>
       </div>
 
+      {isAuthenticated ? (
+        <section className="mt-14" aria-labelledby="recommendations-title">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 text-accent-strong">
+                <Sparkle size={22} weight="fill" aria-hidden />
+                <h2
+                  id="recommendations-title"
+                  className="text-2xl font-bold tracking-tight text-heading"
+                >
+                  Dành cho bạn
+                </h2>
+              </div>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
+                Gợi ý từ gu đọc của bạn và những đánh giá công khai trong cộng đồng.
+              </p>
+            </div>
+            {recommendations.data?.totalItems ? (
+              <p className="text-sm font-medium text-muted" aria-live="polite">
+                {recommendations.data.totalItems} cuốn sách phù hợp
+              </p>
+            ) : null}
+          </div>
+
+          <div className="mt-7">
+            {recommendations.isLoading ? (
+              <LoadingGrid count={RECOMMENDATION_PAGE_SIZE} />
+            ) : null}
+            {recommendations.isError ? (
+              <ErrorState
+                message={errorMessage(
+                  recommendations.error,
+                  'Không thể tải gợi ý sách. Vui lòng thử lại.',
+                )}
+                retry={() => void recommendations.refetch()}
+              />
+            ) : null}
+            {recommendations.data?.items.length ? (
+              <>
+                <div className="book-grid">
+                  {recommendations.data.items.map((recommendation) => (
+                    <div key={recommendation.book.id} className="flex min-w-0 flex-col">
+                      <BookCard book={recommendation.book} />
+                      <p className="mt-3 flex min-h-10 items-start gap-2 text-xs leading-5 text-muted">
+                        <Sparkle
+                          size={15}
+                          weight="duotone"
+                          className="mt-0.5 shrink-0 text-accent-strong"
+                          aria-hidden
+                        />
+                        <span>{recommendationReason(recommendation)}</span>
+                      </p>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="mt-3 w-full"
+                        icon={<BookmarkSimple size={16} aria-hidden />}
+                        loading={pendingBookId === recommendation.book.id}
+                        disabled={pendingBookId !== null}
+                        onClick={() => void saveRecommendation(recommendation)}
+                        aria-label={`Thêm ${recommendation.book.title} vào kệ Muốn đọc`}
+                      >
+                        Thêm vào Muốn đọc
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+                <Pagination
+                  page={recommendations.data.page}
+                  totalPages={recommendations.data.totalPages}
+                  onPageChange={setRecommendationPage}
+                  disabled={recommendations.isFetching || pendingBookId !== null}
+                  className="mt-9"
+                />
+              </>
+            ) : null}
+            {recommendations.data && recommendations.data.totalItems === 0 ? (
+              <EmptyState
+                title="Chưa có gợi ý mới"
+                description="Bạn đã lưu các gợi ý hiện có. Hãy khám phá catalog hoặc ghi thêm hoạt động đọc để BookSpace hiểu gu của bạn hơn."
+                icon={Sparkle}
+                action={
+                  <Link to="/books" className="button button-secondary button-sm">
+                    Xem toàn bộ catalog
+                  </Link>
+                }
+              />
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+
       <section className="mt-14">
         <div className="flex items-end justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold tracking-tight text-heading">Được đọc nhiều</h2>
-            <p className="mt-2 text-sm text-muted">Những tựa sách đang tạo nên nhiều cuộc trò chuyện.</p>
+            <p className="mt-2 text-sm text-muted">
+              Những tựa sách đang tạo nên nhiều cuộc trò chuyện.
+            </p>
           </div>
-          <Link to="/books" className="hidden items-center gap-1.5 text-sm font-semibold text-accent-strong sm:flex">
+          <Link
+            to="/books"
+            className="hidden items-center gap-1.5 text-sm font-semibold text-accent-strong sm:flex"
+          >
             Xem catalog
             <ArrowRight size={16} />
           </Link>
@@ -74,7 +233,9 @@ export function ExplorePage() {
       </section>
 
       <section className="mt-16 border-t border-border pt-12">
-        <h2 className="text-2xl font-bold tracking-tight text-heading">Đi theo chủ đề bạn quan tâm</h2>
+        <h2 className="text-2xl font-bold tracking-tight text-heading">
+          Đi theo chủ đề bạn quan tâm
+        </h2>
         {categories.isLoading ? (
           <div className="mt-6 flex flex-wrap gap-2">
             {Array.from({ length: 8 }, (_, index) => (
@@ -113,7 +274,11 @@ export function ExplorePage() {
             ) : (
               <div className="space-y-3">
                 {clubs.data?.items.slice(0, 3).map((club) => (
-                  <Link key={club.id} to={`/clubs/${club.id}`} className="surface flex gap-4 p-4 hover:border-accent/50">
+                  <Link
+                    key={club.id}
+                    to={`/clubs/${club.id}`}
+                    className="surface flex gap-4 p-4 hover:border-accent/50"
+                  >
                     <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent-strong">
                       <UsersThree size={21} weight="duotone" />
                     </div>
@@ -140,7 +305,11 @@ export function ExplorePage() {
             ) : (
               <div className="space-y-3">
                 {challenges.data?.items.slice(0, 3).map((challenge) => (
-                  <Link key={challenge.id} to={`/challenges/${challenge.id}`} className="surface flex gap-4 p-4 hover:border-accent/50">
+                  <Link
+                    key={challenge.id}
+                    to={`/challenges/${challenge.id}`}
+                    className="surface flex gap-4 p-4 hover:border-accent/50"
+                  >
                     <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent-strong">
                       <Books size={21} weight="duotone" />
                     </div>

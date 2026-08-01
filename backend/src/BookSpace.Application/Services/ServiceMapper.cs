@@ -141,6 +141,22 @@ internal sealed class ServiceMapper(IBookSpaceDbContext db)
             session.CreatedAt);
     }
 
+    public ActiveReadingSessionDto ActiveSession(
+        ActiveReadingSession session,
+        DateTimeOffset now)
+    {
+        var book = db.Books.FirstOrDefault(x => x.Id == session.BookId);
+        return new ActiveReadingSessionDto(
+            session.Id,
+            session.BookId,
+            book is null ? null : Book(book),
+            session.Status,
+            session.StartPage,
+            session.StartedAt,
+            session.ElapsedSecondsAt(now),
+            session.UpdatedAt ?? session.CreatedAt);
+    }
+
     public ReviewDto Review(Review review, Guid? viewerId)
     {
         var book = db.Books.FirstOrDefault(x => x.Id == review.BookId);

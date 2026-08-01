@@ -137,8 +137,8 @@ Mỗi use case được tiếp cận qua interface:
 |---|---|
 | `IAuthService` | register, login, refresh, logout, me |
 | `IUserService` | hồ sơ, follow, followers/following |
-| `ICatalogService` | catalog công khai và admin CRUD |
-| `IReadingService` | library, progress, reading session |
+| `ICatalogService` | catalog công khai, recommendation read model theo principal và admin CRUD |
+| `IReadingService` | library, progress, completed-session correction và Focus Reading lifecycle |
 | `ICommunityService` | review, like, comment, feed |
 | `IClubService` | club settings, invitations, membership roles, shared current book, post/comment |
 | `IClubReadingSprintService` | sprint lifecycle, participant state, progress, leaderboard, timeline, milestone/response và reminder |
@@ -154,6 +154,14 @@ Application:
 - Điều phối transaction.
 - Chuyển domain entity thành contract response.
 - Ném `UseCaseException` có code và HTTP status cho lỗi use-case.
+
+Recommendation là query/use case của Application trên các abstraction dữ liệu
+hiện có, không phải aggregate mới. `ICatalogService` nhận principal từ controller,
+loại book trong own library hoặc đã được principal review rồi tính vector social/author/category/global review
+theo hợp đồng trước khi count/phân trang. Query chỉ dùng own library + own review
+4–5 sao, public active review của followed user active và aggregate public active
+review; không load library/session/note của user khác. Không có migration, model
+ML, provider ngoài hoặc server cache riêng cho read model này.
 
 ### 4.3 Infrastructure layer
 
@@ -179,7 +187,8 @@ Các unique index bắt buộc:
 | `Category` | unique normalized name khi active |
 | `BookAuthor` | unique `(BookId, AuthorId)` |
 | `BookCategory` | unique `(BookId, CategoryId)` |
-| `LibraryItem` | unique `(UserId, BookId)` khi active |
+| `LibraryItem` | unique `(UserId, BookId)` toàn lifecycle; re-add/focus start restore soft-deleted row |
+| `ActiveReadingSession` | unique `UserId`; mỗi principal tối đa một focus session |
 | `Review` | unique `(UserId, BookId)` khi active |
 | `ReviewLike` | unique `(ReviewId, UserId)` |
 | `BookClubMember` | unique active `(ClubId, UserId)` |
@@ -268,10 +277,12 @@ Query key tối thiểu:
 ["me"]
 ["books", filters]
 ["book", bookId]
+["book-recommendations", principalScope, page, pageSize]
 ["authors"]
 ["categories"]
 ["library", filters]
 ["reading-sessions", filters]
+["reading-sessions", "active"]
 ["book-reviews", bookId, paging]
 ["review-comments", reviewId, paging]
 ["people", principalScope, "search", search, paging]
@@ -290,14 +301,24 @@ Query key tối thiểu:
 
 Mutation phải invalidate đúng consumer:
 
-- Library/progress/session: `library`, `book`, `feed`, `dashboard`.
-- Review/like/comment: `book-reviews`, `book`, `feed`, `notifications`.
+- Library/progress/completed-session: `library`, `book`, `book-recommendations`, `reading-sessions`, `feed`, `dashboard`, `reading-goals`, `reading-insights`, `challenges`, `notifications`.
+- Focus start/pause/resume/cancel cập nhật `reading-sessions/active`; finish đồng thời invalidate active key và toàn bộ consumer của completed session.
+- Review create/update/delete: `book-reviews`, `book`, `book-recommendations`, `feed`, `notifications`.
+- Review like/comment: `book-reviews`, `feed`, `notifications`.
 - Follow: principal-scoped `people`, target/current `users`, `followers`,
-  `following`, `feed`, `dashboard`; mutation cùng target dùng shared pending key.
+  `following`, `book-recommendations`, `feed`, `dashboard`; mutation cùng target
+  dùng shared pending key.
 - Club/member/post/comment: `clubs`, `club`, `club-posts`, `club-comments`, `feed`.
 - Reading sprint: list/detail/history, participant state, leaderboard, timeline và milestone; mutation đồng thời invalidate club detail và notification khi có recipient.
 - Challenge: `challenges`, `my-challenges`, `feed`, `dashboard`, `notifications`.
 - Mark notification: `notifications`, `notification-unread-count`.
+
+Recommendation query chỉ bật sau auth bootstrap và key luôn chứa principal ID để
+không chia sẻ dữ liệu giữa guest/account. Quick-add `WANT_TO_READ`, library
+add/update/remove, reading-session create, review create/update/delete và
+follow/unfollow phải invalidate key này. Vì backend tính read model từ dữ liệu
+hiện tại và không cache riêng, refetch sau mutation là freshness boundary; quick-add
+thành công làm candidate biến mất theo quy tắc loại sách principal đã biết.
 
 ## 6. Request flow
 

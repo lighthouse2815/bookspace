@@ -1,12 +1,17 @@
 import { api, unwrap } from '../lib/api'
 import type { ApiEnvelope, PageResult } from '../types/api'
-import type { Author, Book, Category } from '../types/domain'
+import type { Author, Book, BookRecommendation, Category } from '../types/domain'
 
 export interface BookQuery {
   search?: string
   categoryId?: string
   authorId?: string
   sort?: string
+  page?: number
+  pageSize?: number
+}
+
+export interface RecommendationQuery {
   page?: number
   pageSize?: number
 }
@@ -23,6 +28,13 @@ export const catalogService = {
     ),
 
   book: async (id: string) => unwrap(await api.get<ApiEnvelope<Book>>(`/books/${id}`)),
+
+  recommendations: async (params: RecommendationQuery = {}) =>
+    unwrap(
+      await api.get<ApiEnvelope<PageResult<BookRecommendation>>>('/books/recommendations', {
+        params,
+      }),
+    ),
 
   authors: async () =>
     unwrap(

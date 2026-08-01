@@ -16,7 +16,7 @@ public sealed class ReadingGoalService(IReadingGoalRepository repository) : IRea
         CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;
-        await SynchronizeCompletionsAsync(userId, now, cancellationToken);
+        await SynchronizeCompletionsCoreAsync(userId, now, cancellationToken);
         var (normalizedPage, size, skip) = Paging.Normalize(page, pageSize);
         var result = await repository.SearchAsync(
             new ReadingGoalSearchCriteria(userId, status, skip, size, now),
@@ -39,7 +39,12 @@ public sealed class ReadingGoalService(IReadingGoalRepository repository) : IRea
         return PageResult<ReadingGoalDto>.Create(items, normalizedPage, size, result.TotalItems);
     }
 
-    private async Task SynchronizeCompletionsAsync(
+    public Task SynchronizeCompletionsAsync(
+        Guid userId,
+        CancellationToken cancellationToken) =>
+        SynchronizeCompletionsCoreAsync(userId, DateTimeOffset.UtcNow, cancellationToken);
+
+    private async Task SynchronizeCompletionsCoreAsync(
         Guid userId,
         DateTimeOffset now,
         CancellationToken cancellationToken)

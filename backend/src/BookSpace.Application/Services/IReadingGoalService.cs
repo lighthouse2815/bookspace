@@ -29,5 +29,7 @@ public interface IReadingGoalService
         UpdateReadingGoalRequest request,
         CancellationToken cancellationToken);
 
+    Task SynchronizeCompletionsAsync(Guid userId, CancellationToken cancellationToken);
+
     Task DeleteAsync(Guid userId, Guid goalId, CancellationToken cancellationToken);
 }

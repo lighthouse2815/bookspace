@@ -88,6 +88,18 @@ export interface Book {
   } | null
 }
 
+export type BookRecommendationReason =
+  | 'FOLLOWED_READER_LIKED'
+  | 'MATCHED_AUTHOR'
+  | 'MATCHED_CATEGORY'
+  | 'POPULAR_FALLBACK'
+
+export interface BookRecommendation {
+  book: Book
+  reasonCode: BookRecommendationReason
+  reasonText: string
+}
+
 export interface LibraryEntry {
   id: string
   userId: string
@@ -121,6 +133,19 @@ export interface ReadingSession {
   pagesRead: number
   note?: string
   createdAt: string
+}
+
+export type ActiveReadingSessionStatus = 'RUNNING' | 'PAUSED'
+
+export interface ActiveReadingSession {
+  id: string
+  bookId: string
+  book: Book | null
+  status: ActiveReadingSessionStatus
+  startPage: number
+  startedAt: string
+  elapsedSeconds: number
+  updatedAt: string
 }
 
 export interface ReadingGoal {

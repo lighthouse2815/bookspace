@@ -74,6 +74,19 @@ public sealed class LibraryItem : Entity
 
         Touch();
     }
+
+    public void Restore(LibraryStatus status)
+    {
+        if (!DeletedAt.HasValue)
+        {
+            return;
+        }
+
+        DeletedAt = null;
+        ChangeStatus(status);
+    }
+
+    public void RestoreForReading() => Restore(LibraryStatus.READING);
 }
 
 public sealed class ReadingSession : Entity
@@ -88,6 +101,27 @@ public sealed class ReadingSession : Entity
         int pagesRead,
         int durationMinutes,
         string? note)
+        : this(
+            userId,
+            bookId,
+            startedAt,
+            endedAt,
+            pagesRead,
+            durationMinutes,
+            note,
+            allowPausedTime: false)
+    {
+    }
+
+    private ReadingSession(
+        Guid userId,
+        Guid bookId,
+        DateTimeOffset startedAt,
+        DateTimeOffset? endedAt,
+        int pagesRead,
+        int durationMinutes,
+        string? note,
+        bool allowPausedTime)
     {
         if (startedAt > DateTimeOffset.UtcNow.AddMinutes(5))
         {
@@ -101,8 +135,10 @@ public sealed class ReadingSession : Entity
             throw new DomainException("INVALID_READING_DATE", "Thời gian kết thúc phải sau thời gian bắt đầu.");
         }
 
+        var wallClockMinutes = (normalizedEnd - startedAt).TotalMinutes;
         if (endedAt.HasValue &&
-            Math.Abs((normalizedEnd - startedAt).TotalMinutes - normalizedDuration) > 1)
+            (!allowPausedTime && Math.Abs(wallClockMinutes - normalizedDuration) > 1 ||
+             allowPausedTime && normalizedDuration - wallClockMinutes > 1))
         {
             throw new DomainException(
                 "INVALID_READING_DURATION",
@@ -114,8 +150,52 @@ public sealed class ReadingSession : Entity
         StartedAt = startedAt;
         EndedAt = normalizedEnd;
         PagesRead = Guard.Positive(pagesRead, "Số trang đã đọc");
+        AppliedPagesHighWater = PagesRead;
         DurationMinutes = normalizedDuration;
         Note = Guard.Optional(note, "Ghi chú", 1000);
+    }
+
+    public static ReadingSession FromFocusReading(
+        Guid userId,
+        Guid bookId,
+        DateTimeOffset startedAt,
+        DateTimeOffset endedAt,
+        int pagesRead,
+        int durationMinutes,
+        string? note) =>
+        new(
+            userId,
+            bookId,
+            startedAt,
+            endedAt,
+            pagesRead,
+            durationMinutes,
+            note,
+            allowPausedTime: true);
+
+    public int Correct(
+        DateTimeOffset startedAt,
+        int pagesRead,
+        int durationMinutes,
+        string? note)
+    {
+        var corrected = new ReadingSession(
+            UserId,
+            BookId,
+            startedAt,
+            endedAt: null,
+            pagesRead,
+            durationMinutes,
+            note);
+        StartedAt = corrected.StartedAt;
+        EndedAt = corrected.EndedAt;
+        PagesRead = corrected.PagesRead;
+        DurationMinutes = corrected.DurationMinutes;
+        Note = corrected.Note;
+        var additionalPages = Math.Max(0, PagesRead - AppliedPagesHighWater);
+        AppliedPagesHighWater = Math.Max(AppliedPagesHighWater, PagesRead);
+        Touch();
+        return additionalPages;
     }
 
     public Guid UserId { get; private set; }
@@ -125,6 +205,90 @@ public sealed class ReadingSession : Entity
     public DateTimeOffset StartedAt { get; private set; }
     public DateTimeOffset EndedAt { get; private set; }
     public int PagesRead { get; private set; }
+    public int AppliedPagesHighWater { get; private set; }
     public int DurationMinutes { get; private set; }
     public string? Note { get; private set; }
+}
+
+public sealed class ActiveReadingSession : Entity
+{
+    private ActiveReadingSession() { }
+
+    public ActiveReadingSession(
+        Guid userId,
+        Guid bookId,
+        int startPage,
+        DateTimeOffset startedAt)
+    {
+        if (startPage < 0)
+        {
+            throw new DomainException(
+                "INVALID_FOCUS_START_PAGE",
+                "Trang bắt đầu phiên tập trung không hợp lệ.");
+        }
+
+        UserId = userId;
+        BookId = bookId;
+        StartPage = startPage;
+        StartedAt = startedAt;
+        LastResumedAt = startedAt;
+        Status = ActiveReadingSessionStatus.RUNNING;
+        CreatedAt = startedAt;
+    }
+
+    public Guid UserId { get; private set; }
+    public User User { get; private set; } = null!;
+    public Guid BookId { get; private set; }
+    public Book Book { get; private set; } = null!;
+    public ActiveReadingSessionStatus Status { get; private set; }
+    public int StartPage { get; private set; }
+    public DateTimeOffset StartedAt { get; private set; }
+    public DateTimeOffset? LastResumedAt { get; private set; }
+    public long AccumulatedSeconds { get; private set; }
+
+    public long ElapsedSecondsAt(DateTimeOffset now)
+    {
+        var runningSeconds = Status == ActiveReadingSessionStatus.RUNNING && LastResumedAt.HasValue
+            ? WholeSecondsBetween(LastResumedAt.Value, now)
+            : 0;
+        return AccumulatedSeconds > long.MaxValue - runningSeconds
+            ? long.MaxValue
+            : AccumulatedSeconds + runningSeconds;
+    }
+
+    public void Pause(DateTimeOffset now)
+    {
+        if (Status == ActiveReadingSessionStatus.PAUSED)
+        {
+            return;
+        }
+
+        AccumulatedSeconds = ElapsedSecondsAt(now);
+        LastResumedAt = null;
+        Status = ActiveReadingSessionStatus.PAUSED;
+        UpdatedAt = now;
+    }
+
+    public void Resume(DateTimeOffset now)
+    {
+        if (Status == ActiveReadingSessionStatus.RUNNING)
+        {
+            return;
+        }
+
+        LastResumedAt = now;
+        Status = ActiveReadingSessionStatus.RUNNING;
+        UpdatedAt = now;
+    }
+
+    private static long WholeSecondsBetween(DateTimeOffset from, DateTimeOffset to)
+    {
+        if (to <= from)
+        {
+            return 0;
+        }
+
+        var seconds = Math.Floor((to - from).TotalSeconds);
+        return seconds >= long.MaxValue ? long.MaxValue : (long)seconds;
+    }
 }

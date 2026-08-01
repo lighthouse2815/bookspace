@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { communityService, type FeedQuery } from '../services/community.service'
 import type { PageResult } from '../types/api'
 import type { FeedFilter, Shelf, UserDiscoveryItem } from '../types/domain'
+import { recommendationKeys } from './recommendationKeys'
 
 export const viewerScope = (userId?: string | null) => userId ?? 'guest'
 
@@ -80,6 +81,7 @@ export function useCreateReview(bookId: string) {
       void queryClient.invalidateQueries({ queryKey: ['reviews'] })
       void queryClient.invalidateQueries({ queryKey: userKeys.all })
       void queryClient.invalidateQueries({ queryKey: feedKeys.all })
+      void queryClient.invalidateQueries({ queryKey: recommendationKeys.all })
     },
   })
 }
@@ -100,6 +102,7 @@ export function useUpdateReview(_bookId?: string) {
       void queryClient.invalidateQueries({ queryKey: ['reviews'] })
       void queryClient.invalidateQueries({ queryKey: userKeys.all })
       void queryClient.invalidateQueries({ queryKey: feedKeys.all })
+      void queryClient.invalidateQueries({ queryKey: recommendationKeys.all })
     },
   })
 }
@@ -112,6 +115,7 @@ export function useDeleteReview(_bookId?: string) {
       void queryClient.invalidateQueries({ queryKey: ['reviews'] })
       void queryClient.invalidateQueries({ queryKey: userKeys.all })
       void queryClient.invalidateQueries({ queryKey: feedKeys.all })
+      void queryClient.invalidateQueries({ queryKey: recommendationKeys.all })
     },
   })
 }
@@ -328,6 +332,7 @@ export function useFollowUser(targetId: string, isFollowing: boolean) {
           ? queryClient.invalidateQueries({ queryKey: userKeys.following(scope, user.id) })
           : Promise.resolve(),
         queryClient.invalidateQueries({ queryKey: feedKeys.scoped(scope) }),
+        queryClient.invalidateQueries({ queryKey: recommendationKeys.scoped(scope) }),
         queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
       ])
     },

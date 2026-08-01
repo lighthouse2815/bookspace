@@ -219,7 +219,9 @@ public sealed class FeedServiceTests
         public IQueryable<BookAuthor> BookAuthors => Query<BookAuthor>();
         public IQueryable<BookCategory> BookCategories => Query<BookCategory>();
         public IQueryable<LibraryItem> LibraryItems => Query<LibraryItem>();
+        public IQueryable<LibraryItem> LibraryItemsIncludingDeleted => Query<LibraryItem>();
         public IQueryable<ReadingSession> ReadingSessions => Query<ReadingSession>();
+        public IQueryable<ActiveReadingSession> ActiveReadingSessions => Query<ActiveReadingSession>();
         public IQueryable<Review> Reviews => Query<Review>();
         public IQueryable<ReviewComment> ReviewComments => Query<ReviewComment>();
         public IQueryable<ReviewLike> ReviewLikes => Query<ReviewLike>();

@@ -19,6 +19,7 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
     public DbSet<BookCategory> BookCategorySet => Set<BookCategory>();
     public DbSet<LibraryItem> LibraryItemSet => Set<LibraryItem>();
     public DbSet<ReadingSession> ReadingSessionSet => Set<ReadingSession>();
+    public DbSet<ActiveReadingSession> ActiveReadingSessionSet => Set<ActiveReadingSession>();
     public DbSet<Review> ReviewSet => Set<Review>();
     public DbSet<ReviewComment> ReviewCommentSet => Set<ReviewComment>();
     public DbSet<ReviewLike> ReviewLikeSet => Set<ReviewLike>();
@@ -49,7 +50,11 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
     IQueryable<BookAuthor> IBookSpaceDbContext.BookAuthors => BookAuthorSet;
     IQueryable<BookCategory> IBookSpaceDbContext.BookCategories => BookCategorySet;
     IQueryable<LibraryItem> IBookSpaceDbContext.LibraryItems => LibraryItemSet;
+    IQueryable<LibraryItem> IBookSpaceDbContext.LibraryItemsIncludingDeleted =>
+        LibraryItemSet.IgnoreQueryFilters();
     IQueryable<ReadingSession> IBookSpaceDbContext.ReadingSessions => ReadingSessionSet;
+    IQueryable<ActiveReadingSession> IBookSpaceDbContext.ActiveReadingSessions =>
+        ActiveReadingSessionSet;
     IQueryable<Review> IBookSpaceDbContext.Reviews => ReviewSet;
     IQueryable<ReviewComment> IBookSpaceDbContext.ReviewComments => ReviewCommentSet;
     IQueryable<ReviewLike> IBookSpaceDbContext.ReviewLikes => ReviewLikeSet;
@@ -228,6 +233,23 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
             entity.Property(x => x.Note).HasMaxLength(1000);
             entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(x => x.Book).WithMany().HasForeignKey(x => x.BookId).OnDelete(DeleteBehavior.Restrict);
+            entity.Ignore(x => x.IsDeleted);
+        });
+        modelBuilder.Entity<ActiveReadingSession>(entity =>
+        {
+            entity.ToTable("active_reading_sessions");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.UserId).IsUnique();
+            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(30);
+            entity.Property(x => x.UpdatedAt).IsConcurrencyToken();
+            entity.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Book)
+                .WithMany()
+                .HasForeignKey(x => x.BookId)
+                .OnDelete(DeleteBehavior.Restrict);
             entity.Ignore(x => x.IsDeleted);
         });
     }
@@ -513,6 +535,7 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
             x.Category.DeletedAt == null);
         modelBuilder.Entity<LibraryItem>().HasQueryFilter(x => x.DeletedAt == null);
         modelBuilder.Entity<ReadingSession>().HasQueryFilter(x => x.DeletedAt == null);
+        modelBuilder.Entity<ActiveReadingSession>().HasQueryFilter(x => x.DeletedAt == null);
         modelBuilder.Entity<Review>().HasQueryFilter(x => x.DeletedAt == null);
         modelBuilder.Entity<ReviewComment>().HasQueryFilter(x => x.DeletedAt == null);
         modelBuilder.Entity<ReviewLike>().HasQueryFilter(x =>

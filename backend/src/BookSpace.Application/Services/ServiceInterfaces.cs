@@ -49,6 +49,10 @@ public interface ICatalogService
         Guid? viewerId,
         int page,
         int pageSize);
+    PageResult<BookRecommendationDto> GetRecommendations(
+        Guid userId,
+        int page,
+        int pageSize);
     BookDetail GetBook(Guid bookId, Guid? viewerId);
     PageResult<AuthorDto> GetAuthors(int page, int pageSize);
     PageResult<CategoryDto> GetCategories(int page, int pageSize);
@@ -78,6 +82,27 @@ public interface IReadingService
     Task RemoveLibraryItemAsync(Guid userId, Guid itemId, CancellationToken cancellationToken);
     PageResult<ReadingSessionDto> GetSessions(Guid userId, int page, int pageSize);
     Task<ReadingSessionDto> AddSessionAsync(Guid userId, CreateReadingSessionRequest request, CancellationToken cancellationToken);
+    Task<ReadingSessionDto> CorrectSessionAsync(
+        Guid userId,
+        Guid sessionId,
+        CorrectReadingSessionRequest request,
+        CancellationToken cancellationToken);
+    ActiveReadingSessionDto? GetActiveSession(Guid userId);
+    Task<ActiveReadingSessionDto> StartActiveSessionAsync(
+        Guid userId,
+        StartActiveReadingSessionRequest request,
+        CancellationToken cancellationToken);
+    Task<ActiveReadingSessionDto> PauseActiveSessionAsync(
+        Guid userId,
+        CancellationToken cancellationToken);
+    Task<ActiveReadingSessionDto> ResumeActiveSessionAsync(
+        Guid userId,
+        CancellationToken cancellationToken);
+    Task<ReadingSessionDto> FinishActiveSessionAsync(
+        Guid userId,
+        FinishActiveReadingSessionRequest request,
+        CancellationToken cancellationToken);
+    Task CancelActiveSessionAsync(Guid userId, CancellationToken cancellationToken);
 }
 
 public interface ICommunityService

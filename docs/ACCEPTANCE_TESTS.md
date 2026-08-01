@@ -160,6 +160,15 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-CAT-010 | P0 | `GET /api/authors` trả PageResult, có author seed và book count đúng. |
 | AC-CAT-011 | P0 | `GET /api/categories` trả PageResult, có category seed và book count đúng. |
 | AC-CAT-012 | P0 | Catalog công khai hoạt động khi integration Bookstore tắt. |
+| AC-CAT-013 | P0 | Guest gọi `GET /api/books/recommendations` nhận 401 `UNAUTHORIZED`; member nhận `ApiResponse<PageResult<BookRecommendationResponse>>` với mặc định `page=1`, `pageSize=12`. |
+| AC-CAT-014 | P0 | Mỗi recommendation có đúng `book`, `reasonCode`, `reasonText`; code thuộc `FOLLOWED_READER_LIKED`, `MATCHED_AUTHOR`, `MATCHED_CATEGORY`, `POPULAR_FALLBACK` và text khớp mapping tiếng Việt trong API contract. |
+| AC-CAT-015 | P0 | Recommendation loại mọi sách đang ở library active của principal bất kể shelf và mọi sách principal đã review, loại book soft delete trước count/phân trang và trả `book.shelf=null`. |
+| AC-CAT-016 | P0 | Sách có nhiều review 4–5 sao hơn từ các user active principal đang follow đứng trước; review rating dưới 4, đã xóa hoặc của user locked/soft delete không tạo social signal. |
+| AC-CAT-017 | P0 | Khi không có social signal, author match từ library/review 4–5 sao của principal ưu tiên category overlap; sau đó dùng global average rating, review count và `book.id asc`. |
+| AC-CAT-018 | P0 | Hai request cùng principal/dữ liệu trả cùng thứ tự; ghép nhiều page không trùng/mất item và metadata count phản ánh candidate sau exclusion. |
+| AC-CAT-019 | P0 | Tài khoản cold-start không library/review/follow vẫn nhận candidate `POPULAR_FALLBACK` theo rating/review count công khai và tie-break ổn định. |
+| AC-CAT-020 | P0 | Ranking không đọc library/session/note của user khác; global fallback không biến dữ liệu đọc riêng tư thành reason. |
+| AC-CAT-021 | P0 | Sau library, review hoặc follow mutation liên quan, request recommendation mới phản ánh source hiện tại; read model không giữ server cache stale. |
 
 ## 7. Admin catalog
 
@@ -183,7 +192,7 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | ID | P | Given/When/Then |
 |---|---|---|
 | AC-LIB-001 | P0 | Reader thêm book chưa có vào shelf `WANT_TO_READ`, API trả 201 và `currentPage=0`. |
-| AC-LIB-002 | P0 | Thêm lại cùng book trả 409 `BOOK_ALREADY_IN_LIBRARY`. |
+| AC-LIB-002 | P0 | Thêm lại cùng book còn active trong library trả 409 `BOOK_ALREADY_IN_LIBRARY`. |
 | AC-LIB-003 | P0 | Lọc library theo từng shelf chỉ trả item đúng shelf. |
 | AC-LIB-004 | P0 | Đổi `WANT_TO_READ -> READING` đặt `startedAt`, giữ `finishedAt=null`. |
 | AC-LIB-005 | P0 | Cập nhật `currentPage>0` cho WANT_TO_READ tự chuyển `READING`. |
@@ -194,6 +203,7 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-LIB-010 | P0 | Reader không thể patch/delete library item của friend; trả 404 để không lộ ownership. |
 | AC-LIB-011 | P0 | Delete library item làm item biến mất khỏi list nhưng reading session lịch sử còn nguyên. |
 | AC-LIB-012 | P0 | Response dùng `shelf`, không dùng `status`; query lọc dùng `shelf`. |
+| AC-LIB-013 | P0 | Thêm lại book đã soft-delete restore đúng library item ID; `READING` giữ progress high-water, `WANT_TO_READ` reset 0 và `READ` đạt page count. |
 
 ## 9. Reading journal
 
@@ -210,6 +220,17 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-READ-009 | P0 | Minutes hoặc pages bằng 0 trả 400. |
 | AC-READ-010 | P0 | `GET /api/reading-sessions` chỉ trả session của principal và có phân trang. |
 | AC-READ-011 | P0 | UI `/journal` tạo session qua API, invalidate library/dashboard và render item mới không reload trang. |
+| AC-READ-012 | P0 | `GET /api/reading-sessions/active` trả `data=null` khi không có phiên và chỉ trả active session của principal khi có. |
+| AC-READ-013 | P0 | Start dùng UTC server, snapshot current page, tạo/chuyển library item sang `READING`; item từng soft-delete được restore đúng ID và giữ tiến độ; start lần hai hoặc start sách `READ` bị từ chối. |
+| AC-READ-014 | P0 | Mỗi user chỉ có một active row ở database; hai start cạnh tranh không thể cùng commit thành công. |
+| AC-READ-015 | P0 | Pause đóng elapsed hiện tại, thời gian chờ không làm elapsed tăng; pause/resume cùng trạng thái là idempotent và reload khôi phục đúng state. |
+| AC-READ-016 | P0 | Finish dưới 60 giây, `endingPage<=startPage`, nhỏ hơn current library page hoặc vượt page count bị từ chối mà active session còn nguyên. |
+| AC-READ-017 | P0 | Finish hợp lệ tiêu thụ active đúng một lần, tạo completed session với active minutes/pages delta, cập nhật library tuyệt đối và đồng bộ challenge/goal notification. |
+| AC-READ-018 | P0 | Cancel xóa active state nhưng không tạo completed history, không thay đổi library, goals, challenge, feed hoặc insights. |
+| AC-READ-019 | P0 | Owner correction session cập nhật history/projection; user khác nhận 404. Delta trang dương có thể đẩy library tới trước nhưng correction giảm không làm lùi library/challenge/completed goal; nếu cùng sách đang Focus thì delta dương bị chặn, còn note/time/within-high-water vẫn hợp lệ. |
+| AC-READ-020 | P0 | Ghi chú manual/focus/correction chỉ có trong history của owner và không xuất hiện ở Feed, hồ sơ, club hoặc notification. |
+| AC-READ-021 | P0 | Start/finish Focus cạnh tranh với đổi kệ/xóa/cập nhật tiến độ/ghi manual vẫn được serialize: active session không mồ côi và library progress không bao giờ bị ghi lùi bởi entity stale. Manual cùng active book trả 409; manual book khác hợp lệ; nếu manual commit trước Start thì `startPage` phản ánh progress mới. |
+| AC-READ-022 | P0 | Nếu catalog book bị admin soft-delete giữa phiên, GET/pause/resume vẫn trả active DTO với `book=null`; UI render fallback và cho phép cancel thay vì nhốt user ở error state. |
 
 ## 10. Reading goals và ghi chú riêng tư
 
@@ -400,7 +421,7 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | ID | P | Route | Tiêu chí |
 |---|---|---|---|
 | AC-WEB-001 | P0 | `/` | render hero, featured books từ API và CTA điều hướng được |
-| AC-WEB-002 | P0 | `/explore` | search/filter/sort sách, loading/error/empty state đầy đủ |
+| AC-WEB-002 | P0 | `/explore` | search/filter/sort sách, loading/error/empty state đầy đủ; member thấy khu “Dành cho bạn” từ API |
 | AC-WEB-003 | P0 | `/books` | catalog phân trang từ API |
 | AC-WEB-004 | P0 | `/books/:id` | metadata, shelf action và review thật |
 | AC-WEB-005 | P0 | `/login` | validation, login, redirect intended route |
@@ -419,7 +440,7 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 |---|---|---|---|
 | AC-WEB-011 | P0 | `/dashboard` | tất cả dashboard metrics từ API |
 | AC-WEB-012 | P0 | `/library` | ba shelf, update progress, remove item |
-| AC-WEB-013 | P0 | `/journal` | list/create session |
+| AC-WEB-013 | P0 | `/journal` | focus timer server-backed có start/pause/resume/finish/cancel, recovery sau reload, list/create/correction completed session |
 | AC-WEB-014 | P0 | `/feed` | feed 10 item/trang từ network, bộ lọc, phân trang, gợi ý follow và empty CTA tới `/people` |
 | AC-WEB-015 | P0 | `/notifications` | server unread count, tab all/unread, category filter, URL pagination, deep-link và optimistic read/read-all |
 | AC-WEB-016 | P0 | `/settings` | update display name, bio, avatar, hai quyền riêng tư đọc và bốn notification preferences |
@@ -455,6 +476,14 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 | AC-WEB-034 | P0 | `/feed` dùng URL chữ thường `type=review`, `type=reading`, `type=club` hoặc `type=challenge` cùng `page`; service đổi filter sang giá trị API chữ hoa, còn “Tất cả” bỏ hẳn `type`. |
 | AC-WEB-035 | P0 | Đổi filter feed đưa `page` về 1; back/forward khôi phục filter/page, suggestion follow biến mất sau thành công và empty state chỉ dẫn `/people`, không dẫn `/explore`. |
 | AC-WEB-036 | P0 | Card `READING_PROGRESS` diễn đạt `progressPercent` là phần trăm cuốn sách đọc trong phiên này, không gắn nhãn như tiến độ library tích lũy. |
+| AC-WEB-037 | P0 | Guest vào `/explore` không gọi recommendation API và không thấy “Dành cho bạn”; catalog/“Được đọc nhiều” công khai vẫn hoạt động. |
+| AC-WEB-038 | P0 | Member thấy recommendation 12 item/trang, reason text từ server, loading/error/empty state và pagination độc lập với catalog search. |
+| AC-WEB-039 | P0 | Thêm nhanh recommendation vào `WANT_TO_READ` gọi library contract hiện hữu, chặn double-click; thành công làm item biến mất, lỗi giữ card và hiện feedback có thể hành động. |
+| AC-WEB-040 | P0 | Query key recommendation chứa principal ID, page, pageSize; đổi account không dùng lại dữ liệu. Library add/update/remove, reading-session create, review create/update/delete và follow/unfollow invalidate recommendation cache. |
+| AC-WEB-041 | P0 | Active timer tick từ `elapsedSeconds` server response, không tự tính cả khoảng pause; mutation chặn double-submit và refetch authoritative state sau lỗi. |
+| AC-WEB-042 | P0 | Finish form mặc định từ `startPage`, kiểm tra ending page/note; thành công xóa active panel, thêm history và làm mới library/dashboard/goals/insights/challenges/feed/notifications. |
+| AC-WEB-043 | P0 | Entry point Focus từ Library, Dashboard hoặc Book Detail chỉ xuất hiện/hoạt động với book có thể đọc; URL preselect đúng book và không tạo active session trước thao tác xác nhận của user. |
+| AC-WEB-044 | P0 | Biểu mẫu manual khóa cuốn đang có Focus session và giải thích lý do; sách khác vẫn chọn được, còn backend tiếp tục là nguồn bảo vệ authoritative cho request cạnh tranh. |
 
 ## 19. Security và isolation
 
@@ -470,6 +499,7 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 | AC-SEC-008 | P0 | Log không chứa password, bearer token, refresh token, DB connection secret hoặc webhook secret. |
 | AC-SEC-009 | P1 | Login/refresh endpoint có rate limit và trả 429 envelope. |
 | AC-SEC-010 | P1 | Nội dung người dùng nhập bị giới hạn độ dài ở API, không chỉ ở UI. |
+| AC-SEC-011 | P0 | Recommendation không trả hay suy luận từ library, reading session, reading note hoặc visibility flag của user khác; chỉ review công khai hợp lệ tham gia social/global signal. |
 
 ## 20. Tính độc lập và integration
 
@@ -485,6 +515,7 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 | AC-IND-008 | P1 | Khi bật provider với Bookstore test URL, search map đúng external ID/title/authors/cover/ISBN/price/purchase URL. |
 | AC-IND-009 | P1 | Provider timeout trả result `available=false` trong timeout budget và core health vẫn xanh. |
 | AC-IND-010 | P1 | Payload upstream không nhận diện được trả result có giới hạn, không lưu dữ liệu rác. |
+| AC-IND-011 | P0 | Recommendation rule-based hoạt động khi Bookstore integration tắt, không gọi provider ngoài và không yêu cầu model/ML service. |
 
 ## 21. Coverage tự động tối thiểu
 
@@ -493,7 +524,8 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 - Domain invariant cho User login availability.
 - Follow self.
 - Library transition và page bounds.
-- Reading session time/pages/duration.
+- Reading session time/pages/duration và correction forward-only.
+- Active reading state machine, elapsed loại pause, minimum duration/page bounds và single-active invariant.
 - Reading goal enum/target/date/overlap, derived progress và completion idempotency.
 - Reading note quote/content/page/tag invariants.
 - Reading Insights range/offset, local-day grouping, streak, comparison và forecast.
@@ -508,7 +540,11 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 - Auth register/login/refresh/logout.
 - Role policy cho admin route.
 - Catalog query/pagination.
+- Recommendation auth, reason mapping, exclusion library, ranking/tie-break,
+  cold-start, privacy source và freshness sau mutation.
 - Library ownership.
+- Focus Reading auth/ownership, unique active concurrency, idempotent pause/resume, atomic finish/cancel, recovery, goal/challenge synchronization và note privacy.
+- Completed reading-session correction ownership, projection refresh và high-water semantics.
 - Reading goal status synchronization/filter, completion notification và ownership.
 - Reading note CRUD/filter/search/owner isolation.
 - Reading Insights auth, range validation, UTC+7 calendar, reports, comparison, forecasts, completion sync và owner isolation.
@@ -531,11 +567,14 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 - Reading goal route/form and no manual-progress request.
 - Reading note PATCH payload không có `bookId`, quote/content/tag bounds.
 - Reading Insights query key có timezone offset, route protected và session/goal mutation invalidate cache.
+- Focus timer recovery/ticking/pause-resume/finish-cancel, preselected book, double-submit guard và completed-session correction.
 - Review request top-level `/reviews`.
 - Admin request path `/admin/books` và `/admin/challenges`.
 - Production App deep-link challenge, loading/error/empty/guest CTA, intended login return, principal-scoped cache, join/leave invalidation, reading-mutation challenge invalidation và không có manual-progress request.
 - Loading/error/empty, filter URL, pagination và optimistic read/read-all cho notifications.
 - Feed URL filter/pagination, page size 10, suggestion follow, privacy-aware rendering và empty CTA `/people`.
+- Explore recommendation guest/member states, principal-scoped pagination,
+  reason rendering, quick-add `WANT_TO_READ` và mutation invalidation.
 
 Không đặt ngưỡng coverage phần trăm giả tạo cho Goal 1. Mọi invariant và authorization branch liệt kê trên phải có test trực tiếp.
 

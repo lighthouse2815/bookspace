@@ -6,6 +6,7 @@ import {
   Copy,
   ArrowSquareOut,
   NotePencil,
+  Play,
   Trash,
 } from '@phosphor-icons/react'
 import { useState, type FormEvent } from 'react'
@@ -222,6 +223,15 @@ export function BookDetailPage() {
                   <NotePencil size={16} />
                   Ghi chú
                 </Link>
+                {entry?.shelf === 'READING' || book.data.shelf === 'READING' ? (
+                  <Link
+                    to={`/journal?bookId=${book.data.id}`}
+                    className="button button-primary button-sm"
+                  >
+                    <Play size={16} weight="fill" />
+                    Bắt đầu phiên đọc
+                  </Link>
+                ) : null}
               </div>
             </div>
           ) : (

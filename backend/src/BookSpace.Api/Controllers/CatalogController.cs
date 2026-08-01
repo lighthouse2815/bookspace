@@ -21,6 +21,13 @@ public sealed class CatalogController(ICatalogService catalogService) : ApiContr
         [FromQuery] int pageSize = 20) =>
         OkData(catalogService.GetBooks(search, authorId, categoryId, sort, OptionalUserId, page, pageSize));
 
+    [Authorize]
+    [HttpGet("books/recommendations")]
+    public ActionResult<ApiResponse<PageResult<BookRecommendationDto>>> Recommendations(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 12) =>
+        OkData(catalogService.GetRecommendations(CurrentUserId, page, pageSize));
+
     [AllowAnonymous]
     [HttpGet("books/{id:guid}")]
     public ActionResult<ApiResponse<BookDetail>> Book(Guid id) =>

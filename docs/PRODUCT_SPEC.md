@@ -20,6 +20,7 @@ Goal 1 chỉ được coi là hoàn thành khi có một vertical slice đầy �
 2. Frontend React gọi API thật; không dùng dữ liệu giả cho luồng chính.
 3. Đăng ký, đăng nhập, refresh token, đăng xuất và phân quyền hoạt động.
 4. Catalog sách, tác giả, thể loại có trang công khai và CRUD dành cho quản trị viên.
+   Thành viên nhận gợi ý sách cá nhân hóa theo luật minh bạch trên dữ liệu BookSpace.
 5. Thành viên quản lý thư viện và tiến độ đọc của riêng mình.
 6. Thành viên ghi nhận phiên đọc, đặt và theo dõi mục tiêu đọc cá nhân.
 7. Thành viên lưu, tìm kiếm, cập nhật và xóa ghi chú đọc riêng tư theo sách/trang/tag.
@@ -62,6 +63,7 @@ Có toàn bộ quyền của khách và:
 - Cập nhật hồ sơ của chính mình.
 - Chọn công khai hoặc giữ riêng tư kệ sách chi tiết và dòng hoạt động trên hồ sơ.
 - Theo dõi hoặc bỏ theo dõi thành viên khác.
+- Xem gợi ý sách cá nhân hóa và thêm nhanh sách được gợi ý vào kệ muốn đọc.
 - Quản lý thư viện, tiến độ, phiên đọc và mục tiêu đọc của mình.
 - Tạo/sửa/xóa ghi chú đọc riêng tư của mình; tìm lại theo sách, tag hoặc từ khóa.
 - Tạo/sửa/xóa đánh giá, lượt thích và bình luận của mình.
@@ -86,7 +88,7 @@ Goal 1 không thêm vai trò nhân viên, nhà cung cấp hoặc quản trị h�
 | Bounded context | Năng lực lõi | Phụ thuộc |
 |---|---|---|
 | Identity & Profile | tài khoản, phiên đăng nhập, hồ sơ, tìm độc giả, gợi ý theo dõi | không |
-| Catalog | sách, tác giả, thể loại, tìm kiếm | không |
+| Catalog | sách, tác giả, thể loại, tìm kiếm, recommendation rule-based | Identity, Reading, Community |
 | Reading | thư viện, trạng thái đọc, tiến độ, phiên đọc, mục tiêu đọc, ghi chú riêng tư | Identity, Catalog |
 | Community | review, like, comment, feed lọc theo nhóm hoạt động và gợi ý kết nối | Identity, Catalog, Reading |
 | Clubs | câu lạc bộ, thành viên, bài đăng, bình luận, đợt đọc chung và cột mốc thảo luận | Identity, Catalog, Notifications |
@@ -130,6 +132,25 @@ hiển thị `followsYou`, số kết nối chung và danh sách follower/follow
 
 Người dùng tìm theo từ khóa và lọc theo tác giả/thể loại. Kết quả có phân trang. Chi tiết sách gồm tác giả, thể loại, thống kê rating và trạng thái thư viện của người đang đăng nhập nếu có.
 
+### UC-03A — Gợi ý sách cá nhân hóa
+
+Thành viên nhận danh sách sách chưa có trong thư viện và chưa từng được chính
+thành viên review qua
+`GET /api/books/recommendations?page=1&pageSize=12`. Mỗi item kèm một lý do tiếng
+Việt và một reason code ổn định: `FOLLOWED_READER_LIKED`, `MATCHED_AUTHOR`,
+`MATCHED_CATEGORY` hoặc `POPULAR_FALLBACK`. Ranking ưu tiên số review 4–5 sao
+của các tài khoản principal đang follow, rồi tác giả đã xuất hiện trong thư viện
+hoặc review 4–5 sao của principal, số category trùng với các sở thích đó, rating
+trung bình và số review công khai toàn hệ thống, cuối cùng `book.id asc` để phân
+trang xác định.
+
+Read model chỉ dùng thư viện và review của chính principal, review công khai còn
+hoạt động của tài khoản đang follow, cùng aggregate review công khai cho fallback.
+Nó không đọc thư viện, phiên đọc, ghi chú hoặc quyền riêng tư hành trình đọc của
+người khác. Review của user bị khóa/soft delete và sách soft delete không tạo tín
+hiệu. Tài khoản cold-start vẫn nhận `POPULAR_FALLBACK`; đây là recommendation
+rule-based, không dùng machine learning và không tạo entity/migration mới.
+
 ### UC-04 — Quản lý thư viện
 
 Thành viên thêm sách với một trong ba trạng thái:
@@ -138,11 +159,51 @@ Thành viên thêm sách với một trong ba trạng thái:
 - `READING`
 - `READ`
 
-Mỗi người chỉ có một mục thư viện cho mỗi sách. Cập nhật tiến độ không được vượt quá số trang của sách. Hoàn tất sách đặt trạng thái `READ` và thời điểm hoàn thành.
+Mỗi người chỉ có một logical mục thư viện cho mỗi sách trong toàn lifecycle. Thêm
+lại sau khi soft-delete restore đúng identity: kệ `READING` giữ tiến độ high-water,
+`WANT_TO_READ` bắt đầu lại từ 0 và `READ` hoàn tất ở page count. Cập nhật tiến độ
+không được vượt quá số trang của sách. Hoàn tất sách đặt trạng thái `READ` và thời
+điểm hoàn thành.
 
 ### UC-05 — Ghi phiên đọc
 
-Thành viên ghi thời điểm bắt đầu/kết thúc và trang đầu/cuối. Phiên đọc phải có thời lượng dương và trang cuối không nhỏ hơn trang đầu. Phiên đọc có thể cập nhật tiến độ thư viện nhưng không được làm tiến độ lùi.
+Thành viên có thể ghi thủ công một phiên đã hoàn tất hoặc bắt đầu Focus Reading cho
+một cuốn sách. Ghi thủ công nhận thời điểm bắt đầu/kết thúc, thời lượng, số trang và
+ghi chú riêng tư. Phiên hoàn tất phải có thời lượng và số trang dương; nó có thể cập
+nhật tiến độ thư viện nhưng không được làm tiến độ lùi.
+
+Mỗi thành viên chỉ có tối đa một `ActiveReadingSession`. Bắt đầu Focus Reading dùng
+thời gian UTC của server, chụp `startPage` từ tiến độ thư viện hiện tại, tự tạo,
+restore logical library item từng soft-delete hoặc chuyển item sang `READING`, nhưng
+từ chối sách đã hoàn tất. Restore giữ nguyên identity và tiến độ high-water. Trạng thái active
+là `RUNNING` hoặc `PAUSED`; pause/resume lặp lại là idempotent. Server lưu số giây đã
+đọc thực tế, không cộng khoảng pause, và `GET /api/reading-sessions/active` khôi phục
+đúng phiên sau reload hoặc mở lại trình duyệt.
+
+Nếu sách bị quản trị viên soft-delete sau khi Focus đã bắt đầu, active state vẫn
+được trả với book nullable để người dùng nhìn thấy timer và hủy phiên; họ không bị
+kẹt trong error screen không có thao tác phục hồi.
+
+Kết thúc Focus Reading yêu cầu ít nhất 60 giây đọc, `endingPage` lớn hơn `startPage`,
+không nhỏ hơn tiến độ thư viện hiện tại và không vượt `Book.PageCount`. Trong cùng
+luồng nghiệp vụ, server tiêu thụ active session đúng một lần, tạo `ReadingSession`
+hoàn tất với `pagesRead = endingPage - startPage`, cập nhật tuyệt đối tiến độ library
+và đồng bộ challenge. Reading goal hoàn thành được đánh dấu và tạo notification ngay
+trong luồng thành công bình thường; Insights, Dashboard và Feed đọc từ session vừa
+hoàn tất. Hủy active session không tạo history và không đổi tiến độ.
+
+Owner được sửa phiên đã hoàn tất khi ghi nhầm thời điểm bắt đầu, thời lượng, số trang
+hoặc ghi chú. History, Insights, Feed và tiến độ goal đang hoạt động phản ánh dữ liệu
+đã sửa. Library, challenge và trạng thái goal đã hoàn thành là high-water mark nên
+không bị lùi khi correction giảm số trang/phút; correction tăng số trang chỉ đẩy
+library tiến về phía trước. Ghi chú phiên đọc luôn riêng tư và không xuất hiện trong
+Feed, hồ sơ công khai, club hoặc notification.
+
+Trong khi một sách đang có Focus Reading, user không thể ghi thêm manual session cho
+chính sách đó. Correction cùng sách vẫn được đổi note/thời gian hoặc sửa số trang
+trong high-water đã áp dụng, nhưng không được tạo delta trang dương. Các thao tác trên
+sách khác vẫn hợp lệ. Quy tắc này cùng serialized mutation ngăn library bị ghi lùi
+và ngăn Goals/Insights/Feed đếm trùng trang.
 
 ### UC-05A — Đặt mục tiêu đọc cá nhân
 
@@ -240,7 +301,7 @@ Tên route là hợp đồng điều hướng Goal 1; thay đổi cần đồng 
 | Route | Trang | Nội dung tối thiểu |
 |---|---|---|
 | `/` | Home | giới thiệu, sách nổi bật, hoạt động cộng đồng |
-| `/explore` | Explore | tìm kiếm/lọc sách có phân trang |
+| `/explore` | Explore | tìm kiếm/lọc sách có phân trang; thành viên thấy khu “Dành cho bạn” 12 item/trang, lý do gợi ý và thêm nhanh vào `WANT_TO_READ`; khách giữ catalog công khai và không gọi API cá nhân hóa |
 | `/books` | Books | catalog đầy đủ có phân trang |
 | `/books/:id` | Book detail | metadata, tác giả, thể loại, review |
 | `/challenges` | Challenges | thử thách đã xuất bản |
@@ -259,7 +320,7 @@ Tên route là hợp đồng điều hướng Goal 1; thay đổi cần đồng 
 |---|---|---|
 | `/feed` | Feed | hoạt động phân trang 10 item/trang, gợi ý follow và bộ lọc URL `?type=review&page=...` với `type` là `review`, `reading`, `club` hoặc `challenge`; bỏ `type` khi xem tất cả, empty state dẫn tới `/people` |
 | `/library` | My library | lọc theo ba trạng thái |
-| `/journal` | Reading journal | tạo và xem các phiên đọc |
+| `/journal` | Reading journal | focus timer khôi phục sau reload; pause/resume/finish/cancel; ghi thủ công, xem và sửa history |
 | `/goals` | Reading goals | tạo, sửa, xóa và theo dõi tiến độ mục tiêu riêng |
 | `/notes` | Reading notes | tạo, sửa, xóa, lọc và tìm ghi chú riêng tư |
 | `/insights` | Reading insights | heatmap, streak, báo cáo tuần/tháng, so sánh kỳ và dự báo |
@@ -348,6 +409,8 @@ Seed tối thiểu thêm:
 - 6 tác giả, 5 thể loại, 12 sách có số trang và ảnh bìa hợp lệ.
 - 3 mục thư viện ở đủ ba trạng thái cho reader.
 - 2 phiên đọc, 2 review có bình luận/like.
+- Dữ liệu thư viện/review đủ kiểm tra recommendation cá nhân hóa cho reader; admin
+  không có thư viện để kiểm tra cold-start fallback.
 - 3 hồ sơ người dùng để kiểm tra discovery/follow/feed; `Hà Linh` là hồ sơ demo
   không công bố credential đăng nhập, follow reader và được admin follow để tạo
   một gợi ý mutual thực tế cho `reader@bookspace.local`.
@@ -362,7 +425,8 @@ Mật khẩu seed là thông tin dev-only, không được dùng hoặc tự đ�
 - Thanh toán, giỏ hàng, vận chuyển và tồn kho.
 - Đọc ebook có DRM hoặc lưu file sách.
 - Chat thời gian thực.
-- Recommendation bằng machine learning.
+- Recommendation bằng machine learning; recommendation rule-based trong UC-03A
+  vẫn thuộc Goal 1.
 - Multi-tenant hoặc nhiều tổ chức.
 - Mobile app.
 - SSO với Bookstore.

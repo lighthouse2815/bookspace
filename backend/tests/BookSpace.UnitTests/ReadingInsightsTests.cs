@@ -392,6 +392,11 @@ public sealed class ReadingInsightsTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task SynchronizeCompletionsAsync(
+            Guid userId,
+            CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
         public Task DeleteAsync(
             Guid userId,
             Guid goalId,

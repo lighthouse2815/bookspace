@@ -1,13 +1,15 @@
 using System.Data;
 using System.Globalization;
 using BookSpace.Application.Abstractions;
+using BookSpace.Application.Common;
+using BookSpace.Domain.Entities;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
 namespace BookSpace.Infrastructure.Persistence;
 
 public sealed class ChallengeMutationBoundary(BookSpaceDbContext db)
-    : IChallengeMutationBoundary
+    : IChallengeMutationBoundary, IReadingMutationBoundary
 {
     public async Task<TResult> ExecuteAsync<TResult>(
         Func<CancellationToken, Task<TResult>> operation,
@@ -37,10 +39,26 @@ public sealed class ChallengeMutationBoundary(BookSpaceDbContext db)
                 await db.Database.CloseConnectionAsync();
             }
         }
+        catch (DbUpdateConcurrencyException exception) when (
+            exception.Entries.Any(entry => entry.Entity is ActiveReadingSession))
+        {
+            throw new UseCaseException(
+                "ACTIVE_READING_SESSION_CHANGED",
+                "Phiên đọc tập trung vừa thay đổi. Vui lòng thử lại.",
+                409);
+        }
         catch (DbUpdateException exception) when (
             IsChallengeParticipationUniqueViolation(exception))
         {
             throw new DuplicateChallengeParticipationException(exception);
+        }
+        catch (DbUpdateException exception) when (
+            IsActiveReadingSessionUniqueViolation(exception))
+        {
+            throw new UseCaseException(
+                "ACTIVE_READING_SESSION_EXISTS",
+                "Bạn đang có một phiên đọc tập trung chưa hoàn tất.",
+                409);
         }
     }
 
@@ -152,6 +170,17 @@ public sealed class ChallengeMutationBoundary(BookSpaceDbContext db)
             StringComparison.OrdinalIgnoreCase) &&
         sqliteException.Message.Contains(
             "challenge_participations.UserId",
+            StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsActiveReadingSessionUniqueViolation(
+        DbUpdateException exception) =>
+        exception.InnerException is SqliteException
+        {
+            SqliteErrorCode: 19,
+            SqliteExtendedErrorCode: 2067
+        } sqliteException &&
+        sqliteException.Message.Contains(
+            "active_reading_sessions.UserId",
             StringComparison.OrdinalIgnoreCase);
 
     private static bool IsSqliteBusy(SqliteException exception) =>
