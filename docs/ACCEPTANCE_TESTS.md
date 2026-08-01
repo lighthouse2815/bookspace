@@ -285,9 +285,14 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 |---|---|---|
 | AC-FEED-001 | P0 | Reader follow friend rồi friend tạo review; review xuất hiện trong reader feed. |
 | AC-FEED-002 | P0 | Hoạt động của user không follow không xuất hiện. |
-| AC-FEED-003 | P0 | Feed có type `REVIEW`, `READING_PROGRESS`, `CHALLENGE` hoặc `CLUB_POST` đúng payload liên quan. |
-| AC-FEED-004 | P0 | Feed phân trang và sắp `createdAt desc` với tie-break ổn định. |
+| AC-FEED-003 | P0 | Feed trả đúng event type `REVIEW`, `READING_PROGRESS`, `BOOK_FINISHED`, `CHALLENGE` hoặc `CLUB_POST` cùng payload liên quan. |
+| AC-FEED-004 | P0 | Feed áp dụng filter/visibility trước count và phân trang, rồi sắp `createdAt desc, id desc` ổn định qua các trang. |
 | AC-FEED-005 | P0 | Private club activity không lộ cho người ngoài. |
+| AC-FEED-006 | P0 | `type=REVIEW`, `CLUB`, `CHALLENGE` chỉ trả event tương ứng; `type=READING` gộp đúng `READING_PROGRESS` và `BOOK_FINISHED`; bỏ `type` trả mọi nhóm. |
+| AC-FEED-007 | P0 | `type` ngoài `REVIEW`, `READING`, `CLUB`, `CHALLENGE` trả 400 `INVALID_FEED_TYPE` với message tiếng Việt. |
+| AC-FEED-008 | P0 | Mỗi `ReadingSession` tạo projection `READING_PROGRESS` theo `StartedAt`, với phần trăm bằng tỷ lệ trang của riêng phiên trên tổng trang sách; sách hoàn tất tạo `BOOK_FINISHED` theo đúng `LibraryItem.FinishedAt`, không dùng `LibraryItem.StartedAt`. |
+| AC-FEED-009 | P0 | Principal luôn thấy hoạt động đọc của mình; hoạt động đọc của user đang follow chỉ xuất hiện khi actor bật `IsReadingActivityPublic`. |
+| AC-FEED-010 | P0 | `ReadingSession.Note` và `ReadingNote` không xuất hiện trong field `note`, `content` hoặc field nào của feed response. |
 
 ## 14. Clubs
 
@@ -415,7 +420,7 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-WEB-011 | P0 | `/dashboard` | tất cả dashboard metrics từ API |
 | AC-WEB-012 | P0 | `/library` | ba shelf, update progress, remove item |
 | AC-WEB-013 | P0 | `/journal` | list/create session |
-| AC-WEB-014 | P0 | `/feed` | feed phân trang từ network |
+| AC-WEB-014 | P0 | `/feed` | feed 10 item/trang từ network, bộ lọc, phân trang, gợi ý follow và empty CTA tới `/people` |
 | AC-WEB-015 | P0 | `/notifications` | server unread count, tab all/unread, category filter, URL pagination, deep-link và optimistic read/read-all |
 | AC-WEB-016 | P0 | `/settings` | update display name, bio, avatar, hai quyền riêng tư đọc và bốn notification preferences |
 | AC-WEB-017 | P0 | `/profile` | hiển thị current user hoặc redirect đúng `/users/:id` |
@@ -447,6 +452,9 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 | AC-WEB-031 | P1 | Màu chữ/nút/focus đạt contrast cơ bản ở light và dark theme. |
 | AC-WEB-032 | P0 | People/profile/feed query chờ auth bootstrap và dùng principal-scoped key; guest, account A và account B không dùng lại relationship state. |
 | AC-WEB-033 | P0 | Follow dùng response server để cập nhật state, chặn double click và invalidate people, target/current profile counters, followers/following, feed và dashboard. |
+| AC-WEB-034 | P0 | `/feed` dùng URL chữ thường `type=review`, `type=reading`, `type=club` hoặc `type=challenge` cùng `page`; service đổi filter sang giá trị API chữ hoa, còn “Tất cả” bỏ hẳn `type`. |
+| AC-WEB-035 | P0 | Đổi filter feed đưa `page` về 1; back/forward khôi phục filter/page, suggestion follow biến mất sau thành công và empty state chỉ dẫn `/people`, không dẫn `/explore`. |
+| AC-WEB-036 | P0 | Card `READING_PROGRESS` diễn đạt `progressPercent` là phần trăm cuốn sách đọc trong phiên này, không gắn nhãn như tiến độ library tích lũy. |
 
 ## 19. Security và isolation
 
@@ -505,6 +513,7 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 - Reading note CRUD/filter/search/owner isolation.
 - Reading Insights auth, range validation, UTC+7 calendar, reports, comparison, forecasts, completion sync và owner isolation.
 - Review unique/like/comment.
+- Feed filter validation, nguồn/timestamp sự kiện đọc, privacy activity, private-club isolation, paging/order ổn định và không lộ note.
 - Club membership/post permission.
 - Reading sprint lifecycle, permission, participant idempotency, progress, leaderboard, timeline, milestone/response, reminder deduplication và private-club isolation.
 - Challenge detail published/draft, atomic join/rollback, concurrent duplicate join 409, serialized join-vs-unpublish/delete, physical-participation guard, cancellable lock acquisition, leave không post-read và nonparticipant leave, progress từ sách hoàn tất trước/sau join, deterministic stale-low high-water, repair `CompletedAt`, mutation-time completion và notification dedupe/unique constraint.
@@ -526,6 +535,7 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 - Admin request path `/admin/books` và `/admin/challenges`.
 - Production App deep-link challenge, loading/error/empty/guest CTA, intended login return, principal-scoped cache, join/leave invalidation, reading-mutation challenge invalidation và không có manual-progress request.
 - Loading/error/empty, filter URL, pagination và optimistic read/read-all cho notifications.
+- Feed URL filter/pagination, page size 10, suggestion follow, privacy-aware rendering và empty CTA `/people`.
 
 Không đặt ngưỡng coverage phần trăm giả tạo cho Goal 1. Mọi invariant và authorization branch liệt kê trên phải có test trực tiếp.
 

@@ -277,7 +277,7 @@ Query key tối thiểu:
 ["people", principalScope, "search", search, paging]
 ["people", principalScope, "suggestions", paging]
 ["users", principalScope, "detail", userId]
-["feed", principalScope]
+["feed", principalScope, { type, page, pageSize }]
 ["clubs", filters]
 ["club", clubId]
 ["club-posts", clubId, paging]
@@ -290,13 +290,13 @@ Query key tối thiểu:
 
 Mutation phải invalidate đúng consumer:
 
-- Library/progress/session: `library`, `book`, `dashboard`.
+- Library/progress/session: `library`, `book`, `feed`, `dashboard`.
 - Review/like/comment: `book-reviews`, `book`, `feed`, `notifications`.
 - Follow: principal-scoped `people`, target/current `users`, `followers`,
   `following`, `feed`, `dashboard`; mutation cùng target dùng shared pending key.
-- Club/member/post/comment: `clubs`, `club`, `club-posts`, `club-comments`.
+- Club/member/post/comment: `clubs`, `club`, `club-posts`, `club-comments`, `feed`.
 - Reading sprint: list/detail/history, participant state, leaderboard, timeline và milestone; mutation đồng thời invalidate club detail và notification khi có recipient.
-- Challenge: `challenges`, `my-challenges`, `dashboard`, `notifications`.
+- Challenge: `challenges`, `my-challenges`, `feed`, `dashboard`, `notifications`.
 - Mark notification: `notifications`, `notification-unread-count`.
 
 ## 6. Request flow

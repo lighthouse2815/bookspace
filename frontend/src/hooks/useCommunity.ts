@@ -1,8 +1,8 @@
 import { useIsMutating, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../contexts/AuthContext'
-import { communityService } from '../services/community.service'
+import { communityService, type FeedQuery } from '../services/community.service'
 import type { PageResult } from '../types/api'
-import type { Shelf, UserDiscoveryItem } from '../types/domain'
+import type { FeedFilter, Shelf, UserDiscoveryItem } from '../types/domain'
 
 export const viewerScope = (userId?: string | null) => userId ?? 'guest'
 
@@ -40,6 +40,8 @@ export const userKeys = {
 export const feedKeys = {
   all: ['feed'] as const,
   scoped: (scope: string) => [...feedKeys.all, scope] as const,
+  page: (scope: string, type: FeedFilter | undefined, page: number, pageSize: number) =>
+    [...feedKeys.scoped(scope), type ?? 'ALL', page, pageSize] as const,
 }
 
 export const followKeys = {
@@ -47,12 +49,16 @@ export const followKeys = {
   target: (scope: string, targetId: string) => [...followKeys.all, scope, targetId] as const,
 }
 
-export function useFeed() {
+export function useFeed({
+  type,
+  page = 1,
+  pageSize = 20,
+}: FeedQuery = {}) {
   const { user, isLoading } = useAuth()
   const scope = viewerScope(user?.id)
   return useQuery({
-    queryKey: feedKeys.scoped(scope),
-    queryFn: () => communityService.feed(1),
+    queryKey: feedKeys.page(scope, type, page, pageSize),
+    queryFn: () => communityService.feed({ type, page, pageSize }),
     enabled: Boolean(user) && !isLoading,
   })
 }

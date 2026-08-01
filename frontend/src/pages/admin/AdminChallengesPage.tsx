@@ -50,6 +50,7 @@ export function AdminChallengesPage() {
   const invalidateChallenges = () => {
     void queryClient.invalidateQueries({ queryKey: ['challenges'] })
     void queryClient.invalidateQueries({ queryKey: ['admin', 'challenges'] })
+    void queryClient.invalidateQueries({ queryKey: ['feed'] })
   }
 
   const save = useMutation({

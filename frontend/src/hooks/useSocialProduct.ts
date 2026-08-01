@@ -67,7 +67,10 @@ export function useClubMembership(id: string, joined: boolean) {
     },
     onSuccess: async () => {
       if (joined) {
-        await queryClient.invalidateQueries({ queryKey: clubKeys.lists })
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: clubKeys.lists }),
+          queryClient.invalidateQueries({ queryKey: ['feed'] }),
+        ])
         queryClient.removeQueries({ queryKey: clubKeys.detail(id) })
         queryClient.removeQueries({ queryKey: readingSprintKeys.club(id) })
         return
@@ -76,6 +79,7 @@ export function useClubMembership(id: string, joined: boolean) {
         queryClient.invalidateQueries({ queryKey: clubKeys.all }),
         queryClient.invalidateQueries({ queryKey: clubKeys.myInvitations() }),
         queryClient.invalidateQueries({ queryKey: readingSprintKeys.club(id) }),
+        queryClient.invalidateQueries({ queryKey: ['feed'] }),
       ])
     },
   })
@@ -177,6 +181,7 @@ export function useRespondToClubInvitation() {
         queryClient.invalidateQueries({ queryKey: clubKeys.detail(variables.clubId) }),
         queryClient.invalidateQueries({ queryKey: clubKeys.members(variables.clubId) }),
         queryClient.invalidateQueries({ queryKey: clubKeys.lists }),
+        queryClient.invalidateQueries({ queryKey: ['feed'] }),
         queryClient.invalidateQueries({
           queryKey: readingSprintKeys.club(variables.clubId),
         }),
@@ -215,7 +220,12 @@ export function useCreateClubPost(id: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (content: string) => clubService.createPost(id, content),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: clubKeys.detail(id) }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: clubKeys.detail(id) }),
+        queryClient.invalidateQueries({ queryKey: ['feed'] }),
+      ])
+    },
   })
 }
 
@@ -276,6 +286,7 @@ export function useChallengeMembership(id: string, joined: boolean) {
         queryClient.invalidateQueries({ queryKey: challengeKeys.lists(scope) }),
         queryClient.invalidateQueries({ queryKey: challengeKeys.detail(scope, id) }),
         queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+        queryClient.invalidateQueries({ queryKey: ['feed'] }),
       ])
     },
   })

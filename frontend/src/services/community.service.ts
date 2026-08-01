@@ -1,6 +1,7 @@
 import { api, unwrap } from '../lib/api'
 import type { ApiEnvelope, PageResult } from '../types/api'
 import type {
+  FeedFilter,
   FeedItem,
   PublicLibraryEntry,
   Review,
@@ -9,11 +10,17 @@ import type {
   UserDiscoveryItem,
 } from '../types/domain'
 
+export interface FeedQuery {
+  type?: FeedFilter
+  page?: number
+  pageSize?: number
+}
+
 export const communityService = {
-  feed: async (page = 1) =>
+  feed: async ({ type, page = 1, pageSize = 20 }: FeedQuery = {}) =>
     unwrap(
       await api.get<ApiEnvelope<PageResult<FeedItem>>>('/feed', {
-        params: { page, pageSize: 20 },
+        params: { type, page, pageSize },
       }),
     ),
 

@@ -182,15 +182,16 @@ public sealed class CommunityService(IBookSpaceDbContext db) : ICommunityService
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    public PageResult<FeedItem> GetFeed(Guid userId, int page, int pageSize)
+    public PageResult<FeedItem> GetFeed(Guid userId, string? type, int page, int pageSize)
     {
+        var filter = ParseFeedType(type);
         var actorIds = db.Follows
             .Where(x => x.FollowerId == userId)
             .Select(x => x.FollowingId)
             .ToList();
         actorIds.Add(userId);
         actorIds = actorIds.Distinct().ToList();
-        return GetActivityForActors(actorIds, userId, page, pageSize);
+        return GetActivityForActors(actorIds, userId, filter, page, pageSize);
     }
 
     public PageResult<FeedItem> GetUserActivity(
@@ -207,140 +208,205 @@ public sealed class CommunityService(IBookSpaceDbContext db) : ICommunityService
                 "Dòng hoạt động của độc giả này đang được đặt ở chế độ riêng tư.");
         }
 
-        return GetActivityForActors([userId], viewerId, page, pageSize);
+        return GetActivityForActors([userId], viewerId, null, page, pageSize);
     }
 
     private PageResult<FeedItem> GetActivityForActors(
         IReadOnlyCollection<Guid> actorIds,
         Guid? viewerId,
+        FeedType? filter,
         int page,
         int pageSize)
     {
-        var entries = new List<FeedEntry>();
-
-        foreach (var review in db.Reviews.Where(x => actorIds.Contains(x.UserId)).ToList())
-        {
-            var book = db.Books.FirstOrDefault(x => x.Id == review.BookId);
-            if (book is null)
-            {
-                continue;
-            }
-
-            entries.Add(new FeedEntry(
-                new FeedItem(
-                    review.Id,
-                    "REVIEW",
-                    _mapper.User(review.UserId),
-                    _mapper.Review(review, viewerId),
-                    _mapper.Book(book, viewerId),
-                    null,
-                    null,
-                    review.Content,
-                    null,
-                    review.CreatedAt),
-                review.CreatedAt));
-        }
-
-        foreach (var item in db.LibraryItems
-                     .Where(x => actorIds.Contains(x.UserId) && x.StartedAt.HasValue)
-                     .ToList())
-        {
-            var book = db.Books.FirstOrDefault(x => x.Id == item.BookId);
-            if (book is null || !item.StartedAt.HasValue)
-            {
-                continue;
-            }
-
-            var progress = book.PageCount == 0
-                ? 0
-                : Math.Clamp((int)Math.Round(item.CurrentPage * 100d / book.PageCount), 0, 100);
-            entries.Add(new FeedEntry(
-                new FeedItem(
-                    item.Id,
-                    "READING_PROGRESS",
-                    _mapper.User(item.UserId),
-                    null,
-                    _mapper.Book(book, viewerId),
-                    null,
-                    null,
-                    null,
-                    progress,
-                    item.StartedAt.Value),
-                item.StartedAt.Value));
-        }
-
-        var visibleClubIds = db.BookClubs
-            .Where(x =>
-                x.Visibility == ClubVisibility.PUBLIC ||
-                viewerId.HasValue && db.BookClubMembers.Any(member =>
-                    member.ClubId == x.Id && member.UserId == viewerId.Value))
-            .Select(x => x.Id)
-            .ToList();
-        var clubs = db.BookClubs
-            .Where(x => visibleClubIds.Contains(x.Id))
-            .ToDictionary(x => x.Id);
-        foreach (var post in db.ClubPosts
-                     .Where(x => actorIds.Contains(x.AuthorId) && visibleClubIds.Contains(x.ClubId))
-                     .ToList())
-        {
-            if (!clubs.TryGetValue(post.ClubId, out var club))
-            {
-                continue;
-            }
-
-            entries.Add(new FeedEntry(
-                new FeedItem(
-                    post.Id,
-                    "CLUB_POST",
-                    _mapper.User(post.AuthorId),
-                    null,
-                    null,
-                    _mapper.Club(club, viewerId),
-                    null,
-                    post.Content,
-                    null,
-                    post.CreatedAt),
-                post.CreatedAt));
-        }
-
-        var publishedChallenges = db.ReadingChallenges
-            .Where(x => x.IsPublished)
-            .ToDictionary(x => x.Id);
-        foreach (var participation in db.ChallengeParticipations
-                     .Where(x => actorIds.Contains(x.UserId) && x.CompletedAt.HasValue)
-                     .ToList())
-        {
-            if (!participation.CompletedAt.HasValue ||
-                !publishedChallenges.TryGetValue(participation.ChallengeId, out var challenge))
-            {
-                continue;
-            }
-
-            entries.Add(new FeedEntry(
-                new FeedItem(
-                    participation.Id,
-                    "CHALLENGE",
-                    _mapper.User(participation.UserId),
-                    null,
-                    null,
-                    null,
-                    _mapper.Challenge(challenge, participation.UserId),
-                    null,
-                    100,
-                    participation.CompletedAt.Value),
-                participation.CompletedAt.Value));
-        }
-
         var (normalizedPage, size, skip) = Paging.Normalize(page, pageSize);
-        var total = entries.Count;
+        var candidateLimit = skip + size;
+        var entries = new List<FeedEntry>();
+        long total = 0;
+
+        if (filter is null or FeedType.REVIEW)
+        {
+            var query = db.Reviews.Where(x =>
+                actorIds.Contains(x.UserId) &&
+                db.Books.Any(book => book.Id == x.BookId));
+            total += query.LongCount();
+            foreach (var review in query
+                         .OrderByDescending(x => x.CreatedAt)
+                         .ThenByDescending(x => x.Id)
+                         .Take(candidateLimit)
+                         .ToList())
+            {
+                var book = db.Books.First(x => x.Id == review.BookId);
+                entries.Add(new FeedEntry(
+                    new FeedItem(
+                        review.Id,
+                        "REVIEW",
+                        _mapper.User(review.UserId),
+                        _mapper.Review(review, viewerId),
+                        _mapper.Book(book, viewerId),
+                        null,
+                        null,
+                        review.Content,
+                        null,
+                        review.CreatedAt)));
+            }
+        }
+
+        if (filter is null or FeedType.READING)
+        {
+            var readableActorIds = db.Users
+                .Where(x =>
+                    actorIds.Contains(x.Id) &&
+                    (viewerId.HasValue && x.Id == viewerId.Value || x.IsReadingActivityPublic))
+                .Select(x => x.Id)
+                .ToList();
+
+            var sessionQuery = db.ReadingSessions.Where(x =>
+                readableActorIds.Contains(x.UserId) &&
+                db.Books.Any(book => book.Id == x.BookId));
+            total += sessionQuery.LongCount();
+            foreach (var session in sessionQuery
+                         .OrderByDescending(x => x.StartedAt)
+                         .ThenByDescending(x => x.Id)
+                         .Take(candidateLimit)
+                         .ToList())
+            {
+                var book = db.Books.First(x => x.Id == session.BookId);
+                var progress = book.PageCount == 0
+                    ? 0
+                    : Math.Clamp(
+                        (int)Math.Round(session.PagesRead * 100d / book.PageCount),
+                        0,
+                        100);
+                entries.Add(new FeedEntry(
+                    new FeedItem(
+                        session.Id,
+                        "READING_PROGRESS",
+                        _mapper.User(session.UserId),
+                        null,
+                        _mapper.Book(book, viewerId),
+                        null,
+                        null,
+                        null,
+                        progress,
+                        session.StartedAt)));
+            }
+
+            var finishedQuery = db.LibraryItems.Where(x =>
+                readableActorIds.Contains(x.UserId) &&
+                x.FinishedAt.HasValue &&
+                db.Books.Any(book => book.Id == x.BookId));
+            total += finishedQuery.LongCount();
+            foreach (var item in finishedQuery
+                         .OrderByDescending(x => x.FinishedAt)
+                         .ThenByDescending(x => x.Id)
+                         .Take(candidateLimit)
+                         .ToList())
+            {
+                var book = db.Books.First(x => x.Id == item.BookId);
+                entries.Add(new FeedEntry(
+                    new FeedItem(
+                        item.Id,
+                        "BOOK_FINISHED",
+                        _mapper.User(item.UserId),
+                        null,
+                        _mapper.Book(book, viewerId),
+                        null,
+                        null,
+                        null,
+                        100,
+                        item.FinishedAt!.Value)));
+            }
+        }
+
+        if (filter is null or FeedType.CLUB)
+        {
+            var query = db.ClubPosts.Where(post =>
+                actorIds.Contains(post.AuthorId) &&
+                db.BookClubs.Any(club =>
+                    club.Id == post.ClubId &&
+                    (club.Visibility == ClubVisibility.PUBLIC ||
+                     viewerId.HasValue && db.BookClubMembers.Any(member =>
+                         member.ClubId == club.Id && member.UserId == viewerId.Value))));
+            total += query.LongCount();
+            foreach (var post in query
+                         .OrderByDescending(x => x.CreatedAt)
+                         .ThenByDescending(x => x.Id)
+                         .Take(candidateLimit)
+                         .ToList())
+            {
+                var club = db.BookClubs.First(x => x.Id == post.ClubId);
+                entries.Add(new FeedEntry(
+                    new FeedItem(
+                        post.Id,
+                        "CLUB_POST",
+                        _mapper.User(post.AuthorId),
+                        null,
+                        null,
+                        _mapper.Club(club, viewerId),
+                        null,
+                        post.Content,
+                        null,
+                        post.CreatedAt)));
+            }
+        }
+
+        if (filter is null or FeedType.CHALLENGE)
+        {
+            var query = db.ChallengeParticipations.Where(x =>
+                actorIds.Contains(x.UserId) &&
+                x.CompletedAt.HasValue &&
+                db.ReadingChallenges.Any(challenge =>
+                    challenge.Id == x.ChallengeId && challenge.IsPublished));
+            total += query.LongCount();
+            foreach (var participation in query
+                         .OrderByDescending(x => x.CompletedAt)
+                         .ThenByDescending(x => x.Id)
+                         .Take(candidateLimit)
+                         .ToList())
+            {
+                var challenge = db.ReadingChallenges.First(x => x.Id == participation.ChallengeId);
+                entries.Add(new FeedEntry(
+                    new FeedItem(
+                        participation.Id,
+                        "CHALLENGE",
+                        _mapper.User(participation.UserId),
+                        null,
+                        null,
+                        null,
+                        _mapper.Challenge(challenge, participation.UserId),
+                        null,
+                        100,
+                        participation.CompletedAt!.Value)));
+            }
+        }
+
         var items = entries
-            .OrderByDescending(x => x.OccurredAt)
+            .OrderByDescending(x => x.Item.CreatedAt)
             .ThenByDescending(x => x.Item.Id)
             .Skip(skip)
             .Take(size)
             .Select(x => x.Item)
             .ToList();
         return PageResult<FeedItem>.Create(items, normalizedPage, size, total);
+    }
+
+    private static FeedType? ParseFeedType(string? type)
+    {
+        if (string.IsNullOrWhiteSpace(type))
+        {
+            return null;
+        }
+
+        return type.Trim().ToUpperInvariant() switch
+        {
+            "REVIEW" => FeedType.REVIEW,
+            "READING" => FeedType.READING,
+            "CLUB" => FeedType.CLUB,
+            "CHALLENGE" => FeedType.CHALLENGE,
+            _ => throw ServiceErrors.BadRequest(
+                "INVALID_FEED_TYPE",
+                "Loại bảng tin không hợp lệ. Giá trị hỗ trợ: REVIEW, READING, CLUB, CHALLENGE.")
+        };
     }
 
     private User EnsurePublicUser(Guid userId) =>
@@ -367,5 +433,13 @@ public sealed class CommunityService(IBookSpaceDbContext db) : ICommunityService
         }
     }
 
-    private sealed record FeedEntry(FeedItem Item, DateTimeOffset OccurredAt);
+    private sealed record FeedEntry(FeedItem Item);
+
+    private enum FeedType
+    {
+        REVIEW,
+        READING,
+        CLUB,
+        CHALLENGE
+    }
 }

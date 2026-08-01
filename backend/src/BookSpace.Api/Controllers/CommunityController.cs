@@ -124,7 +124,8 @@ public sealed class CommunityController(ICommunityService communityService) : Ap
     [Authorize]
     [HttpGet("feed")]
     public ActionResult<ApiResponse<PageResult<FeedItem>>> Feed(
+        [FromQuery] string? type = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20) =>
-        OkData(communityService.GetFeed(CurrentUserId, page, pageSize));
+        OkData(communityService.GetFeed(CurrentUserId, type, page, pageSize));
 }

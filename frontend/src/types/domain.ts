@@ -307,9 +307,11 @@ export interface Review {
   updatedAt?: string
 }
 
+export type FeedFilter = 'REVIEW' | 'READING' | 'CLUB' | 'CHALLENGE'
+
 export interface FeedItem {
   id: string
-  type: 'REVIEW' | 'READING_PROGRESS' | 'CHALLENGE' | 'CLUB_POST'
+  type: 'REVIEW' | 'READING_PROGRESS' | 'BOOK_FINISHED' | 'CHALLENGE' | 'CLUB_POST'
   actor: User
   review?: Review
   book?: Book

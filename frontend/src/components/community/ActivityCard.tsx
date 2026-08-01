@@ -6,6 +6,7 @@ import { ReviewCard } from './ReviewCard'
 
 const activityLabel: Record<Exclude<FeedItem['type'], 'REVIEW'>, string> = {
   READING_PROGRESS: 'đã cập nhật tiến độ đọc',
+  BOOK_FINISHED: 'đã hoàn thành một cuốn sách',
   CHALLENGE: 'đã hoàn thành một thử thách',
   CLUB_POST: 'đã đăng bài trong câu lạc bộ',
 }
@@ -43,7 +44,13 @@ export function ActivityCard({ item }: { item: FeedItem }) {
               {typeof item.progressPercent === 'number' ? (
                 <div className="mt-3">
                   <div className="mb-1 flex items-center justify-between text-xs font-semibold text-muted">
-                    <span>Tiến độ</span>
+                    <span>
+                      {item.type === 'READING_PROGRESS'
+                        ? 'Đã đọc trong phiên'
+                        : item.type === 'BOOK_FINISHED'
+                          ? 'Hoàn thành'
+                          : 'Tiến độ'}
+                    </span>
                     <span>{Math.round(item.progressPercent)}%</span>
                   </div>
                   <div className="h-1.5 overflow-hidden rounded-full bg-border">

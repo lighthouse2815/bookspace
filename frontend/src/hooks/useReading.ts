@@ -19,6 +19,7 @@ function invalidateReadingSummaries(
     queryClient.invalidateQueries({ queryKey: ['reading-insights'] }),
     queryClient.invalidateQueries({ queryKey: challengeKeys.all }),
     queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+    queryClient.invalidateQueries({ queryKey: ['feed'] }),
   ]
 
   if (includeSessions) {

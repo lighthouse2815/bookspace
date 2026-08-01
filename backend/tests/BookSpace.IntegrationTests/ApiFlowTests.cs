@@ -2,11 +2,15 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using BookSpace.Domain.Entities;
+using BookSpace.Infrastructure.Persistence;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BookSpace.IntegrationTests;
 
 public sealed class ApiFlowTests(BookSpaceApiFactory factory) : IClassFixture<BookSpaceApiFactory>
 {
+    private readonly BookSpaceApiFactory _factory = factory;
     private readonly HttpClient _client = factory.CreateClient();
 
     [Fact]
@@ -98,6 +102,135 @@ public sealed class ApiFlowTests(BookSpaceApiFactory factory) : IClassFixture<Bo
         Assert.Contains("READING_PROGRESS", types);
         Assert.Contains("CLUB_POST", types);
         Assert.Contains("CHALLENGE", types);
+    }
+
+    [Theory]
+    [InlineData("unknown")]
+    [InlineData("0")]
+    [InlineData("1")]
+    public async Task Feed_rejects_unknown_and_numeric_type_filters(string type)
+    {
+        await LoginAsync("reader@bookspace.local", "Reader123!");
+
+        var response = await _client.GetAsync($"/api/feed?type={type}");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var envelope = await ReadEnvelopeAsync(response);
+        Assert.False(envelope.GetProperty("success").GetBoolean());
+        Assert.Equal("INVALID_FEED_TYPE", envelope.GetProperty("code").GetString());
+        Assert.Equal(
+            "Loại bảng tin không hợp lệ. Giá trị hỗ trợ: REVIEW, READING, CLUB, CHALLENGE.",
+            envelope.GetProperty("message").GetString());
+    }
+
+    [Theory]
+    [InlineData("review", "REVIEW")]
+    [InlineData("ReAdInG", "READING_PROGRESS,BOOK_FINISHED")]
+    [InlineData("club", "CLUB_POST")]
+    [InlineData("challenge", "CHALLENGE")]
+    public async Task Feed_type_filter_is_case_insensitive_and_returns_only_its_category(
+        string type,
+        string expectedTypes)
+    {
+        await LoginAsync("reader@bookspace.local", "Reader123!");
+        if (string.Equals(type, "challenge", StringComparison.OrdinalIgnoreCase))
+        {
+            var challenges = await GetDataAsync("/api/challenges");
+            var joinedChallenge = challenges.GetProperty("items").EnumerateArray()
+                .First(challenge => challenge.GetProperty("isJoined").GetBoolean());
+            var detail = await _client.GetAsync(
+                $"/api/challenges/{joinedChallenge.GetProperty("id").GetGuid()}");
+            Assert.Equal(HttpStatusCode.OK, detail.StatusCode);
+        }
+
+        var feed = await GetDataAsync($"/api/feed?type={type}&pageSize=100");
+        var allowedTypes = expectedTypes.Split(',').ToHashSet(StringComparer.Ordinal);
+        var items = feed.GetProperty("items").EnumerateArray().ToList();
+
+        Assert.NotEmpty(items);
+        Assert.All(
+            items,
+            item => Assert.Contains(item.GetProperty("type").GetString()!, allowedTypes));
+        if (string.Equals(type, "ReAdInG", StringComparison.Ordinal))
+        {
+            Assert.All(items, item =>
+            {
+                Assert.Equal(JsonValueKind.Null, item.GetProperty("content").ValueKind);
+                Assert.False(item.TryGetProperty("note", out _));
+            });
+        }
+    }
+
+    [Fact]
+    public async Task Feed_respects_followed_reader_privacy_without_hiding_public_social_activity()
+    {
+        await LoginAsync("reader@bookspace.local", "Reader123!");
+        Guid publicSessionId;
+        Guid privateSessionId;
+        Guid privateReviewId;
+        await using (var scope = _factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BookSpaceDbContext>();
+            var reader = db.UserSet.Single(user => user.Email == "reader@bookspace.local");
+            var book = db.BookSet.First();
+            var suffix = Guid.NewGuid().ToString("N");
+            var publicReader = new User(
+                $"feed-public-{suffix}@bookspace.local",
+                "hash",
+                "Độc giả công khai");
+            publicReader.UpdatePublicReadingVisibility(false, true);
+            var privateReader = new User(
+                $"feed-private-{suffix}@bookspace.local",
+                "hash",
+                "Độc giả riêng tư");
+            var publicSession = new ReadingSession(
+                publicReader.Id,
+                book.Id,
+                DateTimeOffset.UtcNow.AddMinutes(-40),
+                null,
+                12,
+                20,
+                "Ghi chú phiên đọc công khai vẫn phải được giữ riêng tư.");
+            var privateSession = new ReadingSession(
+                privateReader.Id,
+                book.Id,
+                DateTimeOffset.UtcNow.AddMinutes(-30),
+                null,
+                10,
+                15,
+                "Phiên đọc này không được xuất hiện.");
+            var privateReview = new Review(
+                privateReader.Id,
+                book.Id,
+                4,
+                "Đánh giá công khai vẫn xuất hiện dù hoạt động đọc đang riêng tư.",
+                false);
+            db.AddRange(publicReader, privateReader);
+            db.AddRange(
+                new Follow(reader.Id, publicReader.Id),
+                new Follow(reader.Id, privateReader.Id));
+            db.AddRange(publicSession, privateSession, privateReview);
+            await db.SaveChangesAsync();
+            publicSessionId = publicSession.Id;
+            privateSessionId = privateSession.Id;
+            privateReviewId = privateReview.Id;
+        }
+
+        var reading = await GetDataAsync("/api/feed?type=READING&pageSize=100");
+        var readingItems = reading.GetProperty("items").EnumerateArray().ToList();
+        var publicItem = Assert.Single(
+            readingItems,
+            item => item.GetProperty("id").GetGuid() == publicSessionId);
+        Assert.Equal(JsonValueKind.Null, publicItem.GetProperty("content").ValueKind);
+        Assert.False(publicItem.TryGetProperty("note", out _));
+        Assert.DoesNotContain(
+            readingItems,
+            item => item.GetProperty("id").GetGuid() == privateSessionId);
+
+        var reviews = await GetDataAsync("/api/feed?type=REVIEW&pageSize=100");
+        Assert.Contains(
+            reviews.GetProperty("items").EnumerateArray(),
+            item => item.GetProperty("id").GetGuid() == privateReviewId);
     }
 
     [Fact]

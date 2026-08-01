@@ -325,13 +325,13 @@ DTO này không có email, password hash, token, role hoặc chi tiết library.
 | Field | Kiểu |
 |---|---|
 | `id` | string ổn định |
-| `type` | `REVIEW`, `READING_PROGRESS`, `CHALLENGE`, `CLUB_POST` |
+| `type` | `REVIEW`, `READING_PROGRESS`, `BOOK_FINISHED`, `CHALLENGE`, `CLUB_POST` |
 | `actor` | `UserResponse` |
 | `review` | `ReviewResponse` hoặc null |
 | `book` | `BookResponse` hoặc null |
 | `club` | `ClubResponse` hoặc null |
 | `challenge` | `ChallengeResponse` hoặc null |
-| `content` | string hoặc null |
+| `content` | string hoặc null; không bao giờ chứa `ReadingSession.Note` |
 | `progressPercent` | number hoặc null |
 | `createdAt` | datetime |
 
@@ -615,7 +615,8 @@ flag kệ sách/activity vì review vốn là nội dung community công khai.
 ### `GET /api/users/{userId}/activity?page=1&pageSize=10` — Public
 
 Response `200`: `ApiResponse<PageResult<FeedItemResponse>>` của đúng actor, gồm
-review, tiến độ library, public/authorized club post và challenge đã publish.
+review, `READING_PROGRESS` từ phiên đọc, `BOOK_FINISHED` từ thời điểm hoàn tất
+sách, public/authorized club post và challenge đã publish.
 Viewer khác nhận 403 `PROFILE_SECTION_PRIVATE` khi activity chưa công khai.
 Guest không thấy post của club riêng tư; response không chứa session note hoặc
 reading note.
@@ -1017,11 +1018,36 @@ Soft delete. Response `200`: `ApiResponse<null>`.
 
 ## 13. Feed API
 
-### `GET /api/feed?page=1&pageSize=20` — Authenticated
+### `GET /api/feed?type=&page=1&pageSize=20` — Authenticated
 
-Trả hoạt động của principal và các user đang follow.
+Trả hoạt động của principal và các user đang follow. `type` là filter tùy chọn,
+được trim và chuẩn hóa không phân biệt hoa/thường về các giá trị sau:
 
-Response `200`: `ApiResponse<PageResult<FeedItemResponse>>`, sắp xếp `createdAt desc, id desc`.
+| `type` query | Event type được trả |
+|---|---|
+| bỏ trống | mọi event type hợp lệ |
+| `REVIEW` | `REVIEW` |
+| `READING` | `READING_PROGRESS`, `BOOK_FINISHED` |
+| `CLUB` | `CLUB_POST` |
+| `CHALLENGE` | `CHALLENGE` |
+
+`READING_PROGRESS` được chiếu từ từng `ReadingSession`, dùng thời điểm bắt đầu
+phiên làm `createdAt`; `progressPercent` là phần trăm `PagesRead` của riêng phiên
+trên `Book.PageCount`, không phải tiến độ library tích lũy. `BOOK_FINISHED` được
+chiếu từ `LibraryItem.FinishedAt` và dùng đúng thời điểm đó làm `createdAt`.
+Response không có field `note` và không được sao chép `ReadingSession.Note` vào
+`content` hoặc bất kỳ field nào.
+
+Item đọc của principal luôn hiển thị. Item đọc của user đang follow chỉ hiển thị
+khi actor có `IsReadingActivityPublic=true`. Review vẫn công khai theo contract
+review. `CLUB_POST` của club riêng tư chỉ hiển thị khi principal còn membership;
+biết ID club không mở rộng quyền. Challenge activity chỉ tham chiếu challenge đã
+publish.
+
+Response `200`: `ApiResponse<PageResult<FeedItemResponse>>`. Filter và visibility
+được áp dụng trước count/pagination; kết quả sắp `createdAt desc, id desc`.
+
+`type` ngoài bốn giá trị trên trả `400 INVALID_FEED_TYPE` với message tiếng Việt.
 
 ## 14. Club API
 
@@ -1534,6 +1560,7 @@ thành lỗi của core API.
 | `FORBIDDEN` | 403 | không đủ quyền |
 | `USER_NOT_FOUND` | 404 | user không tồn tại |
 | `INVALID_USER_SEARCH` | 400 | search độc giả khác rỗng ngoài 2-100 ký tự |
+| `INVALID_FEED_TYPE` | 400 | `type` feed không thuộc `REVIEW`, `READING`, `CLUB`, `CHALLENGE` |
 | `CANNOT_FOLLOW_SELF` | 400 | tự follow |
 | `ALREADY_FOLLOWING` | 409 | follow trùng |
 | `PROFILE_SECTION_PRIVATE` | 403 | kệ sách hoặc activity trên hồ sơ chưa được công khai |

@@ -45,7 +45,7 @@ Aggregate root của tài khoản và hồ sơ.
 | `Role` | `UserRole` | có | `USER` hoặc `ADMIN`; đăng ký công khai luôn là `USER` |
 | `IsLocked` | `bool` | có | khóa đăng nhập nhưng không xóa dữ liệu |
 | `IsReadingShelfPublic` | `bool` | có | mặc định `false`; cho phép người khác xem kệ sách chi tiết |
-| `IsReadingActivityPublic` | `bool` | có | mặc định `false`; cho phép người khác xem timeline trên hồ sơ |
+| `IsReadingActivityPublic` | `bool` | có | mặc định `false`; cho phép người khác xem timeline trên hồ sơ và hoạt động đọc trong feed |
 | `IsFollowNotificationEnabled` | `bool` | có | mặc định `true`; nhận sự kiện follower mới |
 | `IsReviewNotificationEnabled` | `bool` | có | mặc định `true`; nhận like/comment review |
 | `IsClubNotificationEnabled` | `bool` | có | mặc định `true`; nhận sự kiện club và sprint |
@@ -383,12 +383,29 @@ Goal 1 không có comment lồng nhau. Xóa review làm comment không còn hi�
 
 Feed là read model/projection, không phải entity ghi độc lập trong Goal 1. Nguồn dữ liệu:
 
-- `Review.CreatedAt`
-- lần đầu `LibraryItem` chuyển sang `READING` hoặc `READ`
-- `ClubPost.CreatedAt` nếu người xem có quyền xem câu lạc bộ
-- `ChallengeParticipation.CompletedAt` khi người đọc hoàn tất thử thách đã xuất bản
+- `REVIEW`: `Review.CreatedAt`.
+- `READING_PROGRESS`: một item cho mỗi `ReadingSession`, với `createdAt` là
+  `ReadingSession.StartedAt`; `progressPercent` là `PagesRead / Book.PageCount`
+  của riêng phiên đó, không phải `LibraryItem.CurrentPage` tích lũy. Projection
+  tuyệt đối không trả `ReadingSession.Note`.
+- `BOOK_FINISHED`: một item cho mỗi `LibraryItem.FinishedAt` khác `null`, với
+  `createdAt` đúng bằng `FinishedAt`; không suy ra thời điểm hoàn tất từ
+  `LibraryItem.StartedAt` hoặc `UpdatedAt`.
+- `CLUB_POST`: `ClubPost.CreatedAt` nếu người xem có quyền xem câu lạc bộ.
+- `CHALLENGE`: `ChallengeParticipation.CompletedAt` khi người đọc hoàn tất thử
+  thách đã xuất bản.
 
-Item feed có `type`, `actor`, `occurredAt`, `book?`, `review?`, `club?`. Kết quả sắp xếp `occurredAt desc, id desc`.
+Item feed có `type`, `actor`, `createdAt`, `book?`, `review?`, `club?`,
+`challenge?`, `content?` và `progressPercent?`. Filter read model nhận bốn nhóm:
+`REVIEW`, `READING`, `CLUB`, `CHALLENGE`; `READING` gộp hai event type
+`READING_PROGRESS` và `BOOK_FINISHED`. Không truyền filter nghĩa là lấy mọi nhóm.
+
+Actor luôn thuộc tập principal hoặc user principal đang follow. Hoạt động đọc
+của principal luôn được đọc; hoạt động đọc của actor khác chỉ được projection khi
+`IsReadingActivityPublic=true`. Flag này không làm công khai `ReadingSession.Note`
+hoặc `ReadingNote`. Private club tiếp tục áp dụng membership boundary cho mọi
+`CLUB_POST`, kể cả khi biết ID. Kết quả phân trang sau khi áp dụng đầy đủ filter và
+visibility, sắp `createdAt desc, id desc` để tie-break ổn định.
 
 ## 6. Bounded context Clubs
 

@@ -88,7 +88,7 @@ Goal 1 không thêm vai trò nhân viên, nhà cung cấp hoặc quản trị h�
 | Identity & Profile | tài khoản, phiên đăng nhập, hồ sơ, tìm độc giả, gợi ý theo dõi | không |
 | Catalog | sách, tác giả, thể loại, tìm kiếm | không |
 | Reading | thư viện, trạng thái đọc, tiến độ, phiên đọc, mục tiêu đọc, ghi chú riêng tư | Identity, Catalog |
-| Community | review, like, comment, feed | Identity, Catalog, Reading |
+| Community | review, like, comment, feed lọc theo nhóm hoạt động và gợi ý kết nối | Identity, Catalog, Reading |
 | Clubs | câu lạc bộ, thành viên, bài đăng, bình luận, đợt đọc chung và cột mốc thảo luận | Identity, Catalog, Notifications |
 | Challenges | thử thách, tham gia, tiến độ | Identity, Reading |
 | Notifications | thông báo trong ứng dụng | các sự kiện nội bộ |
@@ -170,7 +170,20 @@ Thành viên chỉ có một review trên một cuốn sách, rating từ 1 đ�
 
 ### UC-07 — Theo dõi và feed
 
-Thành viên có thể theo dõi người khác, không thể tự theo dõi hoặc tạo quan hệ trùng. Feed hiển thị hoạt động mới nhất từ chính mình và những tài khoản đang theo dõi, gồm hoàn tất sách, tạo review và hoạt động công khai liên quan.
+Thành viên có thể theo dõi người khác, không thể tự theo dõi hoặc tạo quan hệ
+trùng. Feed hiển thị hoạt động mới nhất từ chính mình và những tài khoản đang
+theo dõi. Người đọc có thể xem tất cả hoặc lọc theo review, hoạt động đọc, câu
+lạc bộ và thử thách; mọi kết quả đều phân trang, sắp `createdAt desc, id desc`.
+
+Nhóm hoạt động đọc gồm một item `READING_PROGRESS` cho mỗi phiên đọc và một item
+`BOOK_FINISHED` theo đúng `LibraryItem.FinishedAt` khi hoàn tất sách. Phần trăm
+của `READING_PROGRESS` là tỷ lệ số trang đọc trong riêng phiên đó trên tổng số
+trang sách, không phải tiến độ library tích lũy. Item đọc của chính principal luôn
+hiển thị; item đọc của người đang follow chỉ hiển thị khi
+người đó bật `IsReadingActivityPublic`. Không item feed nào được trả nội dung
+`ReadingSession.Note`. Review vẫn là nội dung công khai do tác giả chủ động đăng;
+hoạt động câu lạc bộ riêng tư chỉ hiển thị cho người xem còn quyền truy cập câu
+lạc bộ; hoạt động thử thách chỉ dùng challenge đã xuất bản.
 
 ### UC-08 — Câu lạc bộ
 
@@ -244,7 +257,7 @@ Tên route là hợp đồng điều hướng Goal 1; thay đổi cần đồng 
 
 | Route | Trang | Nội dung tối thiểu |
 |---|---|---|
-| `/feed` | Feed | hoạt động của mạng theo dõi |
+| `/feed` | Feed | hoạt động phân trang 10 item/trang, gợi ý follow và bộ lọc URL `?type=review&page=...` với `type` là `review`, `reading`, `club` hoặc `challenge`; bỏ `type` khi xem tất cả, empty state dẫn tới `/people` |
 | `/library` | My library | lọc theo ba trạng thái |
 | `/journal` | Reading journal | tạo và xem các phiên đọc |
 | `/goals` | Reading goals | tạo, sửa, xóa và theo dõi tiến độ mục tiêu riêng |

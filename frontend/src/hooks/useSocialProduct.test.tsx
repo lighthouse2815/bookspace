@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
@@ -9,6 +9,7 @@ import {
   useChallenge,
   useChallengeMembership,
   useChallenges,
+  useCreateClubPost,
 } from './useSocialProduct'
 
 const reader: User = {
@@ -54,6 +55,8 @@ const mocks = vi.hoisted(() => ({
   detail: vi.fn(),
   join: vi.fn(),
   leave: vi.fn(),
+  createPost: vi.fn(),
+  feedQuery: vi.fn(),
 }))
 
 vi.mock('../contexts/AuthContext', () => ({
@@ -66,6 +69,12 @@ vi.mock('../services/challenge.service', () => ({
     detail: mocks.detail,
     join: mocks.join,
     leave: mocks.leave,
+  },
+}))
+
+vi.mock('../services/club.service', () => ({
+  clubService: {
+    createPost: mocks.createPost,
   },
 }))
 
@@ -94,6 +103,10 @@ function ChallengeListProbe({ renderId }: { renderId: number }) {
 function MembershipProbe() {
   const list = useChallenges()
   const detail = useChallenge('challenge-123')
+  useQuery({
+    queryKey: ['feed', 'reader-1', 'CHALLENGE', 1, 10],
+    queryFn: mocks.feedQuery,
+  })
   const membership = useChallengeMembership(
     'challenge-123',
     Boolean(detail.data?.isJoined),
@@ -118,9 +131,27 @@ function MembershipProbe() {
   )
 }
 
+function ClubPostMutationProbe() {
+  const feed = useQuery({
+    queryKey: ['feed', 'reader-1', 'CLUB', 1, 10],
+    queryFn: mocks.feedQuery,
+  })
+  const create = useCreateClubPost('club-1')
+
+  return (
+    <>
+      <output data-testid="feed-post-count">{feed.data?.length ?? 'Đang tải'}</output>
+      <button type="button" onClick={() => create.mutate('Bài viết mới')}>
+        Tạo bài viết
+      </button>
+    </>
+  )
+}
+
 describe('challenge query ownership and invalidation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.feedQuery.mockResolvedValue([])
     Object.assign(mocks.auth, {
       user: null,
       isAuthenticated: false,
@@ -221,6 +252,7 @@ describe('challenge query ownership and invalidation', () => {
     await waitFor(() => {
       expect(mocks.challenges).toHaveBeenCalledOnce()
       expect(mocks.detail).toHaveBeenCalledOnce()
+      expect(mocks.feedQuery).toHaveBeenCalledOnce()
     })
 
     await user.click(screen.getByRole('button', { name: 'Đổi trạng thái' }))
@@ -229,6 +261,7 @@ describe('challenge query ownership and invalidation', () => {
       expect(mocks.join).toHaveBeenCalledOnce()
       expect(mocks.challenges).toHaveBeenCalledTimes(2)
       expect(mocks.detail).toHaveBeenCalledTimes(2)
+      expect(mocks.feedQuery).toHaveBeenCalledTimes(2)
       expect(screen.getByTestId('list-membership')).toHaveTextContent('joined')
       expect(screen.getByTestId('detail-membership')).toHaveTextContent('joined')
     })
@@ -239,8 +272,37 @@ describe('challenge query ownership and invalidation', () => {
       expect(mocks.leave).toHaveBeenCalledOnce()
       expect(mocks.challenges).toHaveBeenCalledTimes(3)
       expect(mocks.detail).toHaveBeenCalledTimes(3)
+      expect(mocks.feedQuery).toHaveBeenCalledTimes(3)
       expect(screen.getByTestId('list-membership')).toHaveTextContent('not-joined')
       expect(screen.getByTestId('detail-membership')).toHaveTextContent('not-joined')
     })
+  })
+
+  it('refetches every active feed variant after creating a club post', async () => {
+    let feedPostCount = 0
+    mocks.feedQuery.mockImplementation(async () =>
+      Array.from({ length: feedPostCount }, (_, index) => ({ id: `${index}` })),
+    )
+    mocks.createPost.mockImplementation(async () => {
+      feedPostCount = 1
+      return { id: 'post-1' }
+    })
+    const client = createQueryClient()
+    const user = userEvent.setup()
+    render(
+      <Providers client={client}>
+        <ClubPostMutationProbe />
+      </Providers>,
+    )
+
+    await waitFor(() => expect(mocks.feedQuery).toHaveBeenCalledOnce())
+
+    await user.click(screen.getByRole('button', { name: 'Tạo bài viết' }))
+    await waitFor(() => {
+      expect(mocks.createPost).toHaveBeenCalledWith('club-1', 'Bài viết mới')
+      expect(mocks.feedQuery).toHaveBeenCalledTimes(2)
+      expect(screen.getByTestId('feed-post-count')).toHaveTextContent('1')
+    })
+
   })
 })

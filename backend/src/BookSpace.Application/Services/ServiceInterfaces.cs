@@ -97,7 +97,7 @@ public interface ICommunityService
     PageResult<ReviewCommentDto> GetComments(Guid reviewId, int page, int pageSize);
     Task<ReviewCommentDto> AddCommentAsync(Guid userId, Guid reviewId, CreateCommentRequest request, CancellationToken cancellationToken);
     Task DeleteCommentAsync(Guid userId, bool isAdmin, Guid commentId, CancellationToken cancellationToken);
-    PageResult<FeedItem> GetFeed(Guid userId, int page, int pageSize);
+    PageResult<FeedItem> GetFeed(Guid userId, string? type, int page, int pageSize);
     PageResult<FeedItem> GetUserActivity(
         Guid userId,
         Guid? viewerId,

@@ -33,6 +33,69 @@ function Invoke-BookSpaceRequest {
     Invoke-RestMethod @parameters
 }
 
+function Invoke-BookSpaceExpectedError {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path,
+        [Parameter(Mandatory)]
+        [string]$AccessToken
+    )
+
+    try {
+        $payload = Invoke-BookSpaceRequest `
+            -Method Get `
+            -Path $Path `
+            -AccessToken $AccessToken
+
+        return [pscustomobject]@{
+            StatusCode = 200
+            Payload = $payload
+        }
+    }
+    catch {
+        $errorRecord = $_
+        $response = $errorRecord.Exception.Response
+        $statusCode = $null
+        $rawBody = [string]$errorRecord.ErrorDetails.Message
+
+        if ($null -ne $response -and $response.PSObject.Properties.Name -contains 'StatusCode') {
+            $statusCode = [int]$response.StatusCode
+        }
+
+        if (
+            [string]::IsNullOrWhiteSpace($rawBody) -and
+            $null -ne $response -and
+            $response.PSObject.Methods.Name -contains 'GetResponseStream'
+        ) {
+            $stream = $response.GetResponseStream()
+            if ($null -ne $stream) {
+                $reader = New-Object System.IO.StreamReader($stream)
+                try {
+                    $rawBody = $reader.ReadToEnd()
+                }
+                finally {
+                    $reader.Dispose()
+                }
+            }
+        }
+
+        $payload = $null
+        if (-not [string]::IsNullOrWhiteSpace($rawBody)) {
+            try {
+                $payload = $rawBody | ConvertFrom-Json
+            }
+            catch {
+                $payload = $null
+            }
+        }
+
+        return [pscustomobject]@{
+            StatusCode = $statusCode
+            Payload = $payload
+        }
+    }
+}
+
 $health = Invoke-RestMethod -Method Get -Uri "$BaseUrl/health"
 if ($health -ne 'Healthy') {
     throw "Health check không hợp lệ: $health"
@@ -48,6 +111,13 @@ if (-not $login.success -or -not $login.data.accessToken) {
 }
 
 $token = $login.data.accessToken
+$feed = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/feed?type=READING&page=1&pageSize=10' `
+    -AccessToken $token
+$invalidFeedType = Invoke-BookSpaceExpectedError `
+    -Path '/api/feed?type=UNKNOWN&page=1&pageSize=10' `
+    -AccessToken $token
 $people = Invoke-BookSpaceRequest `
     -Method Get `
     -Path '/api/users?search=H%C3%A0%20Linh&page=1&pageSize=20' `
@@ -59,6 +129,10 @@ $peopleSuggestions = Invoke-BookSpaceRequest `
 $books = Invoke-BookSpaceRequest -Method Get -Path '/api/books?page=1&pageSize=8' -AccessToken $token
 $dashboard = Invoke-BookSpaceRequest -Method Get -Path '/api/dashboard' -AccessToken $token
 $library = Invoke-BookSpaceRequest -Method Get -Path '/api/library?page=1&pageSize=20' -AccessToken $token
+$readingSessions = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/reading-sessions?page=1&pageSize=20' `
+    -AccessToken $token
 $goals = Invoke-BookSpaceRequest -Method Get -Path '/api/reading-goals?page=1&pageSize=20' -AccessToken $token
 $notes = Invoke-BookSpaceRequest -Method Get -Path '/api/reading-notes?page=1&pageSize=20' -AccessToken $token
 $clubs = Invoke-BookSpaceRequest -Method Get -Path '/api/clubs?page=1&pageSize=20' -AccessToken $token
@@ -119,9 +193,11 @@ $insightsMonthly = Invoke-BookSpaceRequest `
 if (
     -not $people.success -or
     -not $peopleSuggestions.success -or
+    -not $feed.success -or
     -not $books.success -or
     -not $dashboard.success -or
     -not $library.success -or
+    -not $readingSessions.success -or
     -not $goals.success -or
     -not $notes.success -or
     -not $clubs.success -or
@@ -195,6 +271,77 @@ if ($peopleSmokeInvalid) {
     throw 'People Discovery public DTO, PageResult hoặc reason không hợp lệ.'
 }
 
+$feedItems = @($feed.data.items)
+$feedTypes = @($feedItems | ForEach-Object { $_.type })
+$feedPageFields = @($feed.data.PSObject.Properties.Name)
+$requiredFeedPageFields = @('items', 'page', 'pageSize', 'totalItems', 'totalPages')
+$feedSmokeInvalid = (
+    @($requiredFeedPageFields | Where-Object { $_ -notin $feedPageFields }).Count -gt 0 -or
+    $feed.data.page -ne 1 -or
+    $feed.data.pageSize -ne 10 -or
+    $feed.data.totalItems -lt $feedItems.Count -or
+    $feedItems.Count -eq 0 -or
+    'READING_PROGRESS' -notin $feedTypes -or
+    'BOOK_FINISHED' -notin $feedTypes
+)
+
+foreach ($feedItem in $feedItems) {
+    $feedItemFields = @($feedItem.PSObject.Properties.Name)
+    if (
+        $feedItem.type -notin @('READING_PROGRESS', 'BOOK_FINISHED') -or
+        -not $feedItem.id -or
+        -not $feedItem.createdAt -or
+        $feedItemFields -contains 'note'
+    ) {
+        $feedSmokeInvalid = $true
+        break
+    }
+}
+
+for ($index = 1; $index -lt $feedItems.Count; $index++) {
+    $previousItem = $feedItems[$index - 1]
+    $currentItem = $feedItems[$index]
+    $previousCreatedAt = [DateTimeOffset]::Parse([string]$previousItem.createdAt)
+    $currentCreatedAt = [DateTimeOffset]::Parse([string]$currentItem.createdAt)
+
+    if (
+        $currentCreatedAt -gt $previousCreatedAt -or
+        (
+            $currentCreatedAt -eq $previousCreatedAt -and
+            [string]::CompareOrdinal([string]$currentItem.id, [string]$previousItem.id) -gt 0
+        )
+    ) {
+        $feedSmokeInvalid = $true
+        break
+    }
+}
+
+$serializedFeed = $feed.data | ConvertTo-Json -Depth 8 -Compress
+foreach ($readingSession in @($readingSessions.data.items)) {
+    if (
+        -not [string]::IsNullOrWhiteSpace([string]$readingSession.note) -and
+        $serializedFeed.Contains([string]$readingSession.note)
+    ) {
+        $feedSmokeInvalid = $true
+        break
+    }
+}
+
+if ($feedSmokeInvalid) {
+    throw 'Feed filter, paging, ordering or note isolation is invalid.'
+}
+
+if (
+    $invalidFeedType.StatusCode -ne 400 -or
+    $null -eq $invalidFeedType.Payload -or
+    $invalidFeedType.Payload.success -ne $false -or
+    $invalidFeedType.Payload.code -ne 'INVALID_FEED_TYPE' -or
+    [string]::IsNullOrWhiteSpace([string]$invalidFeedType.Payload.message) -or
+    -not [regex]::IsMatch([string]$invalidFeedType.Payload.message, '[^\u0000-\u007F]')
+) {
+    throw 'Invalid feed type did not return the localized 400 contract.'
+}
+
 if (
     $insightsCalendar.data.daysData.Count -ne 365 -or
     $insightsWeekly.data.items.Count -ne 12 -or
@@ -208,8 +355,10 @@ if (
     User = $login.data.user.email
     PeopleSearchResults = $people.data.totalItems
     PeopleSuggestions = $peopleSuggestions.data.totalItems
+    ReadingFeedItems = $feed.data.totalItems
     Books = $books.data.totalItems
     LibraryItems = $library.data.totalItems
+    ReadingSessions = $readingSessions.data.totalItems
     BooksRead = $dashboard.data.booksRead
     ReadingGoals = $goals.data.totalItems
     ReadingNotes = $notes.data.totalItems
