@@ -2,6 +2,7 @@ import { api, unwrap } from '../lib/api'
 import type { ApiEnvelope, PageResult } from '../types/api'
 import type {
   FeedItem,
+  PublicLibraryEntry,
   Review,
   ReviewComment,
   User,
@@ -62,6 +63,41 @@ export const communityService = {
 
   user: async (id: string) => unwrap(await api.get<ApiEnvelope<User>>(`/users/${id}`)),
 
+  userLibrary: async (id: string, shelf?: string, page = 1, pageSize = 12) =>
+    unwrap(
+      await api.get<ApiEnvelope<PageResult<PublicLibraryEntry>>>(`/users/${id}/library`, {
+        params: { shelf, page, pageSize },
+      }),
+    ),
+
+  userReviews: async (id: string, page = 1, pageSize = 10) =>
+    unwrap(
+      await api.get<ApiEnvelope<PageResult<Review>>>(`/users/${id}/reviews`, {
+        params: { page, pageSize },
+      }),
+    ),
+
+  userActivity: async (id: string, page = 1, pageSize = 10) =>
+    unwrap(
+      await api.get<ApiEnvelope<PageResult<FeedItem>>>(`/users/${id}/activity`, {
+        params: { page, pageSize },
+      }),
+    ),
+
+  followers: async (id: string, page = 1, pageSize = 20) =>
+    unwrap(
+      await api.get<ApiEnvelope<PageResult<User>>>(`/users/${id}/followers`, {
+        params: { page, pageSize },
+      }),
+    ),
+
+  following: async (id: string, page = 1, pageSize = 20) =>
+    unwrap(
+      await api.get<ApiEnvelope<PageResult<User>>>(`/users/${id}/following`, {
+        params: { page, pageSize },
+      }),
+    ),
+
   people: async (search: string, page = 1, pageSize = 20) =>
     unwrap(
       await api.get<ApiEnvelope<PageResult<UserDiscoveryItem>>>('/users', {
@@ -84,4 +120,9 @@ export const communityService = {
 
   updateProfile: async (input: { displayName: string; bio?: string; avatarUrl?: string }) =>
     unwrap(await api.patch<ApiEnvelope<User>>('/users/me', input)),
+
+  updateProfilePrivacy: async (input: {
+    isReadingShelfPublic: boolean
+    isReadingActivityPublic: boolean
+  }) => unwrap(await api.patch<ApiEnvelope<User>>('/users/me/privacy', input)),
 }

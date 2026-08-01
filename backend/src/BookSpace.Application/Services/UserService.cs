@@ -14,7 +14,7 @@ public sealed class UserService(
 {
     public UserProfile Get(Guid userId, Guid? viewerId)
     {
-        var user = db.Users.FirstOrDefault(x => x.Id == userId)
+        var user = db.Users.FirstOrDefault(x => x.Id == userId && !x.IsLocked)
                    ?? throw ServiceErrors.NotFound("USER_NOT_FOUND", "Không tìm thấy người dùng.");
         return Map(user, viewerId);
     }
@@ -121,6 +121,20 @@ public sealed class UserService(
         return Map(user, userId);
     }
 
+    public async Task<UserProfile> UpdatePrivacyAsync(
+        Guid userId,
+        UpdateProfilePrivacyRequest request,
+        CancellationToken cancellationToken)
+    {
+        var user = db.Users.FirstOrDefault(x => x.Id == userId)
+                   ?? throw ServiceErrors.NotFound("USER_NOT_FOUND", "Không tìm thấy người dùng.");
+        user.UpdatePublicReadingVisibility(
+            request.IsReadingShelfPublic,
+            request.IsReadingActivityPublic);
+        await db.SaveChangesAsync(cancellationToken);
+        return Map(user, userId);
+    }
+
     public async Task FollowAsync(Guid userId, Guid targetUserId, CancellationToken cancellationToken)
     {
         _ = db.Users.FirstOrDefault(x => x.Id == targetUserId)
@@ -187,8 +201,22 @@ public sealed class UserService(
         return PageResult<UserSummary>.Create(users, normalizedPage, size, ids.Count);
     }
 
-    private UserProfile Map(User user, Guid? viewerId) =>
-        new(
+    private UserProfile Map(User user, Guid? viewerId)
+    {
+        var isOtherViewer = viewerId.HasValue && viewerId.Value != user.Id;
+        var isFollowing = isOtherViewer && db.Follows.Any(x =>
+            x.FollowerId == viewerId!.Value && x.FollowingId == user.Id);
+        var followsYou = isOtherViewer && db.Follows.Any(x =>
+            x.FollowerId == user.Id && x.FollowingId == viewerId!.Value);
+        var mutualFollowCount = isOtherViewer
+            ? db.Follows.Count(candidateFollow =>
+                candidateFollow.FollowingId == user.Id &&
+                db.Follows.Any(viewerFollow =>
+                    viewerFollow.FollowerId == viewerId!.Value &&
+                    viewerFollow.FollowingId == candidateFollow.FollowerId))
+            : 0;
+
+        return new UserProfile(
             user.Id,
             viewerId == user.Id ? user.Email : null,
             user.DisplayName,
@@ -198,8 +226,14 @@ public sealed class UserService(
             db.Follows.Count(x => x.FollowingId == user.Id),
             db.Follows.Count(x => x.FollowerId == user.Id),
             db.LibraryItems.Count(x => x.UserId == user.Id && x.Status == LibraryStatus.READ),
-            viewerId.HasValue && db.Follows.Any(x => x.FollowerId == viewerId.Value && x.FollowingId == user.Id),
+            isFollowing,
+            followsYou,
+            mutualFollowCount,
+            new ProfilePrivacyDto(
+                user.IsReadingShelfPublic,
+                user.IsReadingActivityPublic),
             user.CreatedAt);
+    }
 
     private IQueryable<DiscoveryCandidate> ProjectDiscovery(
         IQueryable<User> users,

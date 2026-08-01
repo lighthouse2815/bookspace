@@ -2,7 +2,7 @@ import { useIsMutating, useMutation, useQuery, useQueryClient } from '@tanstack/
 import { useAuth } from '../contexts/AuthContext'
 import { communityService } from '../services/community.service'
 import type { PageResult } from '../types/api'
-import type { UserDiscoveryItem } from '../types/domain'
+import type { Shelf, UserDiscoveryItem } from '../types/domain'
 
 export const viewerScope = (userId?: string | null) => userId ?? 'guest'
 
@@ -23,8 +23,18 @@ export const userKeys = {
   detail: (scope: string, id: string) => [...userKeys.scope(scope), 'detail', id] as const,
   followers: (scope: string, id: string) =>
     [...userKeys.scope(scope), 'followers', id] as const,
+  followerPage: (scope: string, id: string, page: number) =>
+    [...userKeys.followers(scope, id), page] as const,
   following: (scope: string, id: string) =>
     [...userKeys.scope(scope), 'following', id] as const,
+  followingPage: (scope: string, id: string, page: number) =>
+    [...userKeys.following(scope, id), page] as const,
+  library: (scope: string, id: string, shelf: Shelf | undefined, page: number, pageSize: number) =>
+    [...userKeys.scope(scope), 'library', id, shelf ?? 'ALL', page, pageSize] as const,
+  reviews: (scope: string, id: string, page: number, pageSize: number) =>
+    [...userKeys.scope(scope), 'reviews', id, page, pageSize] as const,
+  activity: (scope: string, id: string, page: number, pageSize: number) =>
+    [...userKeys.scope(scope), 'activity', id, page, pageSize] as const,
 }
 
 export const feedKeys = {
@@ -61,13 +71,14 @@ export function useCreateReview(bookId: string) {
     mutationFn: (input: { rating: number; content: string; containsSpoilers: boolean }) =>
       communityService.createReview({ bookId, ...input }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['reviews', bookId] })
+      void queryClient.invalidateQueries({ queryKey: ['reviews'] })
+      void queryClient.invalidateQueries({ queryKey: userKeys.all })
       void queryClient.invalidateQueries({ queryKey: feedKeys.all })
     },
   })
 }
 
-export function useUpdateReview(bookId?: string) {
+export function useUpdateReview(_bookId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({
@@ -80,42 +91,46 @@ export function useUpdateReview(bookId?: string) {
       containsSpoilers: boolean
     }) => communityService.updateReview(reviewId, input),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['reviews', bookId] })
+      void queryClient.invalidateQueries({ queryKey: ['reviews'] })
+      void queryClient.invalidateQueries({ queryKey: userKeys.all })
       void queryClient.invalidateQueries({ queryKey: feedKeys.all })
     },
   })
 }
 
-export function useDeleteReview(bookId?: string) {
+export function useDeleteReview(_bookId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (reviewId: string) => communityService.deleteReview(reviewId),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['reviews', bookId] })
+      void queryClient.invalidateQueries({ queryKey: ['reviews'] })
+      void queryClient.invalidateQueries({ queryKey: userKeys.all })
       void queryClient.invalidateQueries({ queryKey: feedKeys.all })
     },
   })
 }
 
-export function useLikeReview(bookId?: string) {
+export function useLikeReview(_bookId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ reviewId, liked }: { reviewId: string; liked: boolean }) =>
       communityService.toggleReviewLike(reviewId, liked),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['reviews', bookId] })
+      void queryClient.invalidateQueries({ queryKey: ['reviews'] })
+      void queryClient.invalidateQueries({ queryKey: userKeys.all })
       void queryClient.invalidateQueries({ queryKey: feedKeys.all })
     },
   })
 }
 
-export function useCommentReview(bookId?: string) {
+export function useCommentReview(_bookId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ reviewId, content }: { reviewId: string; content: string }) =>
       communityService.comment(reviewId, content),
     onSuccess: (_, variables) => {
-      void queryClient.invalidateQueries({ queryKey: ['reviews', bookId] })
+      void queryClient.invalidateQueries({ queryKey: ['reviews'] })
+      void queryClient.invalidateQueries({ queryKey: userKeys.all })
       void queryClient.invalidateQueries({ queryKey: ['review-comments', variables.reviewId] })
       void queryClient.invalidateQueries({ queryKey: feedKeys.all })
     },
@@ -130,13 +145,14 @@ export function useReviewComments(reviewId: string, enabled: boolean) {
   })
 }
 
-export function useDeleteReviewComment(bookId?: string) {
+export function useDeleteReviewComment(_bookId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ commentId }: { reviewId: string; commentId: string }) =>
       communityService.deleteComment(commentId),
     onSuccess: (_, variables) => {
-      void queryClient.invalidateQueries({ queryKey: ['reviews', bookId] })
+      void queryClient.invalidateQueries({ queryKey: ['reviews'] })
+      void queryClient.invalidateQueries({ queryKey: userKeys.all })
       void queryClient.invalidateQueries({ queryKey: ['review-comments', variables.reviewId] })
       void queryClient.invalidateQueries({ queryKey: feedKeys.all })
     },
@@ -150,6 +166,83 @@ export function useUser(id?: string) {
     queryKey: userKeys.detail(scope, id ?? ''),
     queryFn: () => communityService.user(id!),
     enabled: Boolean(id) && !isLoading,
+  })
+}
+
+export function useUserLibrary(
+  id: string | undefined,
+  shelf: Shelf | undefined,
+  page: number,
+  pageSize = 12,
+  enabled = true,
+) {
+  const { user, isLoading } = useAuth()
+  const scope = viewerScope(user?.id)
+  return useQuery({
+    queryKey: userKeys.library(scope, id ?? '', shelf, page, pageSize),
+    queryFn: () => communityService.userLibrary(id!, shelf, page, pageSize),
+    enabled: enabled && Boolean(id) && !isLoading,
+  })
+}
+
+export function useUserReviews(
+  id: string | undefined,
+  page: number,
+  pageSize = 10,
+  enabled = true,
+) {
+  const { user, isLoading } = useAuth()
+  const scope = viewerScope(user?.id)
+  return useQuery({
+    queryKey: userKeys.reviews(scope, id ?? '', page, pageSize),
+    queryFn: () => communityService.userReviews(id!, page, pageSize),
+    enabled: enabled && Boolean(id) && !isLoading,
+  })
+}
+
+export function useUserActivity(
+  id: string | undefined,
+  page: number,
+  pageSize = 10,
+  enabled = true,
+) {
+  const { user, isLoading } = useAuth()
+  const scope = viewerScope(user?.id)
+  return useQuery({
+    queryKey: userKeys.activity(scope, id ?? '', page, pageSize),
+    queryFn: () => communityService.userActivity(id!, page, pageSize),
+    enabled: enabled && Boolean(id) && !isLoading,
+  })
+}
+
+export function useUserConnections(
+  id: string | undefined,
+  kind: 'followers' | 'following',
+  page: number,
+  enabled = true,
+) {
+  const { user, isLoading } = useAuth()
+  const scope = viewerScope(user?.id)
+  return useQuery({
+    queryKey:
+      kind === 'followers'
+        ? userKeys.followerPage(scope, id ?? '', page)
+        : userKeys.followingPage(scope, id ?? '', page),
+    queryFn: () => communityService[kind](id!, page),
+    enabled: enabled && Boolean(id) && !isLoading,
+  })
+}
+
+export function useUpdateProfilePrivacy(id?: string) {
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+  const scope = viewerScope(user?.id)
+  return useMutation({
+    mutationFn: communityService.updateProfilePrivacy,
+    onSuccess: (profile) => {
+      if (id) queryClient.setQueryData(userKeys.detail(scope, id), profile)
+      void queryClient.invalidateQueries({ queryKey: userKeys.scope(scope) })
+    },
   })
 }
 

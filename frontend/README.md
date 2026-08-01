@@ -67,7 +67,7 @@ Trang công khai:
 - `/books`: catalog, tìm kiếm, lọc và phân trang
 - `/books/:id`: chi tiết sách, thư viện, đánh giá và bình luận
 - `/people`: danh bạ độc giả công khai, tìm theo tên, gợi ý và follow trực tiếp
-- `/users/:id`: hồ sơ người đọc và theo dõi
+- `/users/:id`: hồ sơ người đọc với kệ sách, review, activity, kết nối và privacy state
 - `/clubs`, `/clubs/:id`: danh sách và thảo luận câu lạc bộ
 - `/clubs/:clubId/sprints/:sprintId`: tiến độ, leaderboard, timeline và cột mốc của đợt đọc
 - `/challenges`, `/challenges/:id`: danh sách và chi tiết thử thách đọc
@@ -80,7 +80,7 @@ Trang yêu cầu đăng nhập:
 - `/journal`: phiên đọc và nhật ký
 - `/feed`: bảng tin cộng đồng
 - `/notifications`: thông báo
-- `/settings`: hồ sơ và giao diện
+- `/settings`: hồ sơ, quyền riêng tư hành trình đọc và giao diện
 - `/clubs/new`: tạo câu lạc bộ
 - `/clubs/invitations`: chấp nhận hoặc từ chối lời mời
 

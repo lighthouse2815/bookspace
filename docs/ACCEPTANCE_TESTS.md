@@ -137,6 +137,12 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-FOL-018 | P1 | `followerCount` trên discovery khớp public profile kể cả khi relation đến từ tài khoản locked; locked user vẫn không xuất hiện làm candidate. |
 | AC-FOL-019 | P1 | Development seed bỏ qua Hà Linh đã soft-delete, không insert trùng hoặc tự restore; thêm sách đứng đầu alphabet rồi seed lại không làm tăng `booksReadCount`. |
 | AC-FOL-020 | P1 | Search rỗng khóa `DIRECTORY`, search theo tên khóa `SEARCH_MATCH`; suggestions chỉ dùng 5 reason code còn lại. |
+| AC-FOL-021 | P0 | Tài khoản mới có kệ sách/activity profile riêng tư; guest nhận 403 `PROFILE_SECTION_PRIVATE`, owner vẫn nhận 200. |
+| AC-FOL-022 | P0 | `PATCH /api/users/me/privacy` bật/tắt độc lập hai phần và response profile phản ánh đúng state server. |
+| AC-FOL-023 | P0 | Public library phân trang/lọc shelf, không trả `currentPage`, session note, reading note hoặc email. |
+| AC-FOL-024 | P0 | Reviews theo user luôn công khai, phân trang ổn định và không làm lộ dữ liệu đọc riêng tư. |
+| AC-FOL-025 | P0 | Public activity chỉ chứa event của target, không lộ private club post cho guest và không chứa note riêng tư. |
+| AC-FOL-026 | P0 | Public profile trả `followsYou`, `mutualFollowCount`, privacy và không discover/get user locked hoặc soft-deleted. |
 
 ## 6. Catalog công khai
 
@@ -390,7 +396,7 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-WEB-004 | P0 | `/books/:id` | metadata, shelf action và review thật |
 | AC-WEB-005 | P0 | `/login` | validation, login, redirect intended route |
 | AC-WEB-006 | P0 | `/register` | validation, register, session bootstrap |
-| AC-WEB-007 | P0 | `/users/:id` | hồ sơ công khai, follow/unfollow |
+| AC-WEB-007 | P0 | `/users/:id` | tabs tổng quan/kệ sách/review/activity, privacy state, follow/unfollow và dialog connections |
 | AC-WEB-007A | P0 | `/people` | URL search, directory pagination, guest CTA, suggestions có reason và follow/unfollow trực tiếp |
 | AC-WEB-008 | P0 | `/clubs` | list/search và empty state |
 | AC-WEB-009 | P0 | `/clubs/:id` | detail, join/leave, posts theo quyền |
@@ -407,7 +413,7 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-WEB-013 | P0 | `/journal` | list/create session |
 | AC-WEB-014 | P0 | `/feed` | feed phân trang từ network |
 | AC-WEB-015 | P0 | `/notifications` | list/read/read-all |
-| AC-WEB-016 | P0 | `/settings` | update display name, bio, avatar |
+| AC-WEB-016 | P0 | `/settings` | update display name, bio, avatar và hai quyền riêng tư hành trình đọc |
 | AC-WEB-017 | P0 | `/profile` | hiển thị current user hoặc redirect đúng `/users/:id` |
 | AC-WEB-018 | P0 | `/goals` | list/filter, create/update/delete goal; progress/status hiển thị từ API, không có UI ghi progress tay |
 | AC-WEB-019 | P0 | `/notes` | list/filter/search, create/update/delete note; edit không đổi book và PATCH không gửi `bookId` |

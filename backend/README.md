@@ -115,6 +115,10 @@ Role là `USER | ADMIN`; trạng thái kệ sách là `WANT_TO_READ | READING | 
 | GET | `/api/users/suggestions?page=1&pageSize=20` | User |
 | GET | `/api/users/{id}` | Public |
 | PATCH | `/api/users/me` | User |
+| PATCH | `/api/users/me/privacy` | User |
+| GET | `/api/users/{id}/library` | Public theo privacy |
+| GET | `/api/users/{id}/reviews` | Public |
+| GET | `/api/users/{id}/activity` | Public theo privacy |
 | POST / DELETE | `/api/users/{id}/follow` | User |
 | GET | `/api/users/{id}/followers` | Public |
 | GET | `/api/users/{id}/following` | Public |

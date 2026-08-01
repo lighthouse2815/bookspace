@@ -109,6 +109,23 @@ internal sealed class ServiceMapper(IBookSpaceDbContext db)
             item.UpdatedAt ?? item.CreatedAt);
     }
 
+    public PublicLibraryItemDto PublicLibrary(LibraryItem item, Guid? viewerId)
+    {
+        var book = db.Books.FirstOrDefault(x => x.Id == item.BookId)
+                   ?? throw ServiceErrors.NotFound("BOOK_NOT_FOUND", "Không tìm thấy sách.");
+        var progress = book.PageCount == 0
+            ? 0
+            : Math.Clamp((int)Math.Round(item.CurrentPage * 100d / book.PageCount), 0, 100);
+        return new PublicLibraryItemDto(
+            item.BookId,
+            Book(book, viewerId),
+            item.Status,
+            progress,
+            item.StartedAt,
+            item.FinishedAt,
+            item.UpdatedAt ?? item.CreatedAt);
+    }
+
     public ReadingSessionDto Session(ReadingSession session)
     {
         var book = db.Books.FirstOrDefault(x => x.Id == session.BookId);

@@ -44,6 +44,8 @@ Aggregate root của tài khoản và hồ sơ.
 | `AvatarUrl` | `string?` | không | URL hợp lệ, tối đa 1.000 |
 | `Role` | `UserRole` | có | `USER` hoặc `ADMIN`; đăng ký công khai luôn là `USER` |
 | `IsLocked` | `bool` | có | khóa đăng nhập nhưng không xóa dữ liệu |
+| `IsReadingShelfPublic` | `bool` | có | mặc định `false`; cho phép người khác xem kệ sách chi tiết |
+| `IsReadingActivityPublic` | `bool` | có | mặc định `false`; cho phép người khác xem timeline trên hồ sơ |
 | `CreatedAt` | `DateTimeOffset` | có | UTC |
 | `UpdatedAt` | `DateTimeOffset` | có | không trước `CreatedAt` |
 | `DeletedAt` | `DateTimeOffset?` | không | tài khoản bị vô hiệu hóa/soft delete |
@@ -55,6 +57,8 @@ Invariant:
 - Không cho client tự đặt `Role`.
 - Xóa tài khoản thu hồi toàn bộ refresh token còn hiệu lực.
 - Hồ sơ công khai không bao giờ lộ `PasswordHash`, token hoặc email nếu chính sách response không cho phép.
+- Chủ hồ sơ luôn xem được kệ sách và activity của mình; viewer khác chỉ xem khi flag tương ứng là `true`.
+- Hai flag công khai không thay đổi tính riêng tư tuyệt đối của `ReadingNote`, `ReadingSession.Note`, email hoặc token.
 
 ### 2.2 `RefreshToken`
 
@@ -113,6 +117,19 @@ Rule:
 - Không cần thêm column, migration hoặc index mới. Unique/index follow hiện hữu
   đủ cho v1; chỉ thêm normalized display name nếu có bằng chứng sản phẩm cần
   Unicode case folding rộng hơn SQLite `NOCASE`.
+
+### 2.5 Public Reader Profile read models
+
+`UserProfile` bổ sung `FollowsYou`, `MutualFollowCount` và `Privacy`. `Privacy`
+chỉ mô tả khả năng xem hai phần hồ sơ, không phải quyền ghi dữ liệu.
+
+`PublicLibraryItem` là projection riêng gồm book, shelf, phần trăm tiến độ và các
+mốc bắt đầu/hoàn thành/cập nhật. Projection không trả library row owner fields,
+trang hiện tại, reading session hoặc note. `ProfileActivity` dùng cùng `FeedItem`
+nhưng chỉ lấy một actor; club post riêng tư chỉ hiện với viewer còn membership.
+Review vẫn công khai độc lập với hai flag vì đã được người dùng chủ động đăng vào
+community. Mọi danh sách đều phân trang và dùng thứ tự thời gian rồi `Id` để
+tie-break ổn định.
 
 ## 3. Bounded context Catalog
 

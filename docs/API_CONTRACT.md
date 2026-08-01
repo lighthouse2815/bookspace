@@ -115,9 +115,16 @@ Danh sách rỗng trả `items: []`. Metadata nằm trong body, không nằm tro
 | `followingCount` | integer |
 | `booksReadCount` | integer |
 | `isFollowing` | boolean |
+| `followsYou` | boolean; guest luôn `false` |
+| `mutualFollowCount` | integer; guest luôn `0` |
+| `privacy` | `{ isReadingShelfPublic, isReadingActivityPublic }` |
 | `joinedAt` | datetime |
 
 Với `GET /users/{id}`, `email` phải là `null` hoặc bị loại khỏi DTO công khai; frontend không được hiển thị email người khác.
+
+`PublicLibraryItemResponse`: `bookId`, `book`, `shelf`, `progressPercent`,
+`startedAt`, `finishedAt`, `updatedAt`. DTO này không có `currentPage`,
+`ReadingSession`, session note hoặc `ReadingNote`.
 
 `UserDiscoveryItem` là DTO công khai riêng:
 
@@ -573,7 +580,43 @@ Response `200`: `ApiResponse<UserResponse>`.
 
 ### `GET /api/users/{userId}` — Public
 
-Response `200`: `ApiResponse<UserResponse>` với email không công khai.
+Response `200`: `ApiResponse<UserResponse>` với email không công khai, trạng thái
+quan hệ theo principal và hai flag privacy. User locked/soft-deleted trả 404.
+
+### `PATCH /api/users/me/privacy` — Authenticated
+
+Request:
+
+```json
+{
+  "isReadingShelfPublic": true,
+  "isReadingActivityPublic": false
+}
+```
+
+Response `200`: `ApiResponse<UserResponse>`. Tài khoản mới mặc định `false` cho
+cả hai flag; chủ hồ sơ luôn xem được hai phần dù flag đang tắt.
+
+### `GET /api/users/{userId}/library?shelf=&page=1&pageSize=12` — Public
+
+Response `200`: `ApiResponse<PageResult<PublicLibraryItemResponse>>`, mới nhất
+trước rồi `id` giảm dần. `shelf` tùy chọn là `WANT_TO_READ`, `READING` hoặc
+`READ`. Viewer khác nhận 403 `PROFILE_SECTION_PRIVATE` khi chủ hồ sơ chưa bật
+`isReadingShelfPublic`.
+
+### `GET /api/users/{userId}/reviews?page=1&pageSize=10` — Public
+
+Response `200`: `ApiResponse<PageResult<ReviewResponse>>` cho review còn hoạt
+động của đúng user, mới nhất trước rồi `id` giảm dần. Endpoint không phụ thuộc
+flag kệ sách/activity vì review vốn là nội dung community công khai.
+
+### `GET /api/users/{userId}/activity?page=1&pageSize=10` — Public
+
+Response `200`: `ApiResponse<PageResult<FeedItemResponse>>` của đúng actor, gồm
+review, tiến độ library, public/authorized club post và challenge đã publish.
+Viewer khác nhận 403 `PROFILE_SECTION_PRIVATE` khi activity chưa công khai.
+Guest không thấy post của club riêng tư; response không chứa session note hoặc
+reading note.
 
 ### `POST /api/users/{userId}/follow` — USER, ADMIN
 
@@ -1472,6 +1515,7 @@ thành lỗi của core API.
 | `INVALID_USER_SEARCH` | 400 | search độc giả khác rỗng ngoài 2-100 ký tự |
 | `CANNOT_FOLLOW_SELF` | 400 | tự follow |
 | `ALREADY_FOLLOWING` | 409 | follow trùng |
+| `PROFILE_SECTION_PRIVATE` | 403 | kệ sách hoặc activity trên hồ sơ chưa được công khai |
 | `BOOK_NOT_FOUND` | 404 | sách không tồn tại |
 | `ISBN_ALREADY_EXISTS` | 409 | ISBN trùng |
 | `AUTHOR_NOT_FOUND` | 404 | tác giả không tồn tại |

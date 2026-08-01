@@ -50,6 +50,7 @@ Goal 1 chỉ được coi là hoàn thành khi có một vertical slice đầy �
 
 - Xem trang chủ, catalog, chi tiết sách, tác giả, thể loại.
 - Xem đánh giá công khai, câu lạc bộ công khai và thử thách đã xuất bản.
+- Xem kệ sách và dòng hoạt động khi chủ hồ sơ chủ động công khai.
 - Tìm kiếm sách.
 - Đăng ký và đăng nhập.
 - Không thể tạo nội dung hoặc xem dữ liệu cá nhân.
@@ -59,6 +60,7 @@ Goal 1 chỉ được coi là hoàn thành khi có một vertical slice đầy �
 Có toàn bộ quyền của khách và:
 
 - Cập nhật hồ sơ của chính mình.
+- Chọn công khai hoặc giữ riêng tư kệ sách chi tiết và dòng hoạt động trên hồ sơ.
 - Theo dõi hoặc bỏ theo dõi thành viên khác.
 - Quản lý thư viện, tiến độ, phiên đọc và mục tiêu đọc của mình.
 - Tạo/sửa/xóa ghi chú đọc riêng tư của mình; tìm lại theo sách, tag hoặc từ khóa.
@@ -116,6 +118,13 @@ giảm dần, rồi follower count, books-read count, `DisplayName` và `Id`. Mu
 số người X mà principal follow và X cũng follow candidate. Fallback vẫn trả
 candidate hợp lệ khi mutual bằng 0. Follow từ card dùng contract follow hiện hữu,
 sau đó gợi ý, profile, feed và dashboard được làm mới theo principal.
+
+Hồ sơ độc giả có các phần Tổng quan, Kệ sách, Đánh giá và Hoạt động. Review là
+nội dung công khai theo hợp đồng review hiện hữu. Kệ sách chi tiết và dòng hoạt
+động trên hồ sơ mặc định riêng tư với tài khoản mới; chủ hồ sơ có thể bật riêng
+từng phần trong Settings và luôn xem được dữ liệu của mình. API công khai không
+trả email người khác, ghi chú đọc, nội dung note của phiên đọc hoặc token. Hồ sơ
+hiển thị `followsYou`, số kết nối chung và danh sách follower/following phân trang.
 
 ### UC-03 — Khám phá sách
 
@@ -225,7 +234,7 @@ Tên route là hợp đồng điều hướng Goal 1; thay đổi cần đồng 
 | `/clubs/:id` | Club detail | thông tin, thành viên, bài đăng và đợt đọc chung theo quyền |
 | `/clubs/:clubId/sprints/:sprintId` | Reading sprint | tiến độ, leaderboard, timeline, quản trị và cột mốc theo quyền |
 | `/people` | People discovery | URL search, danh bạ công khai, gợi ý và follow theo principal |
-| `/users/:id` | Public profile | hồ sơ, thống kê công khai |
+| `/users/:id` | Public profile | tổng quan, kệ sách theo quyền riêng tư, review, activity và kết nối |
 | `/login` | Login | đăng nhập |
 | `/register` | Register | đăng ký |
 
@@ -241,7 +250,7 @@ Tên route là hợp đồng điều hướng Goal 1; thay đổi cần đồng 
 | `/insights` | Reading insights | heatmap, streak, báo cáo tuần/tháng, so sánh kỳ và dự báo |
 | `/dashboard` | My dashboard | số sách, trang/phút đọc, challenge |
 | `/profile` | My profile | hồ sơ hiện tại hoặc chuyển tới `/users/:id` |
-| `/settings` | Settings | chỉnh hồ sơ và thiết lập tài khoản |
+| `/settings` | Settings | chỉnh hồ sơ, quyền riêng tư hành trình đọc và giao diện |
 | `/notifications` | Notifications | danh sách và trạng thái chưa đọc |
 | `/clubs/new` | Create club | tạo câu lạc bộ công khai hoặc riêng tư |
 | `/clubs/invitations` | Club invitations | lời mời CLB đang chờ và thao tác chấp nhận/từ chối |

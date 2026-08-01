@@ -15,6 +15,12 @@ const profile: User = {
   followingCount: 2,
   booksReadCount: 6,
   isFollowing: false,
+  followsYou: true,
+  mutualFollowCount: 2,
+  privacy: {
+    isReadingShelfPublic: true,
+    isReadingActivityPublic: true,
+  },
   joinedAt: '2026-01-01T00:00:00Z',
 }
 
@@ -30,6 +36,10 @@ const mocks = vi.hoisted(() => ({
   },
   user: vi.fn(),
   follow: vi.fn(),
+  library: vi.fn(),
+  reviews: vi.fn(),
+  activity: vi.fn(),
+  connections: vi.fn(),
   retry: vi.fn(),
   toast: vi.fn(),
 }))
@@ -54,6 +64,10 @@ vi.mock('../../contexts/ToastContext', () => ({
 vi.mock('../../hooks/useCommunity', () => ({
   useUser: (...args: unknown[]) => mocks.user(...args),
   useFollowUser: (...args: unknown[]) => mocks.follow(...args),
+  useUserLibrary: (...args: unknown[]) => mocks.library(...args),
+  useUserReviews: (...args: unknown[]) => mocks.reviews(...args),
+  useUserActivity: (...args: unknown[]) => mocks.activity(...args),
+  useUserConnections: (...args: unknown[]) => mocks.connections(...args),
 }))
 
 function renderProfile() {
@@ -88,6 +102,28 @@ function userResult(overrides: Record<string, unknown> = {}) {
   }
 }
 
+function page(items: unknown[] = []) {
+  return {
+    items,
+    page: 1,
+    pageSize: 12,
+    totalItems: items.length,
+    totalPages: 1,
+  }
+}
+
+function queryResult(items: unknown[] = []) {
+  return {
+    data: page(items),
+    isLoading: false,
+    isPending: false,
+    isFetching: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  }
+}
+
 describe('production public profile route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -98,6 +134,10 @@ describe('production public profile route', () => {
     })
     mocks.user.mockReturnValue(userResult())
     mocks.follow.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    mocks.library.mockReturnValue(queryResult())
+    mocks.reviews.mockReturnValue(queryResult())
+    mocks.activity.mockReturnValue(queryResult())
+    mocks.connections.mockReturnValue(queryResult())
   })
 
   it('offers guest login-return without inventing a username from the id', async () => {
@@ -184,5 +224,73 @@ describe('production public profile route', () => {
 
     expect(await screen.findByRole('heading', { name: longName })).toHaveClass('break-words')
     expect(screen.getByText(longBio)).toHaveClass('break-words')
+  })
+
+  it('opens the real public shelf tab and renders paginated book data', async () => {
+    mocks.library.mockReturnValue(
+      queryResult([
+        {
+          bookId: 'book-1',
+          book: {
+            id: 'book-1',
+            title: 'Một cuốn sách công khai',
+            author: { id: 'author-1', name: 'Tác giả' },
+            averageRating: 4.5,
+            reviewCount: 2,
+          },
+          shelf: 'READING',
+          progressPercent: 42,
+          updatedAt: '2026-07-30T00:00:00Z',
+        },
+      ]),
+    )
+    const user = userEvent.setup()
+    renderProfile()
+
+    await user.click(await screen.findByRole('button', { name: 'Kệ sách' }))
+
+    expect(await screen.findByText('Một cuốn sách công khai')).toBeInTheDocument()
+    expect(screen.getByText('42%')).toBeInTheDocument()
+    expect(mocks.library).toHaveBeenLastCalledWith('person-1', undefined, 1, 12, true)
+  })
+
+  it('does not request a private shelf for another viewer', async () => {
+    mocks.user.mockReturnValue(
+      userResult({
+        data: {
+          ...profile,
+          privacy: { isReadingShelfPublic: false, isReadingActivityPublic: false },
+        },
+      }),
+    )
+    const user = userEvent.setup()
+    renderProfile()
+
+    await user.click(await screen.findByRole('button', { name: 'Kệ sách' }))
+
+    expect(await screen.findByRole('heading', { name: 'Kệ sách đang riêng tư' })).toBeInTheDocument()
+    expect(mocks.library).toHaveBeenLastCalledWith('person-1', undefined, 1, 12, false)
+  })
+
+  it('opens the follower list from the observable profile counter', async () => {
+    mocks.connections.mockReturnValue(
+      queryResult([
+        {
+          id: 'follower-1',
+          displayName: 'Người đọc kết nối',
+          role: 'USER',
+        },
+      ]),
+    )
+    const user = userEvent.setup()
+    renderProfile()
+
+    await user.click(await screen.findByRole('button', { name: /4 người theo dõi/ }))
+
+    expect(await screen.findByRole('dialog', { name: 'Người theo dõi' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Xem hồ sơ Người đọc kết nối' })).toHaveAttribute(
+      'href',
+      '/users/follower-1',
+    )
   })
 })

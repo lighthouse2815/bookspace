@@ -17,7 +17,7 @@ adapter can connect the two products later without sharing databases.
 - Personal reading goals with progress calculated from real reading activity
 - Private reading notes, quotes, page references and searchable tags
 - Ratings, reviews, comments and reactions
-- Public reader discovery, relationship-aware suggestions, profiles, follows and social feed
+- Public reader discovery, relationship-aware suggestions, privacy-aware reading profiles, follows and social feed
 - Book clubs with private invitations, member roles, shared current books, discussions and collaborative reading sprints
 - Reading challenges with server-derived progress from completed library books
 - In-app notifications

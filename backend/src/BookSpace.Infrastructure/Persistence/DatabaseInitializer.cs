@@ -43,6 +43,7 @@ public sealed class DatabaseInitializer(
             "Minh Anh",
             "Mỗi cuốn sách là một cuộc đối thoại mới.",
             "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400");
+        reader.UpdatePublicReadingVisibility(true, true);
 
         var nguyenNhatAnh = new Author(
             "Nguyễn Nhật Ánh",
@@ -409,6 +410,8 @@ public sealed class DatabaseInitializer(
             return;
         }
 
+        reader.UpdatePublicReadingVisibility(true, true);
+
         var discoveryReader = await db.UserSet
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(
@@ -429,7 +432,12 @@ public sealed class DatabaseInitializer(
                 "Hà Linh",
                 "Thích tản văn, truyện ngắn và những cuộc trò chuyện chậm về sách.",
                 "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=400");
+            discoveryReader.UpdatePublicReadingVisibility(true, true);
             db.Add(discoveryReader);
+        }
+        else
+        {
+            discoveryReader.UpdatePublicReadingVisibility(true, true);
         }
 
         if (!await db.FollowSet.AnyAsync(

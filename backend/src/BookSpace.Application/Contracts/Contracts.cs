@@ -21,7 +21,14 @@ public sealed record UserProfile(
     int FollowingCount,
     int BooksReadCount,
     bool IsFollowing,
+    bool FollowsYou,
+    int MutualFollowCount,
+    ProfilePrivacyDto Privacy,
     DateTimeOffset JoinedAt);
+
+public sealed record ProfilePrivacyDto(
+    bool IsReadingShelfPublic,
+    bool IsReadingActivityPublic);
 
 public sealed record UserDiscoveryItem(
     Guid Id,
@@ -58,6 +65,10 @@ public sealed record UpdateProfileRequest(
     [Required, MaxLength(100)] string DisplayName,
     [MaxLength(500)] string? Bio,
     [Url, MaxLength(1000)] string? AvatarUrl);
+
+public sealed record UpdateProfilePrivacyRequest(
+    bool IsReadingShelfPublic,
+    bool IsReadingActivityPublic);
 
 public sealed record AuthorDto(
     Guid Id,
@@ -134,6 +145,15 @@ public sealed record LibraryItemDto(
     BookSummary Book,
     LibraryStatus Shelf,
     int CurrentPage,
+    int ProgressPercent,
+    DateTimeOffset? StartedAt,
+    DateTimeOffset? FinishedAt,
+    DateTimeOffset UpdatedAt);
+
+public sealed record PublicLibraryItemDto(
+    Guid BookId,
+    BookSummary Book,
+    LibraryStatus Shelf,
     int ProgressPercent,
     DateTimeOffset? StartedAt,
     DateTimeOffset? FinishedAt,

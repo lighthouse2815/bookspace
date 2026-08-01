@@ -68,6 +68,22 @@ public sealed class DomainBehaviorTests
     }
 
     [Fact]
+    public void Public_reading_visibility_is_private_by_default_and_idempotent()
+    {
+        var user = new User("reader@example.com", "hash", "Bạn đọc");
+
+        Assert.False(user.IsReadingShelfPublic);
+        Assert.False(user.IsReadingActivityPublic);
+        user.UpdatePublicReadingVisibility(false, false);
+        Assert.Null(user.UpdatedAt);
+
+        user.UpdatePublicReadingVisibility(true, true);
+        Assert.True(user.IsReadingShelfPublic);
+        Assert.True(user.IsReadingActivityPublic);
+        Assert.NotNull(user.UpdatedAt);
+    }
+
+    [Fact]
     public void Review_rating_must_be_between_one_and_five()
     {
         var error = Assert.Throws<DomainException>(() =>

@@ -29,6 +29,10 @@ public interface IUserService
         int pageSize,
         CancellationToken cancellationToken);
     Task<UserProfile> UpdateAsync(Guid userId, UpdateProfileRequest request, CancellationToken cancellationToken);
+    Task<UserProfile> UpdatePrivacyAsync(
+        Guid userId,
+        UpdateProfilePrivacyRequest request,
+        CancellationToken cancellationToken);
     Task FollowAsync(Guid userId, Guid targetUserId, CancellationToken cancellationToken);
     Task UnfollowAsync(Guid userId, Guid targetUserId, CancellationToken cancellationToken);
     PageResult<UserSummary> GetFollowers(Guid userId, int page, int pageSize);
@@ -62,6 +66,12 @@ public interface ICatalogService
 public interface IReadingService
 {
     PageResult<LibraryItemDto> GetLibrary(Guid userId, LibraryStatus? status, int page, int pageSize);
+    PageResult<PublicLibraryItemDto> GetPublicLibrary(
+        Guid userId,
+        Guid? viewerId,
+        LibraryStatus? status,
+        int page,
+        int pageSize);
     Task<LibraryItemDto> AddLibraryItemAsync(Guid userId, AddLibraryItemRequest request, CancellationToken cancellationToken);
     Task<LibraryItemDto> UpdateLibraryItemAsync(Guid userId, Guid itemId, UpdateLibraryItemRequest request, CancellationToken cancellationToken);
     Task<LibraryItemDto> UpdateProgressAsync(Guid userId, Guid itemId, UpdateProgressRequest request, CancellationToken cancellationToken);
@@ -74,6 +84,11 @@ public interface ICommunityService
 {
     ReviewDto GetReview(Guid reviewId, Guid? viewerId);
     PageResult<ReviewDto> GetBookReviews(Guid bookId, Guid? viewerId, int page, int pageSize);
+    PageResult<ReviewDto> GetUserReviews(
+        Guid userId,
+        Guid? viewerId,
+        int page,
+        int pageSize);
     Task<ReviewDto> CreateReviewAsync(Guid userId, CreateReviewRequest request, CancellationToken cancellationToken);
     Task<ReviewDto> UpdateReviewAsync(Guid userId, bool isAdmin, Guid reviewId, SaveReviewRequest request, CancellationToken cancellationToken);
     Task DeleteReviewAsync(Guid userId, bool isAdmin, Guid reviewId, CancellationToken cancellationToken);
@@ -83,6 +98,11 @@ public interface ICommunityService
     Task<ReviewCommentDto> AddCommentAsync(Guid userId, Guid reviewId, CreateCommentRequest request, CancellationToken cancellationToken);
     Task DeleteCommentAsync(Guid userId, bool isAdmin, Guid commentId, CancellationToken cancellationToken);
     PageResult<FeedItem> GetFeed(Guid userId, int page, int pageSize);
+    PageResult<FeedItem> GetUserActivity(
+        Guid userId,
+        Guid? viewerId,
+        int page,
+        int pageSize);
 }
 
 public interface IClubService

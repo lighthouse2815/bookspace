@@ -2,13 +2,17 @@ using BookSpace.Api.Common;
 using BookSpace.Application.Common;
 using BookSpace.Application.Contracts;
 using BookSpace.Application.Services;
+using BookSpace.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BookSpace.Api.Controllers;
 
 [Route("api/users")]
-public sealed class UsersController(IUserService userService) : ApiControllerBase
+public sealed class UsersController(
+    IUserService userService,
+    IReadingService readingService,
+    ICommunityService communityService) : ApiControllerBase
 {
     [AllowAnonymous]
     [HttpGet]
@@ -51,6 +55,40 @@ public sealed class UsersController(IUserService userService) : ApiControllerBas
         OkData(
             await userService.UpdateAsync(CurrentUserId, request, cancellationToken),
             "Cập nhật hồ sơ thành công.");
+
+    [Authorize]
+    [HttpPatch("me/privacy")]
+    public async Task<ActionResult<ApiResponse<UserProfile>>> UpdatePrivacy(
+        UpdateProfilePrivacyRequest request,
+        CancellationToken cancellationToken) =>
+        OkData(
+            await userService.UpdatePrivacyAsync(CurrentUserId, request, cancellationToken),
+            "Cập nhật quyền riêng tư hồ sơ thành công.");
+
+    [AllowAnonymous]
+    [HttpGet("{id:guid}/library")]
+    public ActionResult<ApiResponse<PageResult<PublicLibraryItemDto>>> PublicLibrary(
+        Guid id,
+        [FromQuery] LibraryStatus? shelf,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 12) =>
+        OkData(readingService.GetPublicLibrary(id, OptionalUserId, shelf, page, pageSize));
+
+    [AllowAnonymous]
+    [HttpGet("{id:guid}/reviews")]
+    public ActionResult<ApiResponse<PageResult<ReviewDto>>> Reviews(
+        Guid id,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10) =>
+        OkData(communityService.GetUserReviews(id, OptionalUserId, page, pageSize));
+
+    [AllowAnonymous]
+    [HttpGet("{id:guid}/activity")]
+    public ActionResult<ApiResponse<PageResult<FeedItem>>> Activity(
+        Guid id,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10) =>
+        OkData(communityService.GetUserActivity(id, OptionalUserId, page, pageSize));
 
     [Authorize]
     [HttpPost("{id:guid}/follow")]

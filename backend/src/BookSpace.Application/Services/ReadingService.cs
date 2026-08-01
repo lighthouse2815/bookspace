@@ -32,6 +32,41 @@ public sealed class ReadingService(
         return PageResult<LibraryItemDto>.Create(items, normalizedPage, size, total);
     }
 
+    public PageResult<PublicLibraryItemDto> GetPublicLibrary(
+        Guid userId,
+        Guid? viewerId,
+        LibraryStatus? status,
+        int page,
+        int pageSize)
+    {
+        var owner = db.Users.FirstOrDefault(x => x.Id == userId && !x.IsLocked)
+                    ?? throw ServiceErrors.NotFound("USER_NOT_FOUND", "Không tìm thấy người dùng.");
+        if (viewerId != userId && !owner.IsReadingShelfPublic)
+        {
+            throw ServiceErrors.Forbidden(
+                "PROFILE_SECTION_PRIVATE",
+                "Kệ sách của độc giả này đang được đặt ở chế độ riêng tư.");
+        }
+
+        var query = db.LibraryItems.Where(x => x.UserId == userId);
+        if (status.HasValue)
+        {
+            query = query.Where(x => x.Status == status.Value);
+        }
+
+        var (normalizedPage, size, skip) = Paging.Normalize(page, pageSize);
+        var total = query.LongCount();
+        var items = query
+            .OrderByDescending(x => x.UpdatedAt ?? x.CreatedAt)
+            .ThenByDescending(x => x.Id)
+            .Skip(skip)
+            .Take(size)
+            .ToList()
+            .Select(item => _mapper.PublicLibrary(item, viewerId))
+            .ToList();
+        return PageResult<PublicLibraryItemDto>.Create(items, normalizedPage, size, total);
+    }
+
     public async Task<LibraryItemDto> AddLibraryItemAsync(
         Guid userId,
         AddLibraryItemRequest request,

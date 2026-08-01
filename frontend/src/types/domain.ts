@@ -15,7 +15,15 @@ export interface User {
   followingCount?: number
   booksReadCount?: number
   isFollowing?: boolean
+  followsYou?: boolean
+  mutualFollowCount?: number
+  privacy?: ProfilePrivacy
   joinedAt?: string
+}
+
+export interface ProfilePrivacy {
+  isReadingShelfPublic: boolean
+  isReadingActivityPublic: boolean
 }
 
 export interface UserDiscoveryItem {
@@ -87,6 +95,16 @@ export interface LibraryEntry {
   book: Book
   shelf: Shelf
   currentPage: number
+  progressPercent: number
+  startedAt?: string
+  finishedAt?: string
+  updatedAt: string
+}
+
+export interface PublicLibraryEntry {
+  bookId: string
+  book: Book
+  shelf: Shelf
   progressPercent: number
   startedAt?: string
   finishedAt?: string

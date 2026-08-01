@@ -117,6 +117,8 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
             entity.Property(x => x.Bio).HasMaxLength(500);
             entity.Property(x => x.AvatarUrl).HasMaxLength(1000);
             entity.Property(x => x.Role).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.IsReadingShelfPublic).HasDefaultValue(false);
+            entity.Property(x => x.IsReadingActivityPublic).HasDefaultValue(false);
             entity.Ignore(x => x.IsDeleted);
         });
 

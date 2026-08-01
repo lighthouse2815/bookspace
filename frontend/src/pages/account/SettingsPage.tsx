@@ -1,5 +1,12 @@
-import { UserCircle } from '@phosphor-icons/react'
-import { useState, type FormEvent } from 'react'
+import {
+  ClockCounterClockwise,
+  Eye,
+  LockKey,
+  ShieldCheck,
+  UserCircle,
+  type Icon as PhosphorIcon,
+} from '@phosphor-icons/react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Avatar } from '../../components/ui/Avatar'
 import { Button } from '../../components/ui/Button'
 import { InputField, TextareaField } from '../../components/ui/FormField'
@@ -8,18 +15,42 @@ import { useTheme } from '../../contexts/ThemeContext'
 import { themeOptions } from '../../contexts/theme-options'
 import { useToast } from '../../contexts/ToastContext'
 import { errorMessage } from '../../lib/api'
+import { useUpdateProfilePrivacy, useUser } from '../../hooks/useCommunity'
 import { communityService } from '../../services/community.service'
 
 export function SettingsPage() {
   const { user, refreshUser } = useAuth()
   const { theme, setTheme } = useTheme()
   const { showToast } = useToast()
+  const profile = useUser(user?.id)
+  const updatePrivacy = useUpdateProfilePrivacy(user?.id)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     displayName: user?.displayName ?? '',
     bio: user?.bio ?? '',
     avatarUrl: user?.avatarUrl ?? '',
   })
+  const [privacy, setPrivacy] = useState({
+    isReadingShelfPublic: false,
+    isReadingActivityPublic: false,
+  })
+  const isReadingShelfPublic = profile.data?.privacy?.isReadingShelfPublic
+  const isReadingActivityPublic = profile.data?.privacy?.isReadingActivityPublic
+
+  useEffect(() => {
+    if (isReadingShelfPublic !== undefined && isReadingActivityPublic !== undefined) {
+      setPrivacy((current) => {
+        if (
+          current.isReadingShelfPublic === isReadingShelfPublic &&
+          current.isReadingActivityPublic === isReadingActivityPublic
+        ) {
+          return current
+        }
+
+        return { isReadingShelfPublic, isReadingActivityPublic }
+      })
+    }
+  }, [isReadingActivityPublic, isReadingShelfPublic])
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -40,6 +71,16 @@ export function SettingsPage() {
       showToast(errorMessage(error, 'Không thể cập nhật hồ sơ'), 'error')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const submitPrivacy = async (event: FormEvent) => {
+    event.preventDefault()
+    try {
+      await updatePrivacy.mutateAsync(privacy)
+      showToast('Quyền riêng tư hồ sơ đã được cập nhật', 'success')
+    } catch (error) {
+      showToast(errorMessage(error, 'Không thể cập nhật quyền riêng tư'), 'error')
     }
   }
 
@@ -89,6 +130,53 @@ export function SettingsPage() {
       </section>
 
       <section className="mt-6 surface p-5 sm:p-7">
+        <div className="flex items-start gap-4 border-b border-border pb-6">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent-strong">
+            <ShieldCheck size={23} weight="duotone" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-heading">Quyền riêng tư hành trình đọc</h2>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-muted">
+              Bạn kiểm soát dữ liệu đọc chi tiết xuất hiện trên hồ sơ. Email, ghi chú riêng và nội dung phiên đọc không bao giờ được công khai.
+            </p>
+          </div>
+        </div>
+
+        {profile.isLoading ? (
+          <div className="mt-6 h-36 animate-pulse rounded-2xl bg-surface-muted" />
+        ) : profile.isError ? (
+          <p className="mt-6 text-sm text-red-600" role="alert">
+            Không thể tải cài đặt quyền riêng tư. Hãy tải lại trang.
+          </p>
+        ) : (
+          <form onSubmit={submitPrivacy} className="mt-6 space-y-3">
+            <PrivacyChoice
+              checked={privacy.isReadingShelfPublic}
+              icon={Eye}
+              title="Hiển thị kệ sách chi tiết"
+              description="Cho phép mọi người xem sách đang đọc, đã đọc, muốn đọc và phần trăm tiến độ."
+              onChange={(checked) => setPrivacy((value) => ({ ...value, isReadingShelfPublic: checked }))}
+            />
+            <PrivacyChoice
+              checked={privacy.isReadingActivityPublic}
+              icon={ClockCounterClockwise}
+              title="Hiển thị dòng hoạt động trên hồ sơ"
+              description="Cho phép mọi người xem các mốc tiến độ, review, bài đăng công khai và thử thách đã hoàn thành."
+              onChange={(checked) => setPrivacy((value) => ({ ...value, isReadingActivityPublic: checked }))}
+            />
+            <div className="flex items-center justify-between gap-4 pt-3">
+              <p className="inline-flex items-center gap-2 text-xs text-muted">
+                <LockKey size={15} /> Tài khoản mới mặc định giữ riêng tư hai phần này.
+              </p>
+              <Button type="submit" loading={updatePrivacy.isPending}>
+                Lưu quyền riêng tư
+              </Button>
+            </div>
+          </form>
+        )}
+      </section>
+
+      <section className="mt-6 surface p-5 sm:p-7">
         <h2 className="text-xl font-bold text-heading">Giao diện</h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
           Mỗi theme thay đổi nền, bề mặt và điểm nhấn trên toàn BookSpace. Lựa chọn được lưu trên trình duyệt này.
@@ -134,5 +222,37 @@ export function SettingsPage() {
         </dl>
       </section>
     </div>
+  )
+}
+
+function PrivacyChoice({
+  checked,
+  icon: Icon,
+  title,
+  description,
+  onChange,
+}: {
+  checked: boolean
+  icon: PhosphorIcon
+  title: string
+  description: string
+  onChange: (checked: boolean) => void
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-4 rounded-2xl border border-border p-4 transition-colors hover:bg-surface-muted">
+      <span className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-muted text-accent-strong">
+        <Icon size={20} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <strong className="block text-sm text-heading">{title}</strong>
+        <span className="mt-1 block text-sm leading-6 text-muted">{description}</span>
+      </span>
+      <input
+        type="checkbox"
+        className="mt-2 h-5 w-5 accent-[var(--accent)]"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+    </label>
   )
 }

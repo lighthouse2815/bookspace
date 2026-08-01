@@ -29,6 +29,27 @@ public sealed class CommunityService(IBookSpaceDbContext db) : ICommunityService
         return PageResult<ReviewDto>.Create(items, normalizedPage, size, total);
     }
 
+    public PageResult<ReviewDto> GetUserReviews(
+        Guid userId,
+        Guid? viewerId,
+        int page,
+        int pageSize)
+    {
+        EnsurePublicUser(userId);
+        var query = db.Reviews.Where(x => x.UserId == userId);
+        var (normalizedPage, size, skip) = Paging.Normalize(page, pageSize);
+        var total = query.LongCount();
+        var items = query
+            .OrderByDescending(x => x.CreatedAt)
+            .ThenByDescending(x => x.Id)
+            .Skip(skip)
+            .Take(size)
+            .ToList()
+            .Select(x => _mapper.Review(x, viewerId))
+            .ToList();
+        return PageResult<ReviewDto>.Create(items, normalizedPage, size, total);
+    }
+
     public async Task<ReviewDto> CreateReviewAsync(
         Guid userId,
         CreateReviewRequest request,
@@ -169,6 +190,32 @@ public sealed class CommunityService(IBookSpaceDbContext db) : ICommunityService
             .ToList();
         actorIds.Add(userId);
         actorIds = actorIds.Distinct().ToList();
+        return GetActivityForActors(actorIds, userId, page, pageSize);
+    }
+
+    public PageResult<FeedItem> GetUserActivity(
+        Guid userId,
+        Guid? viewerId,
+        int page,
+        int pageSize)
+    {
+        var user = EnsurePublicUser(userId);
+        if (viewerId != userId && !user.IsReadingActivityPublic)
+        {
+            throw ServiceErrors.Forbidden(
+                "PROFILE_SECTION_PRIVATE",
+                "Dòng hoạt động của độc giả này đang được đặt ở chế độ riêng tư.");
+        }
+
+        return GetActivityForActors([userId], viewerId, page, pageSize);
+    }
+
+    private PageResult<FeedItem> GetActivityForActors(
+        IReadOnlyCollection<Guid> actorIds,
+        Guid? viewerId,
+        int page,
+        int pageSize)
+    {
         var entries = new List<FeedEntry>();
 
         foreach (var review in db.Reviews.Where(x => actorIds.Contains(x.UserId)).ToList())
@@ -184,8 +231,8 @@ public sealed class CommunityService(IBookSpaceDbContext db) : ICommunityService
                     review.Id,
                     "REVIEW",
                     _mapper.User(review.UserId),
-                    _mapper.Review(review, userId),
-                    _mapper.Book(book),
+                    _mapper.Review(review, viewerId),
+                    _mapper.Book(book, viewerId),
                     null,
                     null,
                     review.Content,
@@ -213,7 +260,7 @@ public sealed class CommunityService(IBookSpaceDbContext db) : ICommunityService
                     "READING_PROGRESS",
                     _mapper.User(item.UserId),
                     null,
-                    _mapper.Book(book),
+                    _mapper.Book(book, viewerId),
                     null,
                     null,
                     null,
@@ -225,7 +272,8 @@ public sealed class CommunityService(IBookSpaceDbContext db) : ICommunityService
         var visibleClubIds = db.BookClubs
             .Where(x =>
                 x.Visibility == ClubVisibility.PUBLIC ||
-                db.BookClubMembers.Any(member => member.ClubId == x.Id && member.UserId == userId))
+                viewerId.HasValue && db.BookClubMembers.Any(member =>
+                    member.ClubId == x.Id && member.UserId == viewerId.Value))
             .Select(x => x.Id)
             .ToList();
         var clubs = db.BookClubs
@@ -247,7 +295,7 @@ public sealed class CommunityService(IBookSpaceDbContext db) : ICommunityService
                     _mapper.User(post.AuthorId),
                     null,
                     null,
-                    _mapper.Club(club, userId),
+                    _mapper.Club(club, viewerId),
                     null,
                     post.Content,
                     null,
@@ -294,6 +342,10 @@ public sealed class CommunityService(IBookSpaceDbContext db) : ICommunityService
             .ToList();
         return PageResult<FeedItem>.Create(items, normalizedPage, size, total);
     }
+
+    private User EnsurePublicUser(Guid userId) =>
+        db.Users.FirstOrDefault(x => x.Id == userId && !x.IsLocked)
+        ?? throw ServiceErrors.NotFound("USER_NOT_FOUND", "Không tìm thấy người dùng.");
 
     private void EnsureBook(Guid bookId)
     {

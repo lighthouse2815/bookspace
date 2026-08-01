@@ -1,10 +1,8 @@
 import { BookOpenText, Flag, UsersThree } from '@phosphor-icons/react'
 import { Link } from 'react-router-dom'
-import { ReviewCard } from '../../components/community/ReviewCard'
-import { Avatar } from '../../components/ui/Avatar'
+import { ActivityCard } from '../../components/community/ActivityCard'
 import { EmptyState, ErrorState, LoadingRows } from '../../components/ui/States'
 import { useFeed } from '../../hooks/useCommunity'
-import { formatRelativeTime } from '../../lib/format'
 
 export function FeedPage() {
   const feed = useFeed()
@@ -27,63 +25,9 @@ export function FeedPage() {
             <ErrorState message="Không thể tải bảng tin." retry={() => void feed.refetch()} />
           ) : feed.data?.items.length ? (
             <div className="space-y-4">
-              {feed.data.items.map((item) =>
-                item.type === 'REVIEW' && item.review ? (
-                  <ReviewCard key={item.id} review={item.review} bookId={item.review.bookId} />
-                ) : (
-                  <article key={item.id} className="surface p-5 sm:p-6">
-                    <div className="flex gap-3">
-                      <Link to={`/users/${item.actor.id}`}>
-                        <Avatar src={item.actor.avatarUrl} name={item.actor.displayName} />
-                      </Link>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm text-body">
-                          <Link
-                            to={`/users/${item.actor.id}`}
-                            className="font-semibold text-heading hover:text-accent-strong"
-                          >
-                            {item.actor.displayName}
-                          </Link>{' '}
-                          {item.type === 'READING_PROGRESS'
-                            ? 'đã cập nhật tiến độ đọc'
-                            : item.type === 'CHALLENGE'
-                              ? 'đã đạt một cột mốc thử thách'
-                              : 'đã đăng bài trong câu lạc bộ'}
-                        </p>
-                        <p className="mt-1 text-xs text-muted">{formatRelativeTime(item.createdAt)}</p>
-                        {item.book ? (
-                          <Link
-                            to={`/books/${item.book.id}`}
-                            className="mt-4 block rounded-xl bg-surface-muted p-4"
-                          >
-                            <p className="font-semibold text-heading">{item.book.title}</p>
-                            <p className="mt-1 text-sm text-muted">{item.book.author?.name}</p>
-                            {typeof item.progressPercent === 'number' ? (
-                              <p className="mt-3 text-sm font-semibold text-accent-strong">
-                                {Math.round(item.progressPercent)}% hoàn thành
-                              </p>
-                            ) : null}
-                          </Link>
-                        ) : null}
-                        {item.challenge ? (
-                          <Link to="/challenges" className="mt-4 block rounded-xl bg-surface-muted p-4">
-                            <p className="font-semibold text-heading">{item.challenge.title}</p>
-                            <p className="mt-1 text-sm text-muted">
-                              {item.challenge.currentBooks}/{item.challenge.goalBooks} cuốn
-                            </p>
-                          </Link>
-                        ) : null}
-                        {item.club ? (
-                          <Link to={`/clubs/${item.club.id}`} className="mt-4 block rounded-xl bg-surface-muted p-4">
-                            <p className="font-semibold text-heading">{item.club.name}</p>
-                            {item.content ? <p className="mt-2 text-sm leading-6 text-body">{item.content}</p> : null}
-                          </Link>
-                        ) : null}
-                      </div>
-                    </div>
-                  </article>
-                ),
-              )}
+              {feed.data.items.map((item) => (
+                <ActivityCard key={`${item.type}-${item.id}`} item={item} />
+              ))}
             </div>
           ) : (
             <EmptyState

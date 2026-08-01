@@ -23,6 +23,8 @@ public sealed class User : Entity
     public string? AvatarUrl { get; private set; }
     public UserRole Role { get; private set; } = UserRole.USER;
     public bool IsLocked { get; private set; }
+    public bool IsReadingShelfPublic { get; private set; }
+    public bool IsReadingActivityPublic { get; private set; }
 
     public ICollection<Follow> Followers { get; } = new List<Follow>();
     public ICollection<Follow> Following { get; } = new List<Follow>();
@@ -32,6 +34,21 @@ public sealed class User : Entity
         DisplayName = Guard.Required(displayName, "Tên hiển thị", 100);
         Bio = Guard.Optional(bio, "Tiểu sử", 500);
         AvatarUrl = Guard.Optional(avatarUrl, "Ảnh đại diện", 1000);
+        Touch();
+    }
+
+    public void UpdatePublicReadingVisibility(
+        bool isReadingShelfPublic,
+        bool isReadingActivityPublic)
+    {
+        if (IsReadingShelfPublic == isReadingShelfPublic &&
+            IsReadingActivityPublic == isReadingActivityPublic)
+        {
+            return;
+        }
+
+        IsReadingShelfPublic = isReadingShelfPublic;
+        IsReadingActivityPublic = isReadingActivityPublic;
         Touch();
     }
 
