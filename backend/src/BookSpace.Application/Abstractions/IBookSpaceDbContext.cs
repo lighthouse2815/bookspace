@@ -24,6 +24,8 @@ public interface IBookSpaceDbContext
     IQueryable<ClubInvitation> ClubInvitations { get; }
     IQueryable<ClubPost> ClubPosts { get; }
     IQueryable<ClubPostComment> ClubPostComments { get; }
+    IQueryable<ClubChatMessage> ClubChatMessages { get; }
+    IQueryable<ClubChatReadState> ClubChatReadStates { get; }
     IQueryable<ClubReadingSprint> ClubReadingSprints { get; }
     IQueryable<ClubReadingSprintParticipant> ClubReadingSprintParticipants { get; }
     IQueryable<ClubReadingSprintCheckIn> ClubReadingSprintCheckIns { get; }

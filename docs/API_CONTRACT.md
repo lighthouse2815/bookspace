@@ -385,6 +385,13 @@ Reason mapping:
 
 `ClubPostCommentResponse`: `id`, `postId`, `author`, `content`, `createdAt`.
 
+`ClubChatMessageResponse`: `id`, `clubId`, `sender`, `content`, `createdAt`.
+
+`ClubChatMessagePageResponse`: `items` (mới nhất trước), `nextCursor`, `hasMore`.
+Cursor là opaque string do server cấp; client không tự tạo hoặc diễn giải.
+
+`ClubChatReadStateResponse`: `clubId`, `count`, `lastReadMessageId`, `lastReadAt`.
+
 `ReadingSprintSummaryResponse`:
 
 | Field | Kiểu |
@@ -1369,6 +1376,48 @@ Response `201`: `ApiResponse<ClubPostCommentResponse>`.
 
 Soft delete. Response `200`: `ApiResponse<null>`.
 
+### Club chat — Active club member
+
+Mọi endpoint dưới đây yêu cầu authentication và membership đang hoạt động. Người
+ngoài public club nhận `403 CLUB_CHAT_MEMBERSHIP_REQUIRED`; người ngoài private club
+nhận `404 CLUB_NOT_FOUND` để không xác nhận tài nguyên riêng tư.
+
+#### `GET /api/clubs/{clubId}/chat/messages?cursor=&pageSize=30`
+
+Response `200`: `ApiResponse<ClubChatMessagePageResponse>`. `pageSize` được chuẩn
+hóa trong `1..100`; trang trả mới nhất trước và `nextCursor=null` khi hết lịch sử.
+
+#### `POST /api/clubs/{clubId}/chat/messages`
+
+```json
+{ "content": "Mọi người đang đọc đến chương nào rồi?" }
+```
+
+Response `201`: `ApiResponse<ClubChatMessageResponse>`. Sau khi lưu thành công,
+server tạo notification `CLUB` cho member khác theo preference và phát event
+SignalR `ClubChatMessageCreated` tới các membership còn hoạt động.
+
+#### `GET /api/clubs/{clubId}/chat/unread-count`
+
+Response `200`: `ApiResponse<ClubChatReadStateResponse>`.
+
+#### `POST /api/clubs/{clubId}/chat/read`
+
+```json
+{ "lastReadMessageId": "00000000-0000-0000-0000-000000000000" }
+```
+
+Message phải thuộc club và nhìn thấy được bởi principal. Marker chỉ tiến về phía
+trước; request lặp/cũ không làm unread tăng lại. Response `200`:
+`ApiResponse<ClubChatReadStateResponse>`.
+
+#### SignalR `/hubs/club-chat`
+
+Hub yêu cầu JWT; WebSocket/SSE có thể truyền token qua `access_token` query chỉ
+trên path hub này. Hub không nhận lệnh gửi tin và không cho client tự join group.
+Server phát event `ClubChatMessageCreated` bằng user targeting từ danh sách
+membership active tại thời điểm commit.
+
 ### Reading sprint
 
 Các GET bên dưới dùng cùng visibility boundary với club: public club đọc được
@@ -1783,6 +1832,10 @@ thành lỗi của core API.
 | `ALREADY_CLUB_MEMBER` | 409 | membership trùng |
 | `CLUB_MEMBERSHIP_REQUIRED` | 403 | thao tác yêu cầu membership |
 | `CLUB_MEMBERSHIP_NOT_FOUND` | 404 | chưa là member |
+| `CLUB_CHAT_MEMBERSHIP_REQUIRED` | 403 | phòng chat yêu cầu membership đang hoạt động trong public club |
+| `INVALID_CHAT_CURSOR` | 400 | cursor phân trang lịch sử chat không hợp lệ |
+| `INVALID_CHAT_MESSAGE_ID` | 400 | UUID message dùng làm read marker rỗng/không hợp lệ |
+| `CLUB_CHAT_MESSAGE_NOT_FOUND` | 404 | message dùng làm read marker không thuộc club |
 | `OWNER_CANNOT_LEAVE` | 409 | owner cố leave |
 | `CLUB_POST_NOT_FOUND` | 404 | post không tồn tại |
 | `READING_SPRINT_NOT_FOUND` | 404 | sprint không thuộc club hoặc không tồn tại |

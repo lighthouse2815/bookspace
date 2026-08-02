@@ -270,6 +270,19 @@ Người quản lý có thể gửi lời nhắc đọc tối đa một lần tr
 
 Sách, membership, tiến độ, leaderboard, timeline và notification của đợt đọc đều nằm trong BookSpace. Bookstore không tham gia xác thực hoặc vòng đời sprint; tắt integration không làm mất bất kỳ chức năng nào.
 
+### UC-08B — Chat thời gian thực trong câu lạc bộ
+
+Mỗi câu lạc bộ có một phòng chat lưu lịch sử tại BookSpace. Chỉ membership đang
+hoạt động mới được đọc, gửi hoặc đánh dấu đã đọc; biết `clubId` không làm tăng
+quyền. Tin nhắn tối đa 2.000 ký tự sau khi trim và không nhận `userId` từ client.
+
+REST là nguồn authoritative cho history, gửi tin và read state. Sau khi transaction
+lưu tin nhắn cùng notification `CLUB` cho các thành viên khác commit, SignalR chỉ
+phát DTO đã lưu tới các user vẫn còn membership. Reconnect phải refetch trang mới
+nhất để lấp khoảng event bị mất. Unread count bỏ qua tin do chính principal gửi và
+mọi tin có trước thời điểm membership hiện tại; read marker là high-water mark,
+không được lùi khi request cũ đến muộn.
+
 ### UC-09 — Thử thách đọc
 
 Quản trị viên tạo bản nháp, chỉnh sửa và xuất bản thử thách. Thành viên chỉ tham gia thử thách `PUBLISHED` còn hạn. Server tự suy ra tiến độ từ số `LibraryItem` của thành viên có shelf `READ` và `FinishedAt` trong khoảng UTC đóng `[StartDate, EndDate]`, cùng quy tắc với Reading Goal metric `BOOKS`; thời điểm tham gia không thu hẹp cửa sổ. Client không có API nhập tiến độ. Use case tham gia lưu participation, initial progress/completion và notification liên quan trong một transaction rồi trả response đã commit; lỗi đồng bộ trước commit rollback toàn bộ transaction. Mutation hoàn tất sách cũng đồng bộ challenge trong cùng transaction; participation dùng atomic high-water mark nên tiến độ không giảm và completion event có khóa chống trùng ở database. Application sở hữu orchestration và quyết định nghiệp vụ; Infrastructure chỉ cung cấp primitive persistence cần thiết.
@@ -307,7 +320,7 @@ Tên route là hợp đồng điều hướng Goal 1; thay đổi cần đồng 
 | `/challenges` | Challenges | thử thách đã xuất bản |
 | `/challenges/:id` | Challenge detail | chi tiết, tiến độ tự động và join/leave |
 | `/clubs` | Clubs | danh sách câu lạc bộ công khai |
-| `/clubs/:id` | Club detail | thông tin, thành viên, bài đăng và đợt đọc chung theo quyền |
+| `/clubs/:id` | Club detail | thông tin, thành viên, chat realtime, bài đăng và đợt đọc chung theo quyền |
 | `/clubs/:clubId/sprints/:sprintId` | Reading sprint | tiến độ, leaderboard, timeline, quản trị và cột mốc theo quyền |
 | `/people` | People discovery | URL search, danh bạ công khai, gợi ý và follow theo principal |
 | `/users/:id` | Public profile | tổng quan, kệ sách theo quyền riêng tư, review, activity và kết nối |
@@ -424,7 +437,7 @@ Mật khẩu seed là thông tin dev-only, không được dùng hoặc tự đ�
 
 - Thanh toán, giỏ hàng, vận chuyển và tồn kho.
 - Đọc ebook có DRM hoặc lưu file sách.
-- Chat thời gian thực.
+- Nhắn tin riêng, gửi tệp và gọi âm thanh/video.
 - Recommendation bằng machine learning; recommendation rule-based trong UC-03A
   vẫn thuộc Goal 1.
 - Multi-tenant hoặc nhiều tổ chức.

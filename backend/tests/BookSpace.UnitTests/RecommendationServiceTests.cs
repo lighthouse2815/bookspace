@@ -354,6 +354,8 @@ public sealed class RecommendationServiceTests
         public IQueryable<ClubInvitation> ClubInvitations => Query<ClubInvitation>();
         public IQueryable<ClubPost> ClubPosts => Query<ClubPost>();
         public IQueryable<ClubPostComment> ClubPostComments => Query<ClubPostComment>();
+        public IQueryable<ClubChatMessage> ClubChatMessages => Query<ClubChatMessage>();
+        public IQueryable<ClubChatReadState> ClubChatReadStates => Query<ClubChatReadState>();
         public IQueryable<ClubReadingSprint> ClubReadingSprints => Query<ClubReadingSprint>();
         public IQueryable<ClubReadingSprintParticipant> ClubReadingSprintParticipants =>
             Query<ClubReadingSprintParticipant>();

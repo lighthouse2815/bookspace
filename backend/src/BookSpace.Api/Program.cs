@@ -2,6 +2,9 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using BookSpace.Api.Common;
+using BookSpace.Api.Hubs;
+using BookSpace.Api.Realtime;
+using BookSpace.Application.Abstractions;
 using BookSpace.Infrastructure;
 using BookSpace.Infrastructure.Persistence;
 using BookSpace.Infrastructure.Security;
@@ -43,6 +46,8 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks();
 builder.Services.AddBookSpaceInfrastructure(builder.Configuration);
+builder.Services.AddSignalR();
+builder.Services.AddScoped<IClubChatRealtimePublisher, SignalRClubChatRealtimePublisher>();
 
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:AllowedOrigins")
@@ -78,7 +83,19 @@ builder.Services
             NameClaimType = System.Security.Claims.ClaimTypes.Name,
             RoleClaimType = System.Security.Claims.ClaimTypes.Role
         };
-        options.Events = JwtResponseEvents.Create();
+        var events = JwtResponseEvents.Create();
+        events.OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            if (!string.IsNullOrWhiteSpace(accessToken) &&
+                context.HttpContext.Request.Path.StartsWithSegments("/hubs/club-chat"))
+            {
+                context.Token = accessToken;
+            }
+
+            return Task.CompletedTask;
+        };
+        options.Events = events;
     });
 builder.Services.AddAuthorization(options =>
 {
@@ -114,6 +131,7 @@ app.MapGet("/", () => ApiResponse<object>.Ok(
     },
     "BookSpace đang hoạt động."));
 app.MapControllers();
+app.MapHub<ClubChatHub>("/hubs/club-chat");
 
 await using (var scope = app.Services.CreateAsyncScope())
 {

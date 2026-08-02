@@ -56,6 +56,111 @@ public sealed class ClubManagementTests
     }
 
     [Fact]
+    public void Club_chat_message_validates_content_and_read_cursor_never_regresses()
+    {
+        var invalid = Assert.Throws<DomainException>(() => new ClubChatMessage(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "   ",
+            Now));
+        Assert.Equal("VALIDATION_ERROR", invalid.Code);
+        var tooLong = Assert.Throws<DomainException>(() => new ClubChatMessage(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            new string('a', 2001),
+            Now));
+        Assert.Equal("VALIDATION_ERROR", tooLong.Code);
+
+        var state = new ClubChatReadState(Guid.NewGuid());
+        var olderId = Guid.Parse("10000000-0000-0000-0000-000000000000");
+        var newerId = Guid.Parse("20000000-0000-0000-0000-000000000000");
+        Assert.True(state.Advance(olderId, Now));
+        Assert.True(state.Advance(newerId, Now));
+        Assert.False(state.Advance(olderId, Now));
+        Assert.False(state.Advance(Guid.NewGuid(), Now.AddMinutes(-1)));
+        Assert.Equal(newerId, state.LastReadMessageId);
+        Assert.Equal(Now, state.LastReadAt);
+    }
+
+    [Fact]
+    public async Task Club_chat_persists_message_and_notifications_before_realtime_publish()
+    {
+        var db = new FakeBookSpaceDbContext();
+        var owner = new User("chat-owner@bookspace.local", "hash", "Chat Owner");
+        var member = new User("chat-member@bookspace.local", "hash", "Chat Member");
+        var club = new BookClub(
+            owner.Id,
+            "CLB Chat",
+            null,
+            null,
+            ClubVisibility.PUBLIC);
+        db.AddRange([owner, member]);
+        db.Add(club);
+        db.Add(new BookClubMember(club.Id, owner.Id, ClubMemberRole.OWNER));
+        db.Add(new BookClubMember(club.Id, member.Id, ClubMemberRole.MEMBER));
+        var saved = false;
+        db.SaveChangesHandler = _ =>
+        {
+            saved = true;
+            return Task.FromResult(1);
+        };
+        var boundary = new RecordingClubChatMutationBoundary(() => saved);
+        var publisher = new RecordingChatPublisher(() => saved && boundary.Completed);
+        var service = new ClubChatService(
+            db,
+            publisher,
+            boundary,
+            new FixedTimeProvider(Now));
+
+        var result = await service.SendMessageAsync(
+            owner.Id,
+            club.Id,
+            new SendClubChatMessageRequest("  Xin chào câu lạc bộ  "),
+            CancellationToken.None);
+
+        Assert.Equal("Xin chào câu lạc bộ", result.Content);
+        Assert.Single(db.Set<ClubChatMessage>());
+        var notification = Assert.Single(db.Set<Notification>());
+        Assert.Equal(member.Id, notification.UserId);
+        Assert.Equal(NotificationType.CLUB, notification.Type);
+        Assert.Equal($"/clubs/{club.Id}?tab=chat", notification.Link);
+        Assert.Equal(1, publisher.PublishCount);
+        Assert.Equal(
+            new[] { owner.Id, member.Id }.Order().ToArray(),
+            publisher.MemberIds.Order().ToArray());
+    }
+
+    [Fact]
+    public async Task Club_chat_does_not_publish_when_persistence_fails()
+    {
+        var db = new FakeBookSpaceDbContext();
+        var owner = new User("chat-fail@bookspace.local", "hash", "Chat Fail");
+        var club = new BookClub(
+            owner.Id,
+            "CLB Chat lỗi",
+            null,
+            null,
+            ClubVisibility.PUBLIC);
+        db.Add(owner);
+        db.Add(club);
+        db.Add(new BookClubMember(club.Id, owner.Id, ClubMemberRole.OWNER));
+        db.SaveChangesHandler = _ => throw new InvalidOperationException("save failed");
+        var publisher = new RecordingChatPublisher(() => false);
+        var service = new ClubChatService(
+            db,
+            publisher,
+            new InlineClubChatMutationBoundary(),
+            new FixedTimeProvider(Now));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.SendMessageAsync(
+            owner.Id,
+            club.Id,
+            new SendClubChatMessageRequest("Không được phát realtime"),
+            CancellationToken.None));
+        Assert.Equal(0, publisher.PublishCount);
+    }
+
+    [Fact]
     public async Task Repeated_pending_invite_returns_same_invitation_without_duplicate_notification()
     {
         var fixture = ClubFixture.Create();
@@ -226,9 +331,52 @@ public sealed class ClubManagementTests
         public override DateTimeOffset GetUtcNow() => now;
     }
 
+    private sealed class InlineClubChatMutationBoundary : IClubChatMutationBoundary
+    {
+        public Task<TResult> ExecuteAsync<TResult>(
+            Func<CancellationToken, Task<TResult>> operation,
+            CancellationToken cancellationToken) => operation(cancellationToken);
+    }
+
+    private sealed class RecordingClubChatMutationBoundary(Func<bool> persistenceCompleted)
+        : IClubChatMutationBoundary
+    {
+        public bool Completed { get; private set; }
+
+        public async Task<TResult> ExecuteAsync<TResult>(
+            Func<CancellationToken, Task<TResult>> operation,
+            CancellationToken cancellationToken)
+        {
+            var result = await operation(cancellationToken);
+            Assert.True(persistenceCompleted());
+            Completed = true;
+            return result;
+        }
+    }
+
+    private sealed class RecordingChatPublisher(Func<bool> persistenceCompleted)
+        : IClubChatRealtimePublisher
+    {
+        public int PublishCount { get; private set; }
+        public IReadOnlyList<Guid> MemberIds { get; private set; } = [];
+
+        public Task PublishMessageCreatedAsync(
+            ClubChatMessageDto message,
+            IReadOnlyList<Guid> activeMemberIds,
+            CancellationToken cancellationToken)
+        {
+            Assert.True(persistenceCompleted());
+            PublishCount++;
+            MemberIds = activeMemberIds;
+            return Task.CompletedTask;
+        }
+    }
+
     private sealed class FakeBookSpaceDbContext : IBookSpaceDbContext
     {
         private readonly Dictionary<Type, object> _sets = [];
+
+        public Func<CancellationToken, Task<int>>? SaveChangesHandler { get; set; }
 
         public IQueryable<User> Users => Query<User>();
         public IQueryable<RefreshToken> RefreshTokens => Query<RefreshToken>();
@@ -250,6 +398,8 @@ public sealed class ClubManagementTests
         public IQueryable<ClubInvitation> ClubInvitations => Query<ClubInvitation>();
         public IQueryable<ClubPost> ClubPosts => Query<ClubPost>();
         public IQueryable<ClubPostComment> ClubPostComments => Query<ClubPostComment>();
+        public IQueryable<ClubChatMessage> ClubChatMessages => Query<ClubChatMessage>();
+        public IQueryable<ClubChatReadState> ClubChatReadStates => Query<ClubChatReadState>();
         public IQueryable<ClubReadingSprint> ClubReadingSprints => Query<ClubReadingSprint>();
         public IQueryable<ClubReadingSprintParticipant> ClubReadingSprintParticipants =>
             Query<ClubReadingSprintParticipant>();
@@ -288,7 +438,7 @@ public sealed class ClubManagementTests
             Set<T>().RemoveAll(item => entities.Contains(item));
 
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(1);
+            SaveChangesHandler?.Invoke(cancellationToken) ?? Task.FromResult(1);
 
         private IQueryable<T> Query<T>() where T : class => Set<T>().AsQueryable();
     }

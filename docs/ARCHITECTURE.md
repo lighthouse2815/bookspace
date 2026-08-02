@@ -141,6 +141,7 @@ Mỗi use case được tiếp cận qua interface:
 | `IReadingService` | library, progress, completed-session correction và Focus Reading lifecycle |
 | `ICommunityService` | review, like, comment, feed |
 | `IClubService` | club settings, invitations, membership roles, shared current book, post/comment |
+| `IClubChatService` | member-only history, send, unread high-water và read marker |
 | `IClubReadingSprintService` | sprint lifecycle, participant state, progress, leaderboard, timeline, milestone/response và reminder |
 | `IChallengeService` | challenge, join, progress, publish |
 | `INotificationService` | list, unread count, mark read |
@@ -192,6 +193,8 @@ Các unique index bắt buộc:
 | `Review` | unique `(UserId, BookId)` khi active |
 | `ReviewLike` | unique `(ReviewId, UserId)` |
 | `BookClubMember` | unique active `(ClubId, UserId)` |
+| `ClubChatMessage` | history `(ClubId, CreatedAt, Id)` |
+| `ClubChatReadState` | unique `MembershipId` |
 | `ClubInvitation` | unique pending `(ClubId, InvitedUserId)`; inbox index `(InvitedUserId, Status, ExpiresAt)` |
 | `ClubReadingSprint` | `(ClubId, CreatedAt)`; status-filter support `(ClubId, StartsAt, EndsAt, CompletedAt, CancelledAt)` |
 | `ClubReadingSprintParticipant` | unique `(SprintId, UserId)`; leaderboard `(SprintId, LeftAt, ProgressValue)` |
@@ -222,6 +225,8 @@ API có:
 - `/health` không cần auth, chỉ trả trạng thái tối thiểu.
 - CORS theo allowlist.
 - JSON enum dạng string.
+- SignalR hub authenticated ở `/hubs/club-chat`; query token chỉ được chấp nhận
+  cho đúng hub path. Hub outbound-only, còn persistence/validation đi qua REST.
 
 ## 5. Frontend design
 
@@ -233,6 +238,7 @@ API có:
 - React Router 7.
 - TanStack Query 5.
 - Axios.
+- SignalR client cho event chat outbound, tự reconnect và refetch REST sau reconnect.
 - Tailwind CSS 4.
 - Oxlint.
 
@@ -290,8 +296,10 @@ Query key tối thiểu:
 ["users", principalScope, "detail", userId]
 ["feed", principalScope, { type, page, pageSize }]
 ["clubs", filters]
-["club", clubId]
+["club", principalScope, clubId]
 ["club-posts", clubId, paging]
+["club-chat", principalScope, clubId, cursor]
+["club-chat-unread", principalScope, clubId]
 ["challenges", paging]
 ["my-challenges", paging]
 ["notifications", filters]
@@ -309,6 +317,8 @@ Mutation phải invalidate đúng consumer:
   `following`, `book-recommendations`, `feed`, `dashboard`; mutation cùng target
   dùng shared pending key.
 - Club/member/post/comment: `clubs`, `club`, `club-posts`, `club-comments`, `feed`.
+- Club chat send/read/realtime: merge theo `message.id`, invalidate history/unread
+  của đúng principal; reconnect refetch trang mới nhất thay vì tin hoàn toàn vào event stream.
 - Reading sprint: list/detail/history, participant state, leaderboard, timeline và milestone; mutation đồng thời invalidate club detail và notification khi có recipient.
 - Challenge: `challenges`, `my-challenges`, `feed`, `dashboard`, `notifications`.
 - Mark notification: `notifications`, `notification-unread-count`.

@@ -19,6 +19,7 @@ adapter can connect the two products later without sharing databases.
 - Ratings, reviews, comments and reactions
 - Public reader discovery, relationship-aware suggestions, privacy-aware reading profiles, follows and a filterable, paginated social feed
 - Book clubs with private invitations, member roles, shared current books, discussions and collaborative reading sprints
+- Persistent realtime club chat with member-only history, unread state and in-app notifications
 - Reading challenges with server-derived progress from completed library books
 - In-app notification center with server unread count, category filters, pagination and delivery preferences
 - Member dashboard, rolling activity heatmap, streaks, period reports and finish forecasts

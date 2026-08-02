@@ -10,6 +10,7 @@ import {
 } from '@phosphor-icons/react'
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { ClubChatPanel } from '../../components/clubs/ClubChatPanel'
 import { ClubManagementPanel } from '../../components/clubs/ClubManagementPanel'
 import { ClubRoster } from '../../components/clubs/ClubRoster'
 import { ReadingSprintSection } from '../../components/clubs/ReadingSprintSection'
@@ -285,58 +286,61 @@ export function ClubDetailPage() {
       <ReadingSprintSection club={club.data} />
 
       <div className="mt-8 grid gap-7 lg:grid-cols-[minmax(0,1fr)_23rem] lg:items-start">
-        <section>
-          <h2 className="text-xl font-bold text-heading">Thảo luận</h2>
-          {club.data.isJoined ? (
-            <form onSubmit={submitPost} className="mt-4 surface p-4">
-              <label htmlFor="club-post" className="sr-only">
-                Viết bài trong câu lạc bộ
-              </label>
-              <textarea
-                id="club-post"
-                value={content}
-                onChange={(event) => setContent(event.target.value)}
-                className="input min-h-28 resize-y"
-                maxLength={3000}
-                placeholder="Bạn muốn chia sẻ điều gì với câu lạc bộ?"
-              />
-              <div className="mt-3 flex justify-end">
-                <Button
-                  type="submit"
-                  size="sm"
-                  loading={createPost.isPending}
-                  icon={<PaperPlaneTilt size={16} />}
-                >
-                  Đăng bài
-                </Button>
-              </div>
-            </form>
-          ) : null}
-          <div className="mt-5 space-y-4">
-            {club.data.posts?.length ? (
-              club.data.posts.map((post) => (
-                <ClubPostDiscussion
-                  key={post.id}
-                  clubId={id}
-                  post={post}
-                  canComment={isAuthenticated && club.data.isJoined}
+        <div className="space-y-7">
+          {isAuthenticated && club.data.isJoined ? <ClubChatPanel clubId={id} /> : null}
+          <section>
+            <h2 className="text-xl font-bold text-heading">Thảo luận</h2>
+            {club.data.isJoined ? (
+              <form onSubmit={submitPost} className="mt-4 surface p-4">
+                <label htmlFor="club-post" className="sr-only">
+                  Viết bài trong câu lạc bộ
+                </label>
+                <textarea
+                  id="club-post"
+                  value={content}
+                  onChange={(event) => setContent(event.target.value)}
+                  className="input min-h-28 resize-y"
+                  maxLength={3000}
+                  placeholder="Bạn muốn chia sẻ điều gì với câu lạc bộ?"
                 />
-              ))
-            ) : (
-              <EmptyState
-                icon={UsersThree}
-                title="Chưa có bài thảo luận"
-                description={
-                  club.data.isJoined
-                    ? 'Hãy mở đầu cuộc trò chuyện bằng một câu hỏi hoặc cảm nhận.'
-                    : club.data.isPrivate
-                      ? 'Bạn cần chấp nhận lời mời để tham gia cuộc trò chuyện.'
-                      : 'Tham gia câu lạc bộ để bắt đầu cuộc trò chuyện.'
-                }
-              />
-            )}
-          </div>
-        </section>
+                <div className="mt-3 flex justify-end">
+                  <Button
+                    type="submit"
+                    size="sm"
+                    loading={createPost.isPending}
+                    icon={<PaperPlaneTilt size={16} />}
+                  >
+                    Đăng bài
+                  </Button>
+                </div>
+              </form>
+            ) : null}
+            <div className="mt-5 space-y-4">
+              {club.data.posts?.length ? (
+                club.data.posts.map((post) => (
+                  <ClubPostDiscussion
+                    key={post.id}
+                    clubId={id}
+                    post={post}
+                    canComment={isAuthenticated && club.data.isJoined}
+                  />
+                ))
+              ) : (
+                <EmptyState
+                  icon={UsersThree}
+                  title="Chưa có bài thảo luận"
+                  description={
+                    club.data.isJoined
+                      ? 'Hãy mở đầu cuộc trò chuyện bằng một câu hỏi hoặc cảm nhận.'
+                      : club.data.isPrivate
+                        ? 'Bạn cần chấp nhận lời mời để tham gia cuộc trò chuyện.'
+                        : 'Tham gia câu lạc bộ để bắt đầu cuộc trò chuyện.'
+                  }
+                />
+              )}
+            </div>
+          </section>
+        </div>
         <ClubRoster club={club.data} />
       </div>
     </div>

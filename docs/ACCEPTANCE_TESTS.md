@@ -343,7 +343,22 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-CLUB-022 | P0 | Owner/moderator đặt và gỡ sách đọc chung từ catalog nội bộ; thao tác lặp không tạo notification trùng. |
 | AC-CLUB-023 | P0 | UI có tạo/sửa club, inbox accept/decline, roster, invite/revoke, role/remove và chọn/gỡ sách chung; state cập nhật không reload trang. |
 
-### 14.1 Đợt đọc chung
+### 14.1 Club chat realtime
+
+| ID | P | Given/When/Then |
+|---|---|---|
+| AC-CHAT-001 | P0 | Active member gửi content hợp lệ nhận 201, message được persist và history trả đúng sender/content/thời gian. |
+| AC-CHAT-002 | P0 | Content rỗng hoặc vượt 2.000 ký tự trả validation tiếng Việt; client không thể giả sender/user ID. |
+| AC-CHAT-003 | P0 | Nonmember public club nhận 403 `CLUB_CHAT_MEMBERSHIP_REQUIRED`; nonmember private club nhận 404 cho history/send/unread/read dù biết UUID. |
+| AC-CHAT-004 | P0 | Cursor history sắp `createdAt desc, id desc`, không trùng/bỏ item giữa các trang và giới hạn page size. |
+| AC-CHAT-005 | P0 | Unread chỉ tính message của member khác sau thời điểm membership/read marker; message của chính principal và lịch sử trước membership không tăng count. |
+| AC-CHAT-006 | P0 | Mark-read dùng message thuộc đúng club, idempotent và high-water không lùi khi request cũ đến sau. |
+| AC-CHAT-007 | P0 | Mỗi message tạo notification `CLUB` cho active member khác khi preference bật, không tạo cho sender/member đã rời hoặc preference tắt. |
+| AC-CHAT-008 | P0 | SignalR chỉ chấp nhận JWT trên hub path và phát `ClubChatMessageCreated` tới user active; member vừa leave/kick không nhận event sau đó. |
+| AC-CHAT-009 | P0 | UI chỉ kết nối/mount chat cho authenticated member, merge POST và event theo ID không trùng, reconnect refetch để lấp event bị mất. |
+| AC-CHAT-010 | P0 | UI tải tin cũ bằng cursor, giữ vị trí khi đang đọc phía trên, hiện badge tin mới và mark-read khi người dùng thực sự ở cuối transcript. |
+
+### 14.2 Đợt đọc chung
 
 | ID | P | Given/When/Then |
 |---|---|---|

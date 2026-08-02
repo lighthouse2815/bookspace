@@ -12,7 +12,10 @@ export const clubKeys = {
   all: ['clubs'] as const,
   lists: ['clubs', 'list'] as const,
   list: (search: string) => [...clubKeys.all, 'list', search] as const,
-  detail: (id: string) => [...clubKeys.all, 'detail', id] as const,
+  details: ['clubs', 'detail'] as const,
+  detailForId: (id: string) => [...clubKeys.details, id] as const,
+  detail: (id: string, viewerScope: string) =>
+    [...clubKeys.detailForId(id), viewerScope] as const,
   members: (id: string) => [...clubKeys.all, 'members', id] as const,
   invitations: (id: string, status?: ClubInvitationStatus) =>
     [...clubKeys.all, 'invitations', id, status ?? 'ALL'] as const,
@@ -30,10 +33,11 @@ export function useClubs(search?: string) {
 }
 
 export function useClub(id?: string) {
+  const { user, isLoading } = useAuth()
   return useQuery({
-    queryKey: clubKeys.detail(id ?? ''),
+    queryKey: clubKeys.detail(id ?? '', user?.id ?? 'guest'),
     queryFn: () => clubService.club(id!),
-    enabled: Boolean(id),
+    enabled: Boolean(id) && !isLoading,
   })
 }
 
@@ -51,7 +55,7 @@ export function useUpdateClub(id: string) {
     mutationFn: (input: SaveClubInput) => clubService.update(id, input),
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: clubKeys.detail(id) }),
+        queryClient.invalidateQueries({ queryKey: clubKeys.detailForId(id) }),
         queryClient.invalidateQueries({ queryKey: clubKeys.lists }),
       ])
     },
@@ -71,7 +75,7 @@ export function useClubMembership(id: string, joined: boolean) {
           queryClient.invalidateQueries({ queryKey: clubKeys.lists }),
           queryClient.invalidateQueries({ queryKey: ['feed'] }),
         ])
-        queryClient.removeQueries({ queryKey: clubKeys.detail(id) })
+        queryClient.removeQueries({ queryKey: clubKeys.detailForId(id) })
         queryClient.removeQueries({ queryKey: readingSprintKeys.club(id) })
         return
       }
@@ -106,7 +110,7 @@ export function useUpdateClubMemberRole(id: string) {
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: clubKeys.members(id) }),
-        queryClient.invalidateQueries({ queryKey: clubKeys.detail(id) }),
+        queryClient.invalidateQueries({ queryKey: clubKeys.detailForId(id) }),
         queryClient.invalidateQueries({ queryKey: readingSprintKeys.club(id) }),
       ])
     },
@@ -120,7 +124,7 @@ export function useRemoveClubMember(id: string) {
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: clubKeys.members(id) }),
-        queryClient.invalidateQueries({ queryKey: clubKeys.detail(id) }),
+        queryClient.invalidateQueries({ queryKey: clubKeys.detailForId(id) }),
         queryClient.invalidateQueries({ queryKey: clubKeys.lists }),
         queryClient.invalidateQueries({ queryKey: readingSprintKeys.club(id) }),
       ])
@@ -178,7 +182,7 @@ export function useRespondToClubInvitation() {
     onSuccess: async (_data, variables) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: clubKeys.myInvitations() }),
-        queryClient.invalidateQueries({ queryKey: clubKeys.detail(variables.clubId) }),
+        queryClient.invalidateQueries({ queryKey: clubKeys.detailForId(variables.clubId) }),
         queryClient.invalidateQueries({ queryKey: clubKeys.members(variables.clubId) }),
         queryClient.invalidateQueries({ queryKey: clubKeys.lists }),
         queryClient.invalidateQueries({ queryKey: ['feed'] }),
@@ -196,7 +200,7 @@ export function useSetClubCurrentBook(id: string) {
     mutationFn: (bookId: string) => clubService.setCurrentBook(id, bookId),
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: clubKeys.detail(id) }),
+        queryClient.invalidateQueries({ queryKey: clubKeys.detailForId(id) }),
         queryClient.invalidateQueries({ queryKey: clubKeys.lists }),
       ])
     },
@@ -209,7 +213,7 @@ export function useClearClubCurrentBook(id: string) {
     mutationFn: () => clubService.clearCurrentBook(id),
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: clubKeys.detail(id) }),
+        queryClient.invalidateQueries({ queryKey: clubKeys.detailForId(id) }),
         queryClient.invalidateQueries({ queryKey: clubKeys.lists }),
       ])
     },
@@ -222,7 +226,7 @@ export function useCreateClubPost(id: string) {
     mutationFn: (content: string) => clubService.createPost(id, content),
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: clubKeys.detail(id) }),
+        queryClient.invalidateQueries({ queryKey: clubKeys.detailForId(id) }),
         queryClient.invalidateQueries({ queryKey: ['feed'] }),
       ])
     },
@@ -243,7 +247,7 @@ export function useCreateClubPostComment(clubId: string, postId: string) {
     mutationFn: (content: string) => clubService.createPostComment(postId, content),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['club-post-comments', postId] })
-      void queryClient.invalidateQueries({ queryKey: clubKeys.detail(clubId) })
+      void queryClient.invalidateQueries({ queryKey: clubKeys.detailForId(clubId) })
     },
   })
 }

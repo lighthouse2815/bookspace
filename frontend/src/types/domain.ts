@@ -365,6 +365,27 @@ export interface ClubPostComment {
   createdAt: string
 }
 
+export interface ClubChatMessage {
+  id: string
+  clubId: string
+  sender: User
+  content: string
+  createdAt: string
+}
+
+export interface ClubChatMessagePage {
+  items: ClubChatMessage[]
+  nextCursor: string | null
+  hasMore: boolean
+}
+
+export interface ClubChatReadState {
+  clubId: string
+  count: number
+  lastReadMessageId: string | null
+  lastReadAt: string | null
+}
+
 export type ClubMemberRole = 'OWNER' | 'MODERATOR' | 'MEMBER'
 export type ClubInvitationStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'REVOKED' | 'EXPIRED'
 

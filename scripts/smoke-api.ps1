@@ -180,6 +180,10 @@ $clubSprints = $null
 $sprintDetail = $null
 $sprintLeaderboard = $null
 $sprintTimeline = $null
+$clubChatMessage = $null
+$clubChatHistory = $null
+$clubChatUnread = $null
+$clubChatReadState = $null
 if ($clubs.success -and $clubs.data.items.Count -gt 0) {
     $clubId = $clubs.data.items[0].id
     $clubDetail = Invoke-BookSpaceRequest -Method Get -Path "/api/clubs/$clubId" -AccessToken $token
@@ -206,6 +210,44 @@ if ($clubs.success -and $clubs.data.items.Count -gt 0) {
             -Path "/api/clubs/$clubId/reading-sprints/$sprintId/timeline?page=1&pageSize=20" `
             -AccessToken $token
     }
+
+    $chatClub = @($clubs.data.items | Where-Object { $_.isJoined } | Select-Object -First 1)
+    if ($chatClub.Count -eq 0) {
+        $chatClub = @(
+            $clubs.data.items |
+                Where-Object { -not $_.isPrivate } |
+                Select-Object -First 1
+        )
+        if ($chatClub.Count -eq 0) {
+            throw 'Seed không có câu lạc bộ khả dụng để smoke Club Chat.'
+        }
+
+        $null = Invoke-BookSpaceRequest `
+            -Method Post `
+            -Path "/api/clubs/$($chatClub[0].id)/join" `
+            -AccessToken $token
+    }
+
+    $chatClubId = $chatClub[0].id
+    $chatContent = "Club Chat smoke $([Guid]::NewGuid().ToString('N'))"
+    $clubChatMessage = Invoke-BookSpaceRequest `
+        -Method Post `
+        -Path "/api/clubs/$chatClubId/chat/messages" `
+        -Body @{ content = $chatContent } `
+        -AccessToken $token
+    $clubChatHistory = Invoke-BookSpaceRequest `
+        -Method Get `
+        -Path "/api/clubs/$chatClubId/chat/messages?pageSize=30" `
+        -AccessToken $token
+    $clubChatUnread = Invoke-BookSpaceRequest `
+        -Method Get `
+        -Path "/api/clubs/$chatClubId/chat/unread-count" `
+        -AccessToken $token
+    $clubChatReadState = Invoke-BookSpaceRequest `
+        -Method Post `
+        -Path "/api/clubs/$chatClubId/chat/read" `
+        -Body @{ lastReadMessageId = $clubChatMessage.data.id } `
+        -AccessToken $token
 }
 $insightsOverview = Invoke-BookSpaceRequest `
     -Method Get `
@@ -502,6 +544,24 @@ if (
 }
 
 if (
+    $null -eq $clubChatMessage -or
+    -not $clubChatMessage.success -or
+    $clubChatMessage.data.content -ne $chatContent -or
+    ($clubChatMessage.data.sender.PSObject.Properties.Name -contains 'email') -or
+    $null -eq $clubChatHistory -or
+    -not $clubChatHistory.success -or
+    @($clubChatHistory.data.items | Where-Object { $_.id -eq $clubChatMessage.data.id }).Count -ne 1 -or
+    $null -eq $clubChatUnread -or
+    -not $clubChatUnread.success -or
+    $null -eq $clubChatReadState -or
+    -not $clubChatReadState.success -or
+    $clubChatReadState.data.lastReadMessageId -ne $clubChatMessage.data.id -or
+    $clubChatReadState.data.count -ne 0
+) {
+    throw 'Club Chat persistence, public DTO, history hoặc read-state contract không hợp lệ.'
+}
+
+if (
     $insightsCalendar.data.daysData.Count -ne 365 -or
     $insightsWeekly.data.items.Count -ne 12 -or
     $insightsMonthly.data.items.Count -ne 12
@@ -530,6 +590,7 @@ if (
     FirstClubReadingSprints = if ($null -ne $clubSprints) { $clubSprints.data.totalItems } else { 0 }
     FirstSprintParticipants = if ($null -ne $sprintLeaderboard) { $sprintLeaderboard.data.totalItems } else { 0 }
     FirstSprintTimelineItems = if ($null -ne $sprintTimeline) { $sprintTimeline.data.totalItems } else { 0 }
+    ClubChatMessages = if ($null -ne $clubChatHistory) { $clubChatHistory.data.items.Count } else { 0 }
     CurrentStreak = $insightsOverview.data.currentStreak
     InsightCalendarDays = $insightsCalendar.data.daysData.Count
     InsightWeeks = $insightsWeekly.data.items.Count

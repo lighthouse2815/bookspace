@@ -28,6 +28,8 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
     public DbSet<ClubInvitation> ClubInvitationSet => Set<ClubInvitation>();
     public DbSet<ClubPost> ClubPostSet => Set<ClubPost>();
     public DbSet<ClubPostComment> ClubPostCommentSet => Set<ClubPostComment>();
+    public DbSet<ClubChatMessage> ClubChatMessageSet => Set<ClubChatMessage>();
+    public DbSet<ClubChatReadState> ClubChatReadStateSet => Set<ClubChatReadState>();
     public DbSet<ClubReadingSprint> ClubReadingSprintSet => Set<ClubReadingSprint>();
     public DbSet<ClubReadingSprintParticipant> ClubReadingSprintParticipantSet =>
         Set<ClubReadingSprintParticipant>();
@@ -63,6 +65,8 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
     IQueryable<ClubInvitation> IBookSpaceDbContext.ClubInvitations => ClubInvitationSet;
     IQueryable<ClubPost> IBookSpaceDbContext.ClubPosts => ClubPostSet;
     IQueryable<ClubPostComment> IBookSpaceDbContext.ClubPostComments => ClubPostCommentSet;
+    IQueryable<ClubChatMessage> IBookSpaceDbContext.ClubChatMessages => ClubChatMessageSet;
+    IQueryable<ClubChatReadState> IBookSpaceDbContext.ClubChatReadStates => ClubChatReadStateSet;
     IQueryable<ClubReadingSprint> IBookSpaceDbContext.ClubReadingSprints =>
         ClubReadingSprintSet;
     IQueryable<ClubReadingSprintParticipant> IBookSpaceDbContext.ClubReadingSprintParticipants =>
@@ -359,6 +363,34 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
             entity.HasOne(x => x.Author).WithMany().HasForeignKey(x => x.AuthorId).OnDelete(DeleteBehavior.Restrict);
             entity.Ignore(x => x.IsDeleted);
         });
+        modelBuilder.Entity<ClubChatMessage>(entity =>
+        {
+            entity.ToTable("club_chat_messages");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.ClubId, x.CreatedAt, x.Id });
+            entity.Property(x => x.Content).HasMaxLength(2000).IsRequired();
+            entity.HasOne(x => x.Club)
+                .WithMany()
+                .HasForeignKey(x => x.ClubId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Sender)
+                .WithMany()
+                .HasForeignKey(x => x.SenderId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.Ignore(x => x.IsDeleted);
+        });
+        modelBuilder.Entity<ClubChatReadState>(entity =>
+        {
+            entity.ToTable("club_chat_read_states");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.MembershipId).IsUnique();
+            entity.Property(x => x.UpdatedAt).IsConcurrencyToken();
+            entity.HasOne(x => x.Membership)
+                .WithMany()
+                .HasForeignKey(x => x.MembershipId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.Ignore(x => x.IsDeleted);
+        });
     }
 
     private static void ConfigureChallenges(ModelBuilder modelBuilder)
@@ -554,6 +586,15 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
             x.InvitedUser.DeletedAt == null);
         modelBuilder.Entity<ClubPost>().HasQueryFilter(x => x.DeletedAt == null);
         modelBuilder.Entity<ClubPostComment>().HasQueryFilter(x => x.DeletedAt == null);
+        modelBuilder.Entity<ClubChatMessage>().HasQueryFilter(x =>
+            x.DeletedAt == null &&
+            x.Club.DeletedAt == null &&
+            x.Sender.DeletedAt == null);
+        modelBuilder.Entity<ClubChatReadState>().HasQueryFilter(x =>
+            x.DeletedAt == null &&
+            x.Membership.DeletedAt == null &&
+            x.Membership.Club.DeletedAt == null &&
+            x.Membership.User.DeletedAt == null);
         modelBuilder.Entity<ClubReadingSprint>().HasQueryFilter(x =>
             x.DeletedAt == null &&
             x.Club.DeletedAt == null &&

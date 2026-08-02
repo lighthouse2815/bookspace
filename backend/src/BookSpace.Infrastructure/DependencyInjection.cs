@@ -41,6 +41,7 @@ public static class DependencyInjection
         services.AddScoped<IReadingService, ReadingService>();
         services.AddScoped<ICommunityService, CommunityService>();
         services.AddScoped<IClubService, ClubService>();
+        services.AddScoped<IClubChatService, ClubChatService>();
         services.AddScoped<IClubReadingSprintService, ClubReadingSprintService>();
         services.AddScoped<IChallengeService, ChallengeService>();
         services.AddScoped<IChallengeProgressSynchronizer, ChallengeProgressSynchronizer>();
@@ -48,6 +49,8 @@ public static class DependencyInjection
         services.AddScoped<IChallengeMutationBoundary>(provider =>
             provider.GetRequiredService<ChallengeMutationBoundary>());
         services.AddScoped<IReadingMutationBoundary>(provider =>
+            provider.GetRequiredService<ChallengeMutationBoundary>());
+        services.AddScoped<IClubChatMutationBoundary>(provider =>
             provider.GetRequiredService<ChallengeMutationBoundary>());
         services.AddScoped<IChallengeParticipationReader, ChallengeParticipationReader>();
         services.AddScoped<IChallengeProgressPersistence, ChallengeProgressPersistence>();

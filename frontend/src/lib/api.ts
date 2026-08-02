@@ -2,7 +2,7 @@ import axios, { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig 
 import type { ApiEnvelope } from '../types/api'
 import type { AuthTokens } from '../types/domain'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5080/api'
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5080/api'
 const TOKEN_KEY = 'bookspace.tokens'
 
 export const api = axios.create({
@@ -73,6 +73,36 @@ async function refreshTokens(refreshToken: string) {
       })
   }
   return refreshPromise
+}
+
+function accessTokenExpiresSoon(accessToken: string) {
+  try {
+    const encodedPayload = accessToken.split('.')[1]
+    if (!encodedPayload) return false
+    const normalizedPayload = encodedPayload.replace(/-/g, '+').replace(/_/g, '/')
+    const paddedPayload = normalizedPayload.padEnd(
+      normalizedPayload.length + ((4 - (normalizedPayload.length % 4)) % 4),
+      '=',
+    )
+    const payload = JSON.parse(window.atob(paddedPayload)) as { exp?: number }
+    return typeof payload.exp === 'number' && payload.exp * 1000 <= Date.now() + 30_000
+  } catch {
+    return false
+  }
+}
+
+export async function getRealtimeAccessToken() {
+  const tokens = getStoredTokens()
+  if (!tokens) return ''
+  if (!accessTokenExpiresSoon(tokens.accessToken)) return tokens.accessToken
+
+  try {
+    return (await refreshTokens(tokens.refreshToken)).accessToken
+  } catch {
+    storeTokens(null)
+    window.dispatchEvent(new Event('bookspace:session-expired'))
+    throw new Error('Phiên đăng nhập đã hết hạn.')
+  }
 }
 
 api.interceptors.response.use(

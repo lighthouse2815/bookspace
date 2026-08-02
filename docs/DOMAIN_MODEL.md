@@ -568,6 +568,33 @@ Chỉ member đang hoạt động được tạo bài. Author, owner, moderator 
 
 Không có comment lồng nhau trong Goal 1.
 
+### 6.5A `ClubChatMessage`
+
+| Trường | Kiểu | Quy tắc |
+|---|---|---|
+| `Id` | `Guid` | server tạo |
+| `ClubId` | `Guid` | club đang hoạt động |
+| `SenderId` | `Guid` | membership đang hoạt động tại thời điểm gửi |
+| `Content` | `string` | sau trim không rỗng, tối đa 2.000 ký tự |
+| `CreatedAt`, `DeletedAt?` | thời gian | UTC; soft delete dành cho moderation tương lai |
+
+History chỉ được đọc bởi member đang hoạt động, sắp mới nhất theo
+`CreatedAt desc, Id desc` và dùng cursor ổn định. Tin nhắn không xuất hiện trong
+feed công khai hoặc hồ sơ đọc.
+
+### 6.5B `ClubChatReadState`
+
+| Trường | Kiểu | Quy tắc |
+|---|---|---|
+| `Id` | `Guid` | server tạo |
+| `MembershipId` | `Guid` | unique theo membership lifecycle |
+| `LastReadMessageId` | `Guid?` | tin cuối cùng principal đã đọc |
+| `LastReadAt` | `DateTimeOffset?` | UTC, chỉ tiến về phía trước |
+
+Unread count chỉ tính tin của người khác nằm sau high-water mark và không trước
+thời điểm membership hiện tại. Mark-read lặp lại hoặc request cũ đến muộn là
+idempotent, không làm lùi marker.
+
 ### 6.6 `ClubReadingSprint`
 
 Đợt đọc chung thuộc đúng một `BookClub` và tham chiếu đúng một `Book` trong
