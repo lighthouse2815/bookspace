@@ -559,7 +559,8 @@ npm run build
 Script `scripts/verify.ps1` chạy các gate build/test/format cục bộ. Workflow
 `.github/workflows/ci.yml` chạy lại các gate đó và bổ sung EF model-drift cùng
 Docker Compose config. CI dùng lockfile qua `npm ci`, cache NuGet/npm, hủy run cũ
-cùng branch, pin action theo commit SHA và chỉ yêu cầu quyền `contents: read`.
+cùng branch, pin action Node 24 theo commit SHA và chỉ yêu cầu quyền `contents: read`.
+Dependabot kiểm tra cập nhật GitHub Actions hàng tuần mà không nới quyền workflow.
 Script kiểm tra exit code sau từng native command để một gate lỗi không bị lệnh kế
 tiếp che mất trên Windows PowerShell 5.1.
 
