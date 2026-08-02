@@ -3,6 +3,7 @@ using BookSpace.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -13,6 +14,7 @@ public sealed class BookSpaceApiFactory : WebApplicationFactory<Program>
     private readonly string _databasePath =
         Path.Combine(Path.GetTempPath(), $"bookspace-tests-{Guid.NewGuid():N}.db");
     private readonly Action<IServiceCollection>? _configureTestServices;
+    private readonly IReadOnlyDictionary<string, string?>? _configuration;
 
     public BookSpaceApiFactory()
     {
@@ -23,9 +25,31 @@ public sealed class BookSpaceApiFactory : WebApplicationFactory<Program>
         _configureTestServices = configureTestServices;
     }
 
+    internal BookSpaceApiFactory(IReadOnlyDictionary<string, string?> configuration)
+    {
+        _configuration = configuration;
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
+        builder.ConfigureAppConfiguration((_, configurationBuilder) =>
+        {
+            var testSettings = new Dictionary<string, string?>
+            {
+                ["RateLimiting:Authentication:Login:PermitLimit"] = "10000",
+                ["RateLimiting:Authentication:Refresh:PermitLimit"] = "10000"
+            };
+            if (_configuration is not null)
+            {
+                foreach (var setting in _configuration)
+                {
+                    testSettings[setting.Key] = setting.Value;
+                }
+            }
+
+            configurationBuilder.AddInMemoryCollection(testSettings);
+        });
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<DbContextOptions<BookSpaceDbContext>>();

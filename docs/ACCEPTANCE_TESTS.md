@@ -73,6 +73,8 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-BLD-013 | P0 | `BookSpace.Domain` không reference ASP.NET Core, EF Core, JWT hoặc SQLite. |
 | AC-BLD-014 | P0 | Controller không truy cập DbContext trực tiếp; page React không gọi Axios trực tiếp. |
 | AC-BLD-015 | P0 | Repository không chứa secret production, database file runtime hoặc refresh token. |
+| AC-BLD-016 | P0 | GitHub Actions chạy backend format/build/test/EF model-drift, frontend `npm ci`/typecheck/lint/test/build và `docker compose config`; bất kỳ job lỗi nào đều làm workflow thất bại và có thể được đặt làm required check trong branch protection. |
+| AC-BLD-017 | P0 | `/health` kiểm tra được kết nối database BookSpace với timeout 5 giây; database lỗi trả 503 với body tối thiểu, không lộ connection string hoặc exception trong response/log result. |
 
 ## 3. API envelope, validation và pagination
 
@@ -88,6 +90,7 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-API-008 | P0 | UUID sai format trả 400, không trả stack trace. |
 | AC-API-009 | P0 | Route không tồn tại trả envelope 404. |
 | AC-API-010 | P0 | Exception không dự kiến trả 500 `INTERNAL_ERROR`, không lộ SQL, path máy, stack trace hoặc secret. |
+| AC-API-011 | P0 | Mọi response có `X-Correlation-ID`; ID đầu vào hợp lệ được giữ nguyên, ID thiếu/không hợp lệ được thay bằng ID an toàn do server tạo. |
 
 ## 4. Authentication và user
 
@@ -535,7 +538,7 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 | AC-SEC-006 | P0 | JWT do Bookstore ký bị từ chối trong Goal 1. |
 | AC-SEC-007 | P0 | Production config không dùng Docker local JWT key hoặc seed password. |
 | AC-SEC-008 | P0 | Log không chứa password, bearer token, refresh token, DB connection secret hoặc webhook secret. |
-| AC-SEC-009 | P1 | Login/refresh endpoint có rate limit và trả 429 envelope. |
+| AC-SEC-009 | P1 | Login/refresh có rate limit độc lập, cấu hình được và partition theo IP sau trusted-proxy processing; vượt ngưỡng trả 429 `RATE_LIMITED`, message tiếng Việt và `Retry-After` mà không gọi nghiệp vụ auth. |
 | AC-SEC-010 | P1 | Nội dung người dùng nhập bị giới hạn độ dài ở API, không chỉ ở UI. |
 | AC-SEC-011 | P0 | Recommendation không trả hay suy luận từ library, reading session, reading note hoặc visibility flag của user khác; chỉ review công khai hợp lệ tham gia social/global signal. |
 

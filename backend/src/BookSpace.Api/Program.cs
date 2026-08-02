@@ -44,7 +44,9 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
     };
 });
 builder.Services.AddOpenApi();
-builder.Services.AddHealthChecks();
+builder.Services.AddBookSpaceDatabaseHealthCheck();
+builder.Services.AddBookSpaceAuthRateLimiting(builder.Configuration);
+builder.Services.AddBookSpaceTrustedForwarding(builder.Configuration);
 builder.Services.AddBookSpaceInfrastructure(builder.Configuration);
 builder.Services.AddSignalR();
 builder.Services.AddScoped<IClubChatRealtimePublisher, SignalRClubChatRealtimePublisher>();
@@ -55,7 +57,14 @@ var allowedOrigins = builder.Configuration
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("BookSpaceWeb", policy =>
-        policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod().AllowCredentials());
+        policy
+            .WithOrigins(allowedOrigins)
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials()
+            .WithExposedHeaders(
+                RequestObservabilityMiddleware.CorrelationIdHeaderName,
+                "Retry-After"));
 });
 
 var jwt = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
@@ -123,6 +132,8 @@ builder.Services.AddAuthorization(options =>
 });
 
 var app = builder.Build();
+app.UseForwardedHeaders();
+app.UseMiddleware<RequestObservabilityMiddleware>();
 app.UseMiddleware<ApiExceptionMiddleware>();
 app.UseStatusCodePages(async statusCodeContext =>
 {
@@ -137,10 +148,11 @@ app.UseStatusCodePages(async statusCodeContext =>
         ApiResponse<object?>.Failure("Không tìm thấy endpoint hoặc tài nguyên.", "ROUTE_NOT_FOUND"));
 });
 app.UseCors("BookSpaceWeb");
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapOpenApi();
-app.MapHealthChecks("/health");
+app.MapBookSpaceHealthChecks();
 app.MapGet("/", () => ApiResponse<object>.Ok(
     new
     {

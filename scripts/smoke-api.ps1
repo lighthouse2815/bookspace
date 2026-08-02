@@ -96,9 +96,20 @@ function Invoke-BookSpaceExpectedError {
     }
 }
 
-$health = Invoke-RestMethod -Method Get -Uri "$BaseUrl/health"
-if ($health -ne 'Healthy') {
-    throw "Health check không hợp lệ: $health"
+$healthCorrelationId = "bookspace-smoke-$([Guid]::NewGuid().ToString('N'))"
+$healthResponse = Invoke-WebRequest `
+    -UseBasicParsing `
+    -Method Get `
+    -Uri "$BaseUrl/health" `
+    -Headers @{ 'X-Correlation-ID' = $healthCorrelationId }
+$health = ([string]$healthResponse.Content).Trim()
+$returnedHealthCorrelationId = [string]$healthResponse.Headers['X-Correlation-ID']
+if (
+    [int]$healthResponse.StatusCode -ne 200 -or
+    $health -ne 'Healthy' -or
+    $returnedHealthCorrelationId -ne $healthCorrelationId
+) {
+    throw "Health/correlation check không hợp lệ: status=$($healthResponse.StatusCode), body=$health, correlation=$returnedHealthCorrelationId"
 }
 
 $unauthorizedRecommendations = Invoke-BookSpaceExpectedError `
@@ -686,6 +697,7 @@ if (
 
 [pscustomobject]@{
     Health = $health
+    CorrelationId = $returnedHealthCorrelationId
     User = $login.data.user.email
     PeopleSearchResults = $people.data.totalItems
     PeopleSuggestions = $peopleSuggestions.data.totalItems

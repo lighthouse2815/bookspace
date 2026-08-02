@@ -178,10 +178,26 @@ dotnet build BookSpace.slnx
 dotnet test BookSpace.slnx
 
 cd T:\bookspace\frontend
+npm ci
+npm run typecheck
 npm run lint
 npm test
 npm run build
 ```
+
+GitHub Actions chạy cùng các quality gate này trên mọi pull request và lần push
+vào `main`, đồng thời kiểm tra EF model drift và cấu hình Docker Compose.
+
+API trả `X-Correlation-ID` trên mọi response để đối chiếu log. `/health` chỉ báo
+healthy khi process và database BookSpace đều truy cập được; response không chứa
+connection string hoặc chi tiết exception.
+
+Login và refresh có sliding-window rate limit theo địa chỉ client, lần lượt mặc
+định 5 và 20 request mỗi 60 giây. Có thể điều chỉnh bằng cấu hình
+`RateLimiting:Authentication` hoặc biến môi trường prefix `BOOKSPACE_`. Khi đặt
+API sau reverse proxy/load balancer, khai báo IP/CIDR tin cậy tại
+`ForwardedHeaders:KnownProxies` hoặc `ForwardedHeaders:KnownNetworks`; header từ
+proxy không nằm trong allowlist sẽ bị bỏ qua.
 
 Khi API đang chạy, kiểm tra luồng của độc giả được tạo sẵn:
 

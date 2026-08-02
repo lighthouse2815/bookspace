@@ -509,12 +509,33 @@ Log cấu trúc phải có:
 - exception code đã chuẩn hóa;
 - user ID khi đã xác thực, không log token.
 
+Middleware chấp nhận `X-Correlation-ID` chỉ khi giá trị đơn, dài tối đa 128 ký tự
+và chỉ chứa chữ, số, `.`, `_`, `-`; trường hợp khác server tạo ID mới. ID được gắn
+vào `HttpContext.TraceIdentifier`, logging scope và response header. Request log chỉ
+ghi route/path, không ghi query/body/header xác thực, đồng thời phát một completion
+event có method, route template, status, elapsed milliseconds và user ID nếu có.
+
 `GET /health`:
 
 - kiểm tra process và database BookSpace;
 - không trả connection string;
 - không gọi provider ngoài;
 - trả 200 khi core app hoạt động dù integration tắt/lỗi.
+
+Health check database dùng scope riêng và `CanConnectAsync`, timeout sau 5 giây;
+lỗi chỉ trả trạng thái `Unhealthy`/503 tối thiểu và không gắn raw exception vào
+health result để tránh log provider detail, connection string hoặc đường dẫn máy.
+
+Login và refresh dùng hai rate-limit policy độc lập, partition theo địa chỉ client,
+không queue request vượt ngưỡng và trả envelope 429 `RATE_LIMITED` kèm `Retry-After`.
+Giới hạn/cửa sổ được cấu hình để môi trường Production có thể điều chỉnh mà không
+đổi code; middleware không log email, mật khẩu hay refresh token.
+
+`UseForwardedHeaders` chạy trước observability/rate limiting và chỉ tin
+`X-Forwarded-For`/`X-Forwarded-Proto` từ loopback hoặc IP/CIDR được khai báo trong
+`ForwardedHeaders:KnownProxies`/`KnownNetworks`; mặc định chỉ xử lý một proxy hop.
+Không đọc trực tiếp forwarded header từ nguồn chưa tin cậy. CORS expose
+`X-Correlation-ID` và `Retry-After` cho frontend.
 
 ## 14. Quality gates
 
@@ -534,6 +555,13 @@ npm run typecheck
 npm run lint
 npm run build
 ```
+
+Script `scripts/verify.ps1` chạy các gate build/test/format cục bộ. Workflow
+`.github/workflows/ci.yml` chạy lại các gate đó và bổ sung EF model-drift cùng
+Docker Compose config. CI dùng lockfile qua `npm ci`, cache NuGet/npm, hủy run cũ
+cùng branch, pin action theo commit SHA và chỉ yêu cầu quyền `contents: read`.
+Script kiểm tra exit code sau từng native command để một gate lỗi không bị lệnh kế
+tiếp che mất trên Windows PowerShell 5.1.
 
 Chạy frontend trong `T:\bookspace\frontend`.
 

@@ -1,0 +1,123 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (.NET 10)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "true"
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
+      NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+      NUGET_XMLDOC_MODE: skip
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: ${{ runner.os }}-nuget-${{ hashFiles('backend/**/*.csproj', 'backend/*.sln', 'backend/*.slnx') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore backend dependencies
+        run: dotnet restore backend/BookSpace.slnx
+
+      - name: Verify backend formatting
+        run: dotnet format backend/BookSpace.slnx --verify-no-changes --no-restore
+
+      - name: Build backend
+        run: dotnet build backend/BookSpace.slnx --configuration Release --no-restore
+
+      - name: Test backend
+        run: dotnet test backend/BookSpace.slnx --configuration Release --no-build --no-restore
+
+      - name: Install Entity Framework CLI
+        run: dotnet tool install --tool-path "${RUNNER_TEMP}/dotnet-tools" dotnet-ef --version 10.0.9
+
+      - name: Check for pending Entity Framework model changes
+        env:
+          ASPNETCORE_ENVIRONMENT: Production
+          BOOKSPACE_ConnectionStrings__DefaultConnection: "Data Source=:memory:"
+          BOOKSPACE_Jwt__Secret: BookSpace-CI-EF-Model-Check-Secret-2026!
+        run: >-
+          "${RUNNER_TEMP}/dotnet-tools/dotnet-ef"
+          migrations has-pending-model-changes
+          --project backend/src/BookSpace.Infrastructure/BookSpace.Infrastructure.csproj
+          --startup-project backend/src/BookSpace.Api/BookSpace.Api.csproj
+          --configuration Release
+          --no-build
+
+  frontend:
+    name: Frontend (Node.js 22)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Type-check frontend
+        working-directory: frontend
+        run: npm run typecheck
+
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Test frontend
+        working-directory: frontend
+        run: npm test -- --no-file-parallelism
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+  compose:
+    name: Docker Compose configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Validate Docker Compose configuration
+        run: docker compose --file docker-compose.yml config --quiet

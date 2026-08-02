@@ -3,6 +3,7 @@ using BookSpace.Application.Contracts;
 using BookSpace.Application.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace BookSpace.Api.Controllers;
 
@@ -20,6 +21,7 @@ public sealed class AuthController(IAuthService authService) : ApiControllerBase
 
     [AllowAnonymous]
     [HttpPost("login")]
+    [EnableRateLimiting(AuthRateLimitPolicies.Login)]
     public async Task<ActionResult<ApiResponse<AuthResponse>>> Login(
         LoginRequest request,
         CancellationToken cancellationToken) =>
@@ -29,6 +31,7 @@ public sealed class AuthController(IAuthService authService) : ApiControllerBase
 
     [AllowAnonymous]
     [HttpPost("refresh")]
+    [EnableRateLimiting(AuthRateLimitPolicies.Refresh)]
     public async Task<ActionResult<ApiResponse<AuthResponse>>> Refresh(
         RefreshRequest request,
         CancellationToken cancellationToken) =>

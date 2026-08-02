@@ -97,6 +97,11 @@ Danh sách rỗng trả `items: []`. Metadata nằm trong body, không nằm tro
 | 503 | integration bị tắt/chưa sẵn sàng |
 | 500 | lỗi nội bộ đã che chi tiết |
 
+Mọi response có header `X-Correlation-ID`. Server giữ giá trị đầu vào hợp lệ hoặc
+tạo ID mới khi thiếu/không hợp lệ; header này dùng để đối chiếu log và không chứa
+thông tin người dùng. CORS expose `X-Correlation-ID` và `Retry-After` để web client
+khác origin có thể đọc hai header này.
+
 ## 2. Response models
 
 ### 2.1 User và auth
@@ -515,6 +520,10 @@ Request:
 Response `200`: `ApiResponse<AuthSessionResponse>`.
 
 Sai email hoặc mật khẩu đều trả `INVALID_CREDENTIALS` 401.
+Vượt sliding-window limit theo địa chỉ client trả 429 `RATE_LIMITED` kèm
+`Retry-After` và `Cache-Control: no-store`. Mặc định là 5 request/60 giây. Khi có
+reverse proxy, địa chỉ client chỉ lấy từ forwarded header của proxy/network đã
+được cấu hình tin cậy.
 
 ### `POST /api/auth/refresh` — Public với refresh token
 
@@ -527,6 +536,8 @@ Request:
 ```
 
 Response `200`: `ApiResponse<AuthTokensResponse>`. Token cũ bị thu hồi và token mới được tạo trong cùng transaction.
+Vượt sliding-window limit theo địa chỉ client trả 429 `RATE_LIMITED`; mặc định là
+20 request/60 giây. Hai bucket login/refresh độc lập và không queue request vượt ngưỡng.
 
 ### `POST /api/auth/logout` — Authenticated
 
@@ -1968,6 +1979,7 @@ thành lỗi của core API.
 | `CANNOT_MODERATE_OWN_CONTENT` | 403 | admin tự xử lý report nhắm đến mình |
 | `CANNOT_LOCK_ADMIN_ACCOUNT` | 403 | khóa tài khoản admin qua moderation queue |
 | `ROUTE_NOT_FOUND` | 404 | route hoặc tài nguyên HTTP không tồn tại |
+| `RATE_LIMITED` | 429 | vượt giới hạn request login hoặc refresh; response kèm `Retry-After` |
 | `INTERNAL_ERROR` | 500 | lỗi không dự kiến |
 
 ## 22. Token và CORS
@@ -1979,3 +1991,16 @@ thành lỗi của core API.
 - Refresh token không xuất hiện trong URL hoặc log.
 - Development allowlist mặc định `http://localhost:5173`.
 - Production dùng allowlist cụ thể; không dùng wildcard với credential.
+
+## 23. System health
+
+### `GET /health` — Public, ngoài prefix `/api`
+
+Kiểm tra process và khả năng kết nối database BookSpace; không gọi Bookstore hoặc
+provider ngoài.
+
+- Response `200`, body text `Healthy` khi toàn bộ core check đạt.
+- Response `503`, body text `Unhealthy` khi database không truy cập được hoặc
+  check vượt timeout 5 giây.
+- Body không chứa connection string, SQL, exception, đường dẫn máy hoặc secret.
+- Response vẫn có `X-Correlation-ID` như mọi request khác.

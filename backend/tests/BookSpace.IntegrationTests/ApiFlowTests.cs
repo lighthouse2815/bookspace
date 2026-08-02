@@ -16,11 +16,16 @@ public sealed class ApiFlowTests(BookSpaceApiFactory factory) : IClassFixture<Bo
     [Fact]
     public async Task Health_and_openapi_are_available()
     {
-        var health = await _client.GetAsync("/health");
+        using var healthRequest = new HttpRequestMessage(HttpMethod.Get, "/health");
+        healthRequest.Headers.Add("X-Correlation-ID", "integration-health-123");
+        var health = await _client.SendAsync(healthRequest);
         var openApi = await _client.GetAsync("/openapi/v1.json");
 
         Assert.Equal(HttpStatusCode.OK, health.StatusCode);
         Assert.Equal("Healthy", await health.Content.ReadAsStringAsync());
+        Assert.Equal(
+            "integration-health-123",
+            Assert.Single(health.Headers.GetValues("X-Correlation-ID")));
         Assert.Equal(HttpStatusCode.OK, openApi.StatusCode);
     }
 
