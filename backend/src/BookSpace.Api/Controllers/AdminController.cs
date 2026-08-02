@@ -2,6 +2,7 @@ using BookSpace.Api.Common;
 using BookSpace.Application.Common;
 using BookSpace.Application.Contracts;
 using BookSpace.Application.Services;
+using BookSpace.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -11,7 +12,8 @@ namespace BookSpace.Api.Controllers;
 [Route("api/admin")]
 public sealed class AdminController(
     ICatalogService catalogService,
-    IChallengeService challengeService) : ApiControllerBase
+    IChallengeService challengeService,
+    IContentModerationService moderationService) : ApiControllerBase
 {
     [HttpPost("books")]
     public async Task<ActionResult<ApiResponse<BookDetail>>> CreateBook(
@@ -131,4 +133,28 @@ public sealed class AdminController(
         await challengeService.DeleteAsync(id, cancellationToken);
         return OkEmptyData("Đã xóa thử thách.");
     }
+
+    [HttpGet("reports")]
+    public ActionResult<ApiResponse<PageResult<ContentReportDto>>> Reports(
+        [FromQuery] ContentReportStatus? status,
+        [FromQuery] ContentReportTargetType? targetType,
+        [FromQuery] ContentReportReason? reason,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20) =>
+        OkData(moderationService.GetReports(status, targetType, reason, page, pageSize));
+
+    [HttpPatch("reports/{id:guid}/resolution")]
+    public async Task<ActionResult<ApiResponse<ContentReportDto>>> ResolveReport(
+        Guid id,
+        ResolveContentReportRequest request,
+        CancellationToken cancellationToken) =>
+        OkData(
+            await moderationService.ResolveReportAsync(
+                CurrentUserId,
+                id,
+                request,
+                cancellationToken),
+            request.Status == ContentReportStatus.DISMISSED
+                ? "Đã bác bỏ báo cáo."
+                : "Đã xử lý báo cáo.");
 }

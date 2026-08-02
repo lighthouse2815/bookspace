@@ -16,6 +16,7 @@ import { Link, Navigate, useLocation, useParams, useSearchParams } from 'react-r
 import { ActivityCard } from '../../components/community/ActivityCard'
 import { ProfileConnectionsDialog } from '../../components/community/ProfileConnectionsDialog'
 import { ReviewCard } from '../../components/community/ReviewCard'
+import { ReportContentButton } from '../../components/moderation/ReportContentButton'
 import { BookCard } from '../../components/books/BookCard'
 import { Avatar } from '../../components/ui/Avatar'
 import { Button } from '../../components/ui/Button'
@@ -175,25 +176,33 @@ export function ProfilePage() {
                 <GearSix size={18} /> Cài đặt hồ sơ
               </Link>
             ) : isAuthenticated ? (
-              <Button
-                variant={person.isFollowing ? 'secondary' : 'primary'}
-                loading={follow.isPending}
-                disabled={follow.isPending}
-                aria-label={`${person.isFollowing ? 'Bỏ theo dõi' : 'Theo dõi'} ${person.displayName}`}
-                icon={person.isFollowing ? <UserMinus size={18} /> : <UserPlus size={18} />}
-                onClick={() =>
-                  follow.mutate(undefined, {
-                    onSuccess: () =>
-                      showToast(
-                        person.isFollowing ? 'Đã bỏ theo dõi' : 'Đã theo dõi người đọc này',
-                        'success',
-                      ),
-                    onError: (error) => showToast(errorMessage(error), 'error'),
-                  })
-                }
-              >
-                {person.isFollowing ? 'Đang theo dõi' : 'Theo dõi'}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant={person.isFollowing ? 'secondary' : 'primary'}
+                  loading={follow.isPending}
+                  disabled={follow.isPending}
+                  aria-label={`${person.isFollowing ? 'Bỏ theo dõi' : 'Theo dõi'} ${person.displayName}`}
+                  icon={person.isFollowing ? <UserMinus size={18} /> : <UserPlus size={18} />}
+                  onClick={() =>
+                    follow.mutate(undefined, {
+                      onSuccess: () =>
+                        showToast(
+                          person.isFollowing ? 'Đã bỏ theo dõi' : 'Đã theo dõi người đọc này',
+                          'success',
+                        ),
+                      onError: (error) => showToast(errorMessage(error), 'error'),
+                    })
+                  }
+                >
+                  {person.isFollowing ? 'Đang theo dõi' : 'Theo dõi'}
+                </Button>
+                <ReportContentButton
+                  targetType="USER"
+                  targetId={person.id}
+                  ownerId={person.id}
+                  label="Báo cáo hồ sơ"
+                />
+              </div>
             ) : (
               <Link
                 to="/login"

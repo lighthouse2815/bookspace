@@ -94,6 +94,7 @@ Goal 1 không thêm vai trò nhân viên, nhà cung cấp hoặc quản trị h�
 | Clubs | câu lạc bộ, thành viên, bài đăng, bình luận, đợt đọc chung và cột mốc thảo luận | Identity, Catalog, Notifications |
 | Challenges | thử thách, tham gia, tiến độ | Identity, Reading |
 | Notifications | thông báo trong ứng dụng | các sự kiện nội bộ |
+| Community Safety | báo cáo nội dung, hàng đợi kiểm duyệt, audit và khóa tài khoản | Identity, Community, Clubs |
 | Integration | provider catalog/offer, webhook mua hàng | tùy chọn, bị cô lập |
 
 Chi tiết entity, invariant và quan hệ nằm trong [DOMAIN_MODEL.md](./DOMAIN_MODEL.md).
@@ -297,6 +298,23 @@ Các sự kiện follow, like, comment, club và challenge tạo thông báo cho
 
 Tài khoản mặc định nhận follow, tương tác review, club và challenge. Thành viên có thể tắt độc lập bốn nhóm này; preference được kiểm tra tại nguồn tạo sự kiện mới. `SYSTEM` luôn bật để giữ thông báo vận hành quan trọng. Thay đổi preference không xóa hoặc ẩn lịch sử đã tạo.
 
+### UC-10A — An toàn cộng đồng
+
+Thành viên đăng nhập có thể báo cáo hồ sơ, đánh giá, bình luận đánh giá, bài viết
+và bình luận câu lạc bộ hoặc tin nhắn chat mà họ có quyền nhìn thấy. Không thể báo
+cáo nội dung của chính mình. Mỗi principal chỉ có một report `PENDING` cho cùng
+`targetType + targetId`; báo cáo lưu snapshot tối đa 500 ký tự để nội dung vẫn có
+thể được kiểm tra sau khi bị ẩn. Người bị báo cáo không nhìn thấy danh tính người
+báo cáo.
+
+Chỉ `ADMIN` đọc hàng đợi, lọc theo trạng thái, loại mục tiêu và lý do. Admin có
+thể bác bỏ, soft-delete nội dung hoặc khóa tài khoản; mọi quyết định lưu người xử
+lý, hành động, ghi chú và thời điểm UTC. Xử lý xóa nội dung đóng các report pending
+khác của cùng mục tiêu. Không thể khóa tài khoản `ADMIN` hoặc tự xử lý report nhắm
+đến nội dung của chính admin. JWT của tài khoản bị khóa bị từ chối từ request kế
+tiếp; profile và nội dung do tài khoản bị khóa tạo không còn xuất hiện ở public
+query.
+
 ### UC-11 — Quản trị catalog
 
 Quản trị viên tạo/sửa/soft-delete sách, tác giả, thể loại. Không cho xóa mềm tác giả/thể loại đang là liên kết duy nhất cần thiết của một sách đang hoạt động nếu request không đồng thời gỡ/chuyển liên kết hợp lệ.
@@ -350,6 +368,7 @@ Tên route là hợp đồng điều hướng Goal 1; thay đổi cần đồng 
 |---|---|
 | `/admin/books` | CRUD sách |
 | `/admin/challenges` | CRUD/xuất bản thử thách |
+| `/admin/moderation` | hàng đợi báo cáo, snapshot, bác bỏ, ẩn nội dung và khóa tài khoản |
 
 Frontend dùng lazy route và protected route cho trang yêu cầu quyền. Code và authentication state là riêng của BookSpace.
 

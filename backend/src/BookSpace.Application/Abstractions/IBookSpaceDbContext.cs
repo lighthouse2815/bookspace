@@ -17,14 +17,19 @@ public interface IBookSpaceDbContext
     IQueryable<ReadingSession> ReadingSessions { get; }
     IQueryable<ActiveReadingSession> ActiveReadingSessions { get; }
     IQueryable<Review> Reviews { get; }
+    IQueryable<Review> ReviewsIncludingDeleted => Reviews;
     IQueryable<ReviewComment> ReviewComments { get; }
+    IQueryable<ReviewComment> ReviewCommentsIncludingDeleted => ReviewComments;
     IQueryable<ReviewLike> ReviewLikes { get; }
     IQueryable<BookClub> BookClubs { get; }
     IQueryable<BookClubMember> BookClubMembers { get; }
     IQueryable<ClubInvitation> ClubInvitations { get; }
     IQueryable<ClubPost> ClubPosts { get; }
+    IQueryable<ClubPost> ClubPostsIncludingDeleted => ClubPosts;
     IQueryable<ClubPostComment> ClubPostComments { get; }
+    IQueryable<ClubPostComment> ClubPostCommentsIncludingDeleted => ClubPostComments;
     IQueryable<ClubChatMessage> ClubChatMessages { get; }
+    IQueryable<ClubChatMessage> ClubChatMessagesIncludingDeleted => ClubChatMessages;
     IQueryable<ClubChatReadState> ClubChatReadStates { get; }
     IQueryable<ClubReadingSprint> ClubReadingSprints { get; }
     IQueryable<ClubReadingSprintParticipant> ClubReadingSprintParticipants { get; }
@@ -35,6 +40,7 @@ public interface IBookSpaceDbContext
     IQueryable<ReadingChallenge> ReadingChallenges { get; }
     IQueryable<ChallengeParticipation> ChallengeParticipations { get; }
     IQueryable<Notification> Notifications { get; }
+    IQueryable<ContentReport> ContentReports => Array.Empty<ContentReport>().AsQueryable();
 
     void Add<T>(T entity) where T : class;
     void AddRange<T>(IEnumerable<T> entities) where T : class;

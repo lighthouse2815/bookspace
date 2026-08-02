@@ -17,6 +17,7 @@ import type { ClubChatMessage } from '../../types/domain'
 import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
 import { ErrorState } from '../ui/States'
+import { ReportContentButton } from '../moderation/ReportContentButton'
 
 const MESSAGE_MAX_LENGTH = 2000
 const BOTTOM_THRESHOLD = 56
@@ -45,9 +46,16 @@ function MessageRow({ message, ownMessage }: { message: ClubChatMessage; ownMess
         >
           <p className="whitespace-pre-wrap break-words">{message.content}</p>
         </div>
-        <p className={`mt-1 px-1 text-[11px] text-muted ${ownMessage ? 'text-right' : ''}`}>
-          {formatRelativeTime(message.createdAt)}
-        </p>
+        <div className={`mt-1 flex items-center gap-1 px-1 ${ownMessage ? 'justify-end' : ''}`}>
+          <p className="text-[11px] text-muted">{formatRelativeTime(message.createdAt)}</p>
+          <ReportContentButton
+            targetType="CLUB_CHAT_MESSAGE"
+            targetId={message.id}
+            ownerId={message.sender.id}
+            label="Báo cáo tin nhắn"
+            compact
+          />
+        </div>
       </div>
     </article>
   )

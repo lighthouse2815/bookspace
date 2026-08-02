@@ -24,7 +24,8 @@ cơ sở dữ liệu.
 - Tham gia thử thách đọc sách với tiến độ do máy chủ tính từ các sách đã hoàn thành trong thư viện
 - Trung tâm thông báo trong ứng dụng với số mục chưa đọc do máy chủ quản lý, bộ lọc theo nhóm, phân trang và tùy chọn nhận thông báo
 - Bảng điều khiển thành viên, bản đồ nhiệt hoạt động theo thời gian, chuỗi ngày đọc, báo cáo theo kỳ và dự báo thời điểm đọc xong
-- Quản trị danh mục và thử thách
+- Báo cáo hồ sơ, đánh giá, bình luận, bài viết và tin nhắn; hàng đợi quản trị có audit, soft-delete nội dung và khóa tài khoản
+- Quản trị danh mục, thử thách và an toàn cộng đồng
 - Tùy chọn tích hợp nhà cung cấp sách bên ngoài
 
 ## Kiến trúc

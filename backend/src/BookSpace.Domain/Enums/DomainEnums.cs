@@ -59,3 +59,37 @@ public enum NotificationCategory
     CHALLENGE,
     SYSTEM
 }
+
+public enum ContentReportTargetType
+{
+    USER,
+    REVIEW,
+    REVIEW_COMMENT,
+    CLUB_POST,
+    CLUB_POST_COMMENT,
+    CLUB_CHAT_MESSAGE
+}
+
+public enum ContentReportReason
+{
+    SPAM,
+    HARASSMENT,
+    HATEFUL_CONTENT,
+    INAPPROPRIATE_CONTENT,
+    MISINFORMATION,
+    OTHER
+}
+
+public enum ContentReportStatus
+{
+    PENDING,
+    RESOLVED,
+    DISMISSED
+}
+
+public enum ModerationAction
+{
+    NONE,
+    CONTENT_REMOVED,
+    USER_LOCKED
+}

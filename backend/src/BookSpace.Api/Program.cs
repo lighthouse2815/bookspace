@@ -84,6 +84,26 @@ builder.Services
             RoleClaimType = System.Security.Claims.ClaimTypes.Role
         };
         var events = JwtResponseEvents.Create();
+        events.OnTokenValidated = context =>
+        {
+            var value = context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ??
+                        context.Principal?.FindFirst("sub")?.Value;
+            if (!Guid.TryParse(value, out var userId))
+            {
+                context.Fail("Không xác định được người dùng.");
+                return Task.CompletedTask;
+            }
+
+            using var scope = context.HttpContext.RequestServices.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<IBookSpaceDbContext>();
+            var accountAvailable = db.Users.Any(x => x.Id == userId && !x.IsLocked);
+            if (!accountAvailable)
+            {
+                context.Fail("Tài khoản hiện không thể sử dụng.");
+            }
+
+            return Task.CompletedTask;
+        };
         events.OnMessageReceived = context =>
         {
             var accessToken = context.Request.Query["access_token"];

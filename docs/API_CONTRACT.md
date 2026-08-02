@@ -1717,7 +1717,53 @@ Idempotent. Response `200`: `ApiResponse<NotificationResponse>`.
 
 Idempotent. Response `200`: `ApiResponse<null>`.
 
-## 18. Dashboard API
+## 18. Community Safety API
+
+### `POST /api/reports` — Authenticated
+
+Request:
+
+```json
+{
+  "targetType": "REVIEW",
+  "targetId": "11111111-1111-1111-1111-111111111111",
+  "reason": "HARASSMENT",
+  "details": "Nội dung công kích người đọc khác."
+}
+```
+
+`targetType` nhận `USER`, `REVIEW`, `REVIEW_COMMENT`, `CLUB_POST`,
+`CLUB_POST_COMMENT`, `CLUB_CHAT_MESSAGE`. `reason` nhận `SPAM`, `HARASSMENT`,
+`HATEFUL_CONTENT`, `INAPPROPRIATE_CONTENT`, `MISINFORMATION`, `OTHER`.
+Target phải đang active và principal phải có quyền nhìn thấy; private club/chat
+không được tiết lộ qua mã lỗi. Response `201`: `ApiResponse<ContentReportDto>`.
+Report trùng đang pending trả `409 CONTENT_REPORT_ALREADY_PENDING`; tự report trả
+`400 CANNOT_REPORT_OWN_CONTENT`.
+
+### `GET /api/admin/reports?status=PENDING&targetType=&reason=&page=1&pageSize=20` — ADMIN
+
+Trả `ApiResponse<PageResult<ContentReportDto>>`, sắp `createdAt desc, id desc`.
+DTO có reporter/target owner public summary, snapshot, deep-link, audit status,
+action, moderator, resolution note và timestamps; không trả email.
+
+### `PATCH /api/admin/reports/{reportId}/resolution` — ADMIN
+
+Ví dụ xác nhận vi phạm và ẩn nội dung:
+
+```json
+{
+  "status": "RESOLVED",
+  "action": "CONTENT_REMOVED",
+  "resolutionNote": "Đã xác minh nội dung vi phạm."
+}
+```
+
+Bác bỏ dùng `status=DISMISSED`, `action=NONE`. Khóa target owner dùng
+`status=RESOLVED`, `action=USER_LOCKED`; không thể khóa `ADMIN`. Xóa nội dung là
+soft-delete và đóng mọi report `PENDING` khác của cùng target trong một lần lưu.
+Exact retry cùng status/action/note là idempotent. Response `200`.
+
+## 19. Dashboard API
 
 ### `GET /api/dashboard` — Authenticated
 
@@ -1725,7 +1771,7 @@ Response `200`: `ApiResponse<DashboardResponse>`.
 
 Mọi thống kê lấy từ BookSpace DB, không gọi Bookstore.
 
-## 19. External provider API
+## 20. External provider API
 
 ### `GET /api/external-books/search?query=clean+code&limit=20`
 
@@ -1763,7 +1809,7 @@ công với `available: false`, `items: []` và message có thể hiển thị c
 dùng. Điều này giữ cho BookSpace độc lập và không biến trạng thái của provider
 thành lỗi của core API.
 
-## 20. Error registry
+## 21. Error registry
 
 | Code | HTTP | Điều kiện |
 |---|---:|---|
@@ -1875,13 +1921,25 @@ thành lỗi của core API.
 | `CHALLENGE_HAS_PARTICIPANTS` | 409 | không unpublish/xóa khi còn bất kỳ row vật lý participation nào, kể cả row bị global filter ẩn |
 | `INVALID_NOTIFICATION_CATEGORY` | 400 | category notification không thuộc tập cho phép |
 | `NOTIFICATION_NOT_FOUND` | 404 | notification không thuộc principal |
+| `INVALID_REPORT_TARGET_TYPE` | 400 | loại mục tiêu report không hợp lệ |
+| `INVALID_REPORT_REASON` | 400 | lý do report không hợp lệ |
+| `INVALID_REPORT_STATUS` | 400 | trạng thái report không hợp lệ |
+| `INVALID_MODERATION_ACTION` | 400 | hành động kiểm duyệt không hợp lệ |
+| `REPORT_TARGET_NOT_FOUND` | 404 | target không tồn tại hoặc principal không được nhìn thấy |
+| `CANNOT_REPORT_OWN_CONTENT` | 400 | tự báo cáo hồ sơ/nội dung |
+| `CONTENT_REPORT_ALREADY_PENDING` | 409 | principal đã có report pending cho target |
+| `CONTENT_REPORT_NOT_FOUND` | 404 | report không tồn tại |
+| `CONTENT_REPORT_ALREADY_REVIEWED` | 400 | report đã được xử lý bằng quyết định khác |
+| `CANNOT_MODERATE_OWN_CONTENT` | 403 | admin tự xử lý report nhắm đến mình |
+| `CANNOT_LOCK_ADMIN_ACCOUNT` | 403 | khóa tài khoản admin qua moderation queue |
 | `ROUTE_NOT_FOUND` | 404 | route hoặc tài nguyên HTTP không tồn tại |
 | `INTERNAL_ERROR` | 500 | lỗi không dự kiến |
 
-## 21. Token và CORS
+## 22. Token và CORS
 
 - JWT claim `sub` là BookSpace `User.Id`.
 - JWT claim `role` là `USER` hoặc `ADMIN`.
+- Mỗi request JWT kiểm tra BookSpace user còn tồn tại và `IsLocked=false`; khóa tài khoản làm token cũ bị từ chối ngay ở request kế tiếp.
 - API không chấp nhận JWT do Bookstore ký trong Goal 1.
 - Refresh token không xuất hiện trong URL hoặc log.
 - Development allowlist mặc định `http://localhost:5173`.

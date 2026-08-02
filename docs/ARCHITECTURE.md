@@ -202,6 +202,7 @@ Các unique index bắt buộc:
 | `ClubReadingSprintMilestone` | `(SprintId, TargetValue)` |
 | `ClubReadingSprintMilestoneResponse` | thread `(MilestoneId, CreatedAt)` |
 | `ChallengeParticipation` | unique `(ChallengeId, UserId)` |
+| `ContentReport` | unique pending `(ReporterId, TargetType, TargetId)`; queue `(Status, CreatedAt, Id)` và target `(TargetType, TargetId)` |
 
 ### 4.4 API layer
 
@@ -396,6 +397,12 @@ sequenceDiagram
 | đọc sprint private, leaderboard và timeline | active member của đúng club |
 | xóa phản hồi milestone | response author hoặc `OWNER`/`MODERATOR` của club |
 | notification/dashboard | principal only |
+| tạo report | authenticated principal; target phải đang nhìn thấy được và không thuộc chính principal |
+| đọc/xử lý report | `ADMIN`; không tự xử lý report nhắm đến nội dung của mình, không khóa admin |
+
+JWT validation kiểm tra user còn tồn tại và chưa bị khóa ở mỗi request, kể cả
+kết nối SignalR mới. Vì vậy `USER_LOCKED` vô hiệu hóa access token hiện có mà
+không cần chia sẻ signing secret hoặc token store với hệ thống khác.
 
 ## 8. Persistence
 

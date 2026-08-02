@@ -416,7 +416,20 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-NOTI-010 | P0 | Khi một preference tắt, sự kiện mới tương ứng không insert notification nhưng nghiệp vụ gốc vẫn commit; bật lại cho phép sự kiện sau tạo notification. |
 | AC-NOTI-011 | P0 | `SYSTEM` luôn được tạo dù bốn preference đang tắt; đổi preference không xóa hoặc ẩn notification lịch sử. |
 
-## 17. Dashboard
+## 17. Community Safety
+
+| ID | P | Given/When/Then |
+|---|---|---|
+| AC-SAFE-001 | P0 | Authenticated user report được `USER`, review/comment, club post/comment và club chat message đang nhìn thấy; guest nhận 401. |
+| AC-SAFE-002 | P0 | User không thể report target của chính mình; một report pending trùng principal/target trả 409. |
+| AC-SAFE-003 | P0 | Outsider report nội dung private club hoặc chat nhận 404 và không suy ra target tồn tại. |
+| AC-SAFE-004 | P0 | Snapshot tối đa 500 ký tự được lưu cùng target owner/link; public response không lộ email hoặc dữ liệu riêng tư. |
+| AC-SAFE-005 | P0 | USER gọi `/api/admin/reports` hoặc resolution nhận 403; ADMIN lọc queue theo status/target/reason và pagination ổn định. |
+| AC-SAFE-006 | P0 | `CONTENT_REMOVED` soft-delete target khỏi public query và đóng các report pending sibling; audit giữ moderator/action/note/time. |
+| AC-SAFE-007 | P0 | `USER_LOCKED` không áp dụng cho ADMIN; token cũ của user bị khóa nhận 401 ở request tiếp theo và profile/nội dung bị ẩn. |
+| AC-SAFE-008 | P0 | `DISMISSED` chỉ đi với `NONE`; `RESOLVED` phải có action; exact retry cùng quyết định idempotent. |
+
+## 18. Dashboard
 
 | ID | P | Given/When/Then |
 |---|---|---|
@@ -429,9 +442,9 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-DASH-007 | P0 | `activeChallenges` chỉ chứa challenge principal tham gia và chưa kết thúc. |
 | AC-DASH-008 | P0 | Dashboard chỉ đọc BookSpace DB; Bookstore tắt vẫn trả 200. |
 
-## 18. Frontend route và UX
+## 19. Frontend route và UX
 
-### 18.1 Route công khai
+### 19.1 Route công khai
 
 | ID | P | Route | Tiêu chí |
 |---|---|---|---|
@@ -449,7 +462,7 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-WEB-010 | P0 | `/challenges` | list, join/leave, progress tự động và card link tới detail |
 | AC-WEB-010A | P0 | `/challenges/:id` | deep-link detail, loading/error/empty/unauthenticated CTA, join/leave không reload |
 
-### 18.2 Route protected
+### 19.2 Route protected
 
 | ID | P | Route | Tiêu chí |
 |---|---|---|---|
@@ -466,14 +479,15 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 
 Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` sau khi auth bootstrap kết thúc.
 
-### 18.3 Route admin
+### 19.3 Route admin
 
 | ID | P | Route | Tiêu chí |
 |---|---|---|---|
 | AC-WEB-021 | P0 | `/admin/books` | ADMIN create/patch/delete book bằng `/api/admin/books`; USER bị chặn |
 | AC-WEB-022 | P0 | `/admin/challenges` | ADMIN create/patch/publish/delete challenge; USER bị chặn |
+| AC-WEB-022A | P0 | `/admin/moderation` | ADMIN lọc queue, xem snapshot, ghi note, bác bỏ, ẩn nội dung hoặc khóa tài khoản; USER bị chặn |
 
-### 18.4 Trạng thái chung
+### 19.4 Trạng thái chung
 
 | ID | P | Given/When/Then |
 |---|---|---|
@@ -500,7 +514,7 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 | AC-WEB-043 | P0 | Entry point Focus từ Library, Dashboard hoặc Book Detail chỉ xuất hiện/hoạt động với book có thể đọc; URL preselect đúng book và không tạo active session trước thao tác xác nhận của user. |
 | AC-WEB-044 | P0 | Biểu mẫu manual khóa cuốn đang có Focus session và giải thích lý do; sách khác vẫn chọn được, còn backend tiếp tục là nguồn bảo vệ authoritative cho request cạnh tranh. |
 
-## 19. Security và isolation
+## 20. Security và isolation
 
 | ID | P | Given/When/Then |
 |---|---|---|
@@ -516,7 +530,7 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 | AC-SEC-010 | P1 | Nội dung người dùng nhập bị giới hạn độ dài ở API, không chỉ ở UI. |
 | AC-SEC-011 | P0 | Recommendation không trả hay suy luận từ library, reading session, reading note hoặc visibility flag của user khác; chỉ review công khai hợp lệ tham gia social/global signal. |
 
-## 20. Tính độc lập và integration
+## 21. Tính độc lập và integration
 
 | ID | P | Given/When/Then |
 |---|---|---|
@@ -532,7 +546,7 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 | AC-IND-010 | P1 | Payload upstream không nhận diện được trả result có giới hạn, không lưu dữ liệu rác. |
 | AC-IND-011 | P0 | Recommendation rule-based hoạt động khi Bookstore integration tắt, không gọi provider ngoài và không yêu cầu model/ML service. |
 
-## 21. Coverage tự động tối thiểu
+## 22. Coverage tự động tối thiểu
 
 ### Unit tests
 
@@ -593,7 +607,7 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 
 Không đặt ngưỡng coverage phần trăm giả tạo cho Goal 1. Mọi invariant và authorization branch liệt kê trên phải có test trực tiếp.
 
-## 22. Điều kiện ký nghiệm thu
+## 23. Điều kiện ký nghiệm thu
 
 Goal 1 chỉ hoàn thành khi:
 

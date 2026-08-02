@@ -551,6 +551,43 @@ export interface NotificationPreferences {
   isChallengeNotificationEnabled: boolean
 }
 
+export type ContentReportTargetType =
+  | 'USER'
+  | 'REVIEW'
+  | 'REVIEW_COMMENT'
+  | 'CLUB_POST'
+  | 'CLUB_POST_COMMENT'
+  | 'CLUB_CHAT_MESSAGE'
+
+export type ContentReportReason =
+  | 'SPAM'
+  | 'HARASSMENT'
+  | 'HATEFUL_CONTENT'
+  | 'INAPPROPRIATE_CONTENT'
+  | 'MISINFORMATION'
+  | 'OTHER'
+
+export type ContentReportStatus = 'PENDING' | 'RESOLVED' | 'DISMISSED'
+export type ModerationAction = 'NONE' | 'CONTENT_REMOVED' | 'USER_LOCKED'
+
+export interface ContentReport {
+  id: string
+  reporter: User
+  targetType: ContentReportTargetType
+  targetId: string
+  targetOwner: User
+  reason: ContentReportReason
+  details: string | null
+  targetPreview: string
+  targetLink: string
+  status: ContentReportStatus
+  action: ModerationAction
+  moderator: User | null
+  resolutionNote: string | null
+  resolvedAt: string | null
+  createdAt: string
+}
+
 export interface Dashboard {
   booksRead: number
   pagesRead: number

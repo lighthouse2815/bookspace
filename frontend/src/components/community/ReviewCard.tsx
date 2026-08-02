@@ -25,6 +25,7 @@ import {
 import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
 import { Rating } from '../ui/Rating'
+import { ReportContentButton } from '../moderation/ReportContentButton'
 
 export function ReviewCard({ review, bookId }: { review: Review; bookId?: string }) {
   const [showComments, setShowComments] = useState(false)
@@ -140,6 +141,12 @@ export function ReviewCard({ review, bookId }: { review: Review; bookId?: string
                   Xóa
                 </Button>
               ) : null}
+              <ReportContentButton
+                targetType="REVIEW"
+                targetId={review.id}
+                ownerId={review.user.id}
+                label="Báo cáo đánh giá"
+              />
             </div>
           </div>
           {review.book ? (
@@ -248,6 +255,13 @@ export function ReviewCard({ review, bookId }: { review: Review; bookId?: string
                             <Trash size={16} />
                           </button>
                         ) : null}
+                        <ReportContentButton
+                          targetType="REVIEW_COMMENT"
+                          targetId={item.id}
+                          ownerId={item.user.id}
+                          label="Báo cáo bình luận"
+                          compact
+                        />
                       </div>
                     </div>
                   ))}

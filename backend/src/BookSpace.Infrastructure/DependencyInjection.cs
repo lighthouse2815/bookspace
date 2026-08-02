@@ -58,6 +58,7 @@ public static class DependencyInjection
         services.AddScoped<IAsyncQueryExecutor, EfAsyncQueryExecutor>();
         services.AddScoped<IUserDiscoveryQuery, UserDiscoveryQuery>();
         services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<IContentModerationService, ContentModerationService>();
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<IReadingInsightsRepository, ReadingInsightsRepository>();
         services.AddScoped<IReadingInsightsService, ReadingInsightsService>();

@@ -11,6 +11,7 @@ import {
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ClubChatPanel } from '../../components/clubs/ClubChatPanel'
+import { ReportContentButton } from '../../components/moderation/ReportContentButton'
 import { ClubManagementPanel } from '../../components/clubs/ClubManagementPanel'
 import { ClubRoster } from '../../components/clubs/ClubRoster'
 import { ReadingSprintSection } from '../../components/clubs/ReadingSprintSection'
@@ -388,17 +389,24 @@ function ClubPostDiscussion({ clubId, post, canComment }: ClubPostDiscussionProp
         </div>
       </div>
       <p className="mt-4 whitespace-pre-line text-sm leading-6 text-body">{post.content}</p>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="mt-3"
-        icon={<ChatCircle size={17} />}
-        aria-expanded={showComments}
-        onClick={() => setShowComments((value) => !value)}
-      >
-        {post.commentCount ?? 0} bình luận
-      </Button>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          icon={<ChatCircle size={17} />}
+          aria-expanded={showComments}
+          onClick={() => setShowComments((value) => !value)}
+        >
+          {post.commentCount ?? 0} bình luận
+        </Button>
+        <ReportContentButton
+          targetType="CLUB_POST"
+          targetId={post.id}
+          ownerId={post.author.id}
+          label="Báo cáo bài viết"
+        />
+      </div>
 
       {showComments ? (
         <div className="mt-4 border-t border-line pt-4">
@@ -409,12 +417,21 @@ function ClubPostDiscussion({ clubId, post, canComment }: ClubPostDiscussionProp
           {comments.data?.items.map((comment) => (
             <div key={comment.id} className="mb-3 flex gap-2.5 text-sm">
               <Avatar src={comment.author.avatarUrl} name={comment.author.displayName} size="sm" />
-              <p className="min-w-0 leading-6 text-body">
-                <Link to={`/users/${comment.author.id}`} className="font-semibold text-heading hover:text-accent-strong">
-                  {comment.author.displayName}
-                </Link>{' '}
-                {comment.content}
-              </p>
+              <div className="flex min-w-0 flex-1 items-start gap-1">
+                <p className="min-w-0 flex-1 leading-6 text-body">
+                  <Link to={`/users/${comment.author.id}`} className="font-semibold text-heading hover:text-accent-strong">
+                    {comment.author.displayName}
+                  </Link>{' '}
+                  {comment.content}
+                </p>
+                <ReportContentButton
+                  targetType="CLUB_POST_COMMENT"
+                  targetId={comment.id}
+                  ownerId={comment.author.id}
+                  label="Báo cáo bình luận"
+                  compact
+                />
+              </div>
             </div>
           ))}
           {!comments.isLoading && !comments.isError && comments.data?.items.length === 0 ? (

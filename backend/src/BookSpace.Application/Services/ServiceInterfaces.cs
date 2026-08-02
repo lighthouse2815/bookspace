@@ -232,6 +232,25 @@ public interface INotificationService
     Task MarkAllReadAsync(Guid userId, CancellationToken cancellationToken);
 }
 
+public interface IContentModerationService
+{
+    Task<ContentReportDto> CreateReportAsync(
+        Guid reporterId,
+        CreateContentReportRequest request,
+        CancellationToken cancellationToken);
+    PageResult<ContentReportDto> GetReports(
+        ContentReportStatus? status,
+        ContentReportTargetType? targetType,
+        ContentReportReason? reason,
+        int page,
+        int pageSize);
+    Task<ContentReportDto> ResolveReportAsync(
+        Guid moderatorId,
+        Guid reportId,
+        ResolveContentReportRequest request,
+        CancellationToken cancellationToken);
+}
+
 public interface IDashboardService
 {
     Task<DashboardDto> GetAsync(Guid userId, CancellationToken cancellationToken);

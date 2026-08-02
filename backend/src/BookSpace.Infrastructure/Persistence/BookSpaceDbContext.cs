@@ -42,6 +42,7 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
     public DbSet<ReadingChallenge> ReadingChallengeSet => Set<ReadingChallenge>();
     public DbSet<ChallengeParticipation> ChallengeParticipationSet => Set<ChallengeParticipation>();
     public DbSet<Notification> NotificationSet => Set<Notification>();
+    public DbSet<ContentReport> ContentReportSet => Set<ContentReport>();
 
     IQueryable<User> IBookSpaceDbContext.Users => UserSet;
     IQueryable<RefreshToken> IBookSpaceDbContext.RefreshTokens => RefreshTokenSet;
@@ -58,14 +59,24 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
     IQueryable<ActiveReadingSession> IBookSpaceDbContext.ActiveReadingSessions =>
         ActiveReadingSessionSet;
     IQueryable<Review> IBookSpaceDbContext.Reviews => ReviewSet;
+    IQueryable<Review> IBookSpaceDbContext.ReviewsIncludingDeleted =>
+        ReviewSet.IgnoreQueryFilters();
     IQueryable<ReviewComment> IBookSpaceDbContext.ReviewComments => ReviewCommentSet;
+    IQueryable<ReviewComment> IBookSpaceDbContext.ReviewCommentsIncludingDeleted =>
+        ReviewCommentSet.IgnoreQueryFilters();
     IQueryable<ReviewLike> IBookSpaceDbContext.ReviewLikes => ReviewLikeSet;
     IQueryable<BookClub> IBookSpaceDbContext.BookClubs => BookClubSet;
     IQueryable<BookClubMember> IBookSpaceDbContext.BookClubMembers => BookClubMemberSet;
     IQueryable<ClubInvitation> IBookSpaceDbContext.ClubInvitations => ClubInvitationSet;
     IQueryable<ClubPost> IBookSpaceDbContext.ClubPosts => ClubPostSet;
+    IQueryable<ClubPost> IBookSpaceDbContext.ClubPostsIncludingDeleted =>
+        ClubPostSet.IgnoreQueryFilters();
     IQueryable<ClubPostComment> IBookSpaceDbContext.ClubPostComments => ClubPostCommentSet;
+    IQueryable<ClubPostComment> IBookSpaceDbContext.ClubPostCommentsIncludingDeleted =>
+        ClubPostCommentSet.IgnoreQueryFilters();
     IQueryable<ClubChatMessage> IBookSpaceDbContext.ClubChatMessages => ClubChatMessageSet;
+    IQueryable<ClubChatMessage> IBookSpaceDbContext.ClubChatMessagesIncludingDeleted =>
+        ClubChatMessageSet.IgnoreQueryFilters();
     IQueryable<ClubChatReadState> IBookSpaceDbContext.ClubChatReadStates => ClubChatReadStateSet;
     IQueryable<ClubReadingSprint> IBookSpaceDbContext.ClubReadingSprints =>
         ClubReadingSprintSet;
@@ -84,6 +95,7 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
     IQueryable<ReadingChallenge> IBookSpaceDbContext.ReadingChallenges => ReadingChallengeSet;
     IQueryable<ChallengeParticipation> IBookSpaceDbContext.ChallengeParticipations => ChallengeParticipationSet;
     IQueryable<Notification> IBookSpaceDbContext.Notifications => NotificationSet;
+    IQueryable<ContentReport> IBookSpaceDbContext.ContentReports => ContentReportSet;
 
     void IBookSpaceDbContext.Add<T>(T entity) => Set<T>().Add(entity);
     void IBookSpaceDbContext.AddRange<T>(IEnumerable<T> entities) => Set<T>().AddRange(entities);
@@ -110,6 +122,7 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
         ConfigureReadingSprints(modelBuilder);
         ConfigureChallenges(modelBuilder);
         ConfigureNotifications(modelBuilder);
+        ConfigureContentModeration(modelBuilder);
         ApplySoftDeleteFilters(modelBuilder);
     }
 
@@ -546,6 +559,41 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
         });
     }
 
+    private static void ConfigureContentModeration(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ContentReport>(entity =>
+        {
+            entity.ToTable("content_reports");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.Status, x.CreatedAt, x.Id });
+            entity.HasIndex(x => new { x.TargetType, x.TargetId });
+            entity.HasIndex(x => new { x.ReporterId, x.TargetType, x.TargetId })
+                .IsUnique()
+                .HasFilter("\"Status\" = 'PENDING' AND \"DeletedAt\" IS NULL");
+            entity.Property(x => x.TargetType).HasConversion<string>().HasMaxLength(30);
+            entity.Property(x => x.Reason).HasConversion<string>().HasMaxLength(40);
+            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.Action).HasConversion<string>().HasMaxLength(30);
+            entity.Property(x => x.Details).HasMaxLength(1000);
+            entity.Property(x => x.TargetPreview).HasMaxLength(500).IsRequired();
+            entity.Property(x => x.TargetLink).HasMaxLength(1000).IsRequired();
+            entity.Property(x => x.ResolutionNote).HasMaxLength(1000);
+            entity.HasOne(x => x.Reporter)
+                .WithMany()
+                .HasForeignKey(x => x.ReporterId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.TargetOwner)
+                .WithMany()
+                .HasForeignKey(x => x.TargetOwnerId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Moderator)
+                .WithMany()
+                .HasForeignKey(x => x.ModeratorId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.Ignore(x => x.IsDeleted);
+        });
+    }
+
     private static void ApplySoftDeleteFilters(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<User>().HasQueryFilter(x => x.DeletedAt == null);
@@ -568,12 +616,20 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
         modelBuilder.Entity<LibraryItem>().HasQueryFilter(x => x.DeletedAt == null);
         modelBuilder.Entity<ReadingSession>().HasQueryFilter(x => x.DeletedAt == null);
         modelBuilder.Entity<ActiveReadingSession>().HasQueryFilter(x => x.DeletedAt == null);
-        modelBuilder.Entity<Review>().HasQueryFilter(x => x.DeletedAt == null);
-        modelBuilder.Entity<ReviewComment>().HasQueryFilter(x => x.DeletedAt == null);
+        modelBuilder.Entity<Review>().HasQueryFilter(x =>
+            x.DeletedAt == null &&
+            x.User.DeletedAt == null &&
+            !x.User.IsLocked);
+        modelBuilder.Entity<ReviewComment>().HasQueryFilter(x =>
+            x.DeletedAt == null &&
+            x.User.DeletedAt == null &&
+            !x.User.IsLocked &&
+            x.Review.DeletedAt == null);
         modelBuilder.Entity<ReviewLike>().HasQueryFilter(x =>
             x.DeletedAt == null &&
             x.Review.DeletedAt == null &&
-            x.User.DeletedAt == null);
+            x.User.DeletedAt == null &&
+            !x.User.IsLocked);
         modelBuilder.Entity<BookClub>().HasQueryFilter(x => x.DeletedAt == null);
         modelBuilder.Entity<BookClubMember>().HasQueryFilter(x =>
             x.DeletedAt == null &&
@@ -584,12 +640,20 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
             x.Club.DeletedAt == null &&
             x.Inviter.DeletedAt == null &&
             x.InvitedUser.DeletedAt == null);
-        modelBuilder.Entity<ClubPost>().HasQueryFilter(x => x.DeletedAt == null);
-        modelBuilder.Entity<ClubPostComment>().HasQueryFilter(x => x.DeletedAt == null);
+        modelBuilder.Entity<ClubPost>().HasQueryFilter(x =>
+            x.DeletedAt == null &&
+            x.Author.DeletedAt == null &&
+            !x.Author.IsLocked);
+        modelBuilder.Entity<ClubPostComment>().HasQueryFilter(x =>
+            x.DeletedAt == null &&
+            x.Author.DeletedAt == null &&
+            !x.Author.IsLocked &&
+            x.Post.DeletedAt == null);
         modelBuilder.Entity<ClubChatMessage>().HasQueryFilter(x =>
             x.DeletedAt == null &&
             x.Club.DeletedAt == null &&
-            x.Sender.DeletedAt == null);
+            x.Sender.DeletedAt == null &&
+            !x.Sender.IsLocked);
         modelBuilder.Entity<ClubChatReadState>().HasQueryFilter(x =>
             x.DeletedAt == null &&
             x.Membership.DeletedAt == null &&
@@ -623,5 +687,6 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
             x.Challenge.DeletedAt == null &&
             x.User.DeletedAt == null);
         modelBuilder.Entity<Notification>().HasQueryFilter(x => x.DeletedAt == null);
+        modelBuilder.Entity<ContentReport>().HasQueryFilter(x => x.DeletedAt == null);
     }
 }

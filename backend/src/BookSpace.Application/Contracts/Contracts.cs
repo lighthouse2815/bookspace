@@ -397,6 +397,36 @@ public sealed record NotificationPreferencesDto(
     bool IsClubNotificationEnabled,
     bool IsChallengeNotificationEnabled);
 
+public sealed record CreateContentReportRequest(
+    ContentReportTargetType TargetType,
+    Guid TargetId,
+    ContentReportReason Reason,
+    [MaxLength(1000, ErrorMessage = "Mô tả báo cáo không được vượt quá 1000 ký tự.")]
+    string? Details);
+
+public sealed record ResolveContentReportRequest(
+    ContentReportStatus Status,
+    ModerationAction Action,
+    [MaxLength(1000, ErrorMessage = "Ghi chú xử lý không được vượt quá 1000 ký tự.")]
+    string? ResolutionNote);
+
+public sealed record ContentReportDto(
+    Guid Id,
+    UserSummary Reporter,
+    ContentReportTargetType TargetType,
+    Guid TargetId,
+    UserSummary TargetOwner,
+    ContentReportReason Reason,
+    string? Details,
+    string TargetPreview,
+    string TargetLink,
+    ContentReportStatus Status,
+    ModerationAction Action,
+    UserSummary? Moderator,
+    string? ResolutionNote,
+    DateTimeOffset? ResolvedAt,
+    DateTimeOffset CreatedAt);
+
 public sealed record UpdateNotificationPreferencesRequest(
     bool IsFollowNotificationEnabled,
     bool IsReviewNotificationEnabled,

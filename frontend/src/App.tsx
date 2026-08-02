@@ -98,6 +98,11 @@ const AdminChallengesPage = lazy(() =>
     default: module.AdminChallengesPage,
   })),
 )
+const AdminModerationPage = lazy(() =>
+  import('./pages/admin/AdminModerationPage').then((module) => ({
+    default: module.AdminModerationPage,
+  })),
+)
 const NotFoundPage = lazy(() =>
   import('./pages/system/NotFoundPage').then((module) => ({ default: module.NotFoundPage })),
 )
@@ -149,6 +154,7 @@ export default function App() {
               <Route path="admin" element={<Navigate to="/admin/books" replace />} />
               <Route path="admin/books" element={<AdminBooksPage />} />
               <Route path="admin/challenges" element={<AdminChallengesPage />} />
+              <Route path="admin/moderation" element={<AdminModerationPage />} />
             </Route>
           </Route>
 

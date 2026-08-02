@@ -1,4 +1,4 @@
-import { Books, Flag } from '@phosphor-icons/react'
+import { Books, Flag, ShieldWarning } from '@phosphor-icons/react'
 import { NavLink } from 'react-router-dom'
 
 export function AdminNav() {
@@ -17,6 +17,13 @@ export function AdminNav() {
       >
         <Flag size={17} />
         Thử thách
+      </NavLink>
+      <NavLink
+        to="/admin/moderation"
+        className={({ isActive }) => `filter-tab ${isActive ? 'filter-active' : ''}`}
+      >
+        <ShieldWarning size={17} />
+        Kiểm duyệt
       </NavLink>
     </nav>
   )

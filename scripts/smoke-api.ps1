@@ -23,7 +23,8 @@ function Invoke-BookSpaceRequest {
     }
 
     if ($null -ne $Body) {
-        $parameters.Body = $Body | ConvertTo-Json -Depth 8
+        $jsonBody = $Body | ConvertTo-Json -Depth 8
+        $parameters.Body = [System.Text.Encoding]::UTF8.GetBytes($jsonBody)
     }
 
     if ($AccessToken) {
@@ -147,6 +148,38 @@ if (-not $adminLogin.success -or -not $adminLogin.data.accessToken) {
     throw 'Đăng nhập admin cho cold-start recommendation không thành công.'
 }
 $adminToken = $adminLogin.data.accessToken
+$moderationSuffix = [Guid]::NewGuid().ToString('N')
+$moderationTarget = Invoke-BookSpaceRequest `
+    -Method Post `
+    -Path '/api/auth/register' `
+    -Body @{
+        email = "moderation-smoke-$moderationSuffix@bookspace.local"
+        password = 'Reader123!'
+        displayName = "Moderation Smoke $($moderationSuffix.Substring(0, 8))"
+    }
+$contentReport = Invoke-BookSpaceRequest `
+    -Method Post `
+    -Path '/api/reports' `
+    -Body @{
+        targetType = 'USER'
+        targetId = $moderationTarget.data.user.id
+        reason = 'OTHER'
+        details = 'Báo cáo smoke dùng để xác minh hàng đợi kiểm duyệt.'
+    } `
+    -AccessToken $token
+$moderationQueue = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path "/api/admin/reports?status=PENDING&targetType=USER&page=1&pageSize=100" `
+    -AccessToken $adminToken
+$moderationResolution = Invoke-BookSpaceRequest `
+    -Method Patch `
+    -Path "/api/admin/reports/$($contentReport.data.id)/resolution" `
+    -Body @{
+        status = 'DISMISSED'
+        action = 'NONE'
+        resolutionNote = 'Đã xác minh đường đi smoke của Community Safety.'
+    } `
+    -AccessToken $adminToken
 $adminLibrary = Invoke-BookSpaceRequest `
     -Method Get `
     -Path '/api/library?page=1&pageSize=20' `
@@ -533,6 +566,18 @@ if ($null -ne $activeReadingSession.data) {
 }
 
 if (
+    -not $moderationTarget.success -or
+    -not $contentReport.success -or
+    $contentReport.data.status -ne 'PENDING' -or
+    @($moderationQueue.data.items | Where-Object { $_.id -eq $contentReport.data.id }).Count -ne 1 -or
+    -not $moderationResolution.success -or
+    $moderationResolution.data.status -ne 'DISMISSED' -or
+    $moderationResolution.data.action -ne 'NONE'
+) {
+    throw 'Community Safety report, admin queue hoặc resolution contract không hợp lệ.'
+}
+
+if (
     $invalidFeedType.StatusCode -ne 400 -or
     $null -eq $invalidFeedType.Payload -or
     $invalidFeedType.Payload.success -ne $false -or
@@ -591,6 +636,7 @@ if (
     FirstSprintParticipants = if ($null -ne $sprintLeaderboard) { $sprintLeaderboard.data.totalItems } else { 0 }
     FirstSprintTimelineItems = if ($null -ne $sprintTimeline) { $sprintTimeline.data.totalItems } else { 0 }
     ClubChatMessages = if ($null -ne $clubChatHistory) { $clubChatHistory.data.items.Count } else { 0 }
+    ModerationReports = $moderationQueue.data.totalItems
     CurrentStreak = $insightsOverview.data.currentStreak
     InsightCalendarDays = $insightsCalendar.data.daysData.Count
     InsightWeeks = $insightsWeekly.data.items.Count

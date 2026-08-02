@@ -761,6 +761,33 @@ Chỉ người nhận được truy cập và đánh dấu đọc. `mark read` v
 
 Preference của `User` được kiểm tra trước khi insert notification mới cho `FOLLOW`, review interaction, `CLUB` và `CHALLENGE`. `SYSTEM` không thể tắt. Preference không lọc ngược lịch sử vì notification đã tạo là bản ghi sự kiện của thời điểm trước đó.
 
+### 8.2 `ContentReport`
+
+| Trường | Kiểu | Bắt buộc | Quy tắc |
+|---|---|---:|---|
+| `Id` | `Guid` | có | server tạo |
+| `ReporterId` | `Guid` | có | principal gửi report, khác target owner |
+| `TargetType` | `ContentReportTargetType` | có | `USER`, `REVIEW`, `REVIEW_COMMENT`, `CLUB_POST`, `CLUB_POST_COMMENT`, `CLUB_CHAT_MESSAGE` |
+| `TargetId` | `Guid` | có | định danh mục tiêu polymorphic |
+| `TargetOwnerId` | `Guid` | có | chủ hồ sơ/nội dung tại lúc report |
+| `Reason` | `ContentReportReason` | có | `SPAM`, `HARASSMENT`, `HATEFUL_CONTENT`, `INAPPROPRIATE_CONTENT`, `MISINFORMATION`, `OTHER` |
+| `Details` | `string?` | không | tối đa 1.000 ký tự |
+| `TargetPreview` | `string` | có | snapshot tối đa 500 ký tự, chỉ admin và reporter nhận trong response tạo |
+| `TargetLink` | `string` | có | deep-link nội bộ tới ngữ cảnh |
+| `Status` | `ContentReportStatus` | có | `PENDING`, `RESOLVED`, `DISMISSED` |
+| `Action` | `ModerationAction` | có | `NONE`, `CONTENT_REMOVED`, `USER_LOCKED` |
+| `ModeratorId` | `Guid?` | không | admin xử lý |
+| `ResolutionNote` | `string?` | không | tối đa 1.000 ký tự |
+| `ResolvedAt` | `DateTimeOffset?` | không | UTC |
+| `CreatedAt`, `UpdatedAt` | thời gian | có/không | UTC |
+
+Unique partial index `(ReporterId, TargetType, TargetId)` khi `Status=PENDING`
+chặn report trùng nhưng cho phép báo lại nếu một vi phạm mới xuất hiện sau khi
+report cũ đã đóng. `DISMISSED` bắt buộc action `NONE`; `RESOLVED` bắt buộc
+`CONTENT_REMOVED` hoặc `USER_LOCKED`. `USER` không nhận `CONTENT_REMOVED`.
+Soft-delete giữ nội dung để audit nhưng global query filter loại nội dung đó khỏi
+public API. Report là bản ghi audit và không bị xóa khi target bị xử lý.
+
 ## 9. Integration model
 
 Goal 1 không persist entity bên ngoài. `ExternalBookResult` là DTO tạm thời:
