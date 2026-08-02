@@ -42,6 +42,7 @@ public sealed class ReadingService(
         int page,
         int pageSize)
     {
+        UserSafetyPolicy.EnsureCanView(db, viewerId, userId);
         var owner = db.Users.FirstOrDefault(x => x.Id == userId && !x.IsLocked)
                     ?? throw ServiceErrors.NotFound("USER_NOT_FOUND", "Không tìm thấy người dùng.");
         if (viewerId != userId && !owner.IsReadingShelfPublic)

@@ -2,8 +2,10 @@ import {
   Bell,
   ClockCounterClockwise,
   Eye,
+  EyeSlash,
   Heart,
   LockKey,
+  Prohibit,
   ShieldCheck,
   Trophy,
   UserCircle,
@@ -19,12 +21,19 @@ import { useTheme } from '../../contexts/ThemeContext'
 import { themeOptions } from '../../contexts/theme-options'
 import { useToast } from '../../contexts/ToastContext'
 import { errorMessage } from '../../lib/api'
-import { useUpdateProfilePrivacy, useUser } from '../../hooks/useCommunity'
+import {
+  useMuteUser,
+  useUnblockUser,
+  useUpdateProfilePrivacy,
+  useUser,
+  useUserSafetyList,
+} from '../../hooks/useCommunity'
 import {
   useNotificationPreferences,
   useUpdateNotificationPreferences,
 } from '../../hooks/useNotifications'
 import { communityService } from '../../services/community.service'
+import type { UserSafetyEntry } from '../../types/domain'
 
 export function SettingsPage() {
   const { user, refreshUser } = useAuth()
@@ -34,6 +43,7 @@ export function SettingsPage() {
   const updatePrivacy = useUpdateProfilePrivacy(user?.id)
   const notificationPreferences = useNotificationPreferences()
   const updateNotificationPreferences = useUpdateNotificationPreferences()
+  const safetyList = useUserSafetyList(1, 100)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     displayName: user?.displayName ?? '',
@@ -186,6 +196,38 @@ export function SettingsPage() {
             </Button>
           </div>
         </form>
+      </section>
+
+      <section className="mt-6 surface p-5 sm:p-7">
+        <div className="flex items-start gap-4 border-b border-border pb-6">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent-strong">
+            <Prohibit size={23} weight="duotone" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-heading">An toàn và kiểm soát nội dung</h2>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-muted">
+              Quản lý người bạn đã chặn hoặc ẩn. Bỏ chặn không tự khôi phục quan hệ theo dõi trước đó.
+            </p>
+          </div>
+        </div>
+
+        {safetyList.isLoading ? (
+          <div className="mt-6 h-28 animate-pulse rounded-2xl bg-surface-muted" />
+        ) : safetyList.isError ? (
+          <p className="mt-6 text-sm text-red-600" role="alert">
+            Không thể tải danh sách an toàn. Hãy tải lại trang.
+          </p>
+        ) : safetyList.data?.items.length ? (
+          <div className="mt-6 divide-y divide-border rounded-2xl border border-border">
+            {safetyList.data.items.map((entry) => (
+              <SafetyRow key={entry.user.id} entry={entry} />
+            ))}
+          </div>
+        ) : (
+          <div className="mt-6 rounded-2xl bg-surface-muted p-5 text-sm leading-6 text-muted">
+            Bạn chưa chặn hoặc ẩn nội dung từ người đọc nào.
+          </div>
+        )}
       </section>
 
       <section className="mt-6 surface p-5 sm:p-7">
@@ -361,6 +403,69 @@ export function SettingsPage() {
           </div>
         </dl>
       </section>
+    </div>
+  )
+}
+
+function SafetyRow({ entry }: { entry: UserSafetyEntry }) {
+  const { showToast } = useToast()
+  const unmute = useMuteUser(entry.user.id, true)
+  const unblock = useUnblockUser(entry.user.id)
+
+  return (
+    <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
+      <Avatar src={entry.user.avatarUrl} name={entry.user.displayName} size="sm" />
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-semibold text-heading">{entry.user.displayName}</p>
+        <div className="mt-1 flex flex-wrap gap-2 text-xs font-semibold">
+          {entry.isBlocked ? (
+            <span className="rounded-full bg-red-500/10 px-2.5 py-1 text-red-700 dark:text-red-300">
+              Đã chặn
+            </span>
+          ) : null}
+          {entry.isMuted ? (
+            <span className="rounded-full bg-surface-muted px-2.5 py-1 text-muted">
+              Đã ẩn nội dung
+            </span>
+          ) : null}
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2 sm:justify-end">
+        {entry.isMuted ? (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            loading={unmute.isPending}
+            icon={<EyeSlash size={16} />}
+            onClick={() =>
+              unmute.mutate(undefined, {
+                onSuccess: () => showToast('Đã hiển thị lại nội dung', 'success'),
+                onError: (error) => showToast(errorMessage(error), 'error'),
+              })
+            }
+          >
+            Bỏ ẩn
+          </Button>
+        ) : null}
+        {entry.isBlocked ? (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            loading={unblock.isPending}
+            icon={<Prohibit size={16} />}
+            onClick={() =>
+              unblock.mutate(undefined, {
+                onSuccess: () => showToast('Đã bỏ chặn người đọc', 'success'),
+                onError: (error) => showToast(errorMessage(error), 'error'),
+              })
+            }
+          >
+            Bỏ chặn
+          </Button>
+        ) : null}
+      </div>
     </div>
   )
 }

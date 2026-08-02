@@ -184,6 +184,8 @@ Các unique index bắt buộc:
 | `User` | unique normalized email khi active |
 | `RefreshToken` | unique token hash |
 | `Follow` | unique `(FollowerId, FollowingId)` |
+| `UserBlock` | unique `(BlockerId, BlockedUserId)`; reverse lookup `(BlockedUserId, BlockerId)` |
+| `UserMute` | unique `(UserId, MutedUserId)`; reverse lookup `(MutedUserId, UserId)` |
 | `Book` | unique ISBN khi ISBN khác null và active |
 | `Category` | unique normalized name khi active |
 | `BookAuthor` | unique `(BookId, AuthorId)` |
@@ -305,6 +307,7 @@ Query key tối thiểu:
 ["my-challenges", paging]
 ["notifications", filters]
 ["notification-unread-count"]
+["user-safety", principalScope, paging]
 ["dashboard"]
 ```
 
@@ -317,6 +320,9 @@ Mutation phải invalidate đúng consumer:
 - Follow: principal-scoped `people`, target/current `users`, `followers`,
   `following`, `book-recommendations`, `feed`, `dashboard`; mutation cùng target
   dùng shared pending key.
+- Block/mute: principal-scoped `user-safety`, `people`, `users`, `feed`,
+  `book-recommendations`, `book-reviews`, club post/comment/chat/unread,
+  `notifications` và `dashboard`. Block còn loại cache profile target ngay sau success.
 - Club/member/post/comment: `clubs`, `club`, `club-posts`, `club-comments`, `feed`.
 - Club chat send/read/realtime: merge theo `message.id`, invalidate history/unread
   của đúng principal; reconnect refetch trang mới nhất thay vì tin hoàn toàn vào event stream.
@@ -397,6 +403,7 @@ sequenceDiagram
 | đọc sprint private, leaderboard và timeline | active member của đúng club |
 | xóa phản hồi milestone | response author hoặc `OWNER`/`MODERATOR` của club |
 | notification/dashboard | principal only |
+| block/mute/list safety | authenticated principal; không tự chặn hoặc tự ẩn |
 | tạo report | authenticated principal; target phải đang nhìn thấy được và không thuộc chính principal |
 | đọc/xử lý report | `ADMIN`; không tự xử lý report nhắm đến nội dung của mình, không khóa admin |
 

@@ -11,6 +11,7 @@ namespace BookSpace.Api.Controllers;
 [Route("api/users")]
 public sealed class UsersController(
     IUserService userService,
+    IUserSafetyService userSafetyService,
     IReadingService readingService,
     ICommunityService communityService) : ApiControllerBase
 {
@@ -41,6 +42,13 @@ public sealed class UsersController(
                 page,
                 pageSize,
                 cancellationToken));
+
+    [Authorize]
+    [HttpGet("me/safety")]
+    public ActionResult<ApiResponse<PageResult<UserSafetyEntryDto>>> MySafetyList(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20) =>
+        OkData(userSafetyService.GetMine(CurrentUserId, page, pageSize));
 
     [AllowAnonymous]
     [HttpGet("{id:guid}")]
@@ -110,13 +118,51 @@ public sealed class UsersController(
         return OkData(userService.Get(id, CurrentUserId), "Đã bỏ theo dõi người dùng.");
     }
 
+    [Authorize]
+    [HttpPost("{id:guid}/block")]
+    public async Task<ActionResult<ApiResponse<UserSafetyEntryDto>>> Block(
+        Guid id,
+        CancellationToken cancellationToken) =>
+        OkData(
+            await userSafetyService.BlockAsync(CurrentUserId, id, cancellationToken),
+            "Đã chặn người dùng và gỡ kết nối theo dõi hai chiều.");
+
+    [Authorize]
+    [HttpDelete("{id:guid}/block")]
+    public async Task<ActionResult<ApiResponse<object?>>> Unblock(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        await userSafetyService.UnblockAsync(CurrentUserId, id, cancellationToken);
+        return OkEmptyData("Đã bỏ chặn người dùng.");
+    }
+
+    [Authorize]
+    [HttpPost("{id:guid}/mute")]
+    public async Task<ActionResult<ApiResponse<UserSafetyEntryDto>>> Mute(
+        Guid id,
+        CancellationToken cancellationToken) =>
+        OkData(
+            await userSafetyService.MuteAsync(CurrentUserId, id, cancellationToken),
+            "Đã ẩn nội dung từ người dùng này.");
+
+    [Authorize]
+    [HttpDelete("{id:guid}/mute")]
+    public async Task<ActionResult<ApiResponse<object?>>> Unmute(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        await userSafetyService.UnmuteAsync(CurrentUserId, id, cancellationToken);
+        return OkEmptyData("Đã hiển thị lại nội dung từ người dùng này.");
+    }
+
     [AllowAnonymous]
     [HttpGet("{id:guid}/followers")]
     public ActionResult<ApiResponse<PageResult<UserSummary>>> Followers(
         Guid id,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20) =>
-        OkData(userService.GetFollowers(id, page, pageSize));
+        OkData(userService.GetFollowers(id, OptionalUserId, page, pageSize));
 
     [AllowAnonymous]
     [HttpGet("{id:guid}/following")]
@@ -124,5 +170,5 @@ public sealed class UsersController(
         Guid id,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20) =>
-        OkData(userService.GetFollowing(id, page, pageSize));
+        OkData(userService.GetFollowing(id, OptionalUserId, page, pageSize));
 }

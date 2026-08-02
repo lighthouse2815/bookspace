@@ -9,17 +9,21 @@ internal static class NotificationDelivery
     public static bool IsEnabled(
         IBookSpaceDbContext db,
         Guid userId,
-        NotificationType type)
+        NotificationType type,
+        Guid? actorUserId = null)
     {
         var user = db.Users.FirstOrDefault(x => x.Id == userId);
-        return user?.AllowsNotification(type) == true;
+        return user?.AllowsNotification(type) == true &&
+               (!actorUserId.HasValue ||
+                !UserSafetyPolicy.IsHiddenFrom(db, userId, actorUserId.Value));
     }
 
     public static bool AddIfEnabled(
         IBookSpaceDbContext db,
-        Notification notification)
+        Notification notification,
+        Guid? actorUserId = null)
     {
-        if (!IsEnabled(db, notification.UserId, notification.Type))
+        if (!IsEnabled(db, notification.UserId, notification.Type, actorUserId))
         {
             return false;
         }
@@ -30,7 +34,8 @@ internal static class NotificationDelivery
 
     public static void AddRangeIfEnabled(
         IBookSpaceDbContext db,
-        IEnumerable<Notification> notifications)
+        IEnumerable<Notification> notifications,
+        Guid? actorUserId = null)
     {
         var candidates = notifications.ToList();
         if (candidates.Count == 0)
@@ -45,7 +50,9 @@ internal static class NotificationDelivery
             .ToDictionary(x => x.Id);
         var enabled = candidates.Where(notification =>
             recipients.TryGetValue(notification.UserId, out var recipient) &&
-            recipient.AllowsNotification(notification.Type));
+            recipient.AllowsNotification(notification.Type) &&
+            (!actorUserId.HasValue ||
+             !UserSafetyPolicy.IsHiddenFrom(db, notification.UserId, actorUserId.Value)));
         db.AddRange(enabled);
     }
 }

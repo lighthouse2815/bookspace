@@ -18,6 +18,7 @@ import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
 import { ErrorState } from '../ui/States'
 import { ReportContentButton } from '../moderation/ReportContentButton'
+import { MuteUserButton } from '../community/UserSafetyActions'
 
 const MESSAGE_MAX_LENGTH = 2000
 const BOTTOM_THRESHOLD = 56
@@ -53,6 +54,11 @@ function MessageRow({ message, ownMessage }: { message: ClubChatMessage; ownMess
             targetId={message.id}
             ownerId={message.sender.id}
             label="Báo cáo tin nhắn"
+            compact
+          />
+          <MuteUserButton
+            targetId={message.sender.id}
+            displayName={message.sender.displayName}
             compact
           />
         </div>

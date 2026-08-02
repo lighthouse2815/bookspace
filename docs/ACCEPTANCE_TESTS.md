@@ -428,6 +428,13 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-SAFE-006 | P0 | `CONTENT_REMOVED` soft-delete target khỏi public query và đóng các report pending sibling; audit giữ moderator/action/note/time. |
 | AC-SAFE-007 | P0 | `USER_LOCKED` không áp dụng cho ADMIN; token cũ của user bị khóa nhận 401 ở request tiếp theo và profile/nội dung bị ẩn. |
 | AC-SAFE-008 | P0 | `DISMISSED` chỉ đi với `NONE`; `RESOLVED` phải có action; exact retry cùng quyết định idempotent. |
+| AC-SAFE-009 | P0 | Block user khác trả safety entry, tự gỡ follow hai chiều; block lặp lại idempotent, tự block trả 400 `CANNOT_BLOCK_SELF`. |
+| AC-SAFE-010 | P0 | Khi có block theo một trong hai chiều, cả hai bên nhận 404 khi xem profile/nội dung của nhau và 403 `USER_RELATION_BLOCKED` khi follow/like/comment. |
+| AC-SAFE-011 | P0 | Block loại hai user khỏi search, suggestions, followers/following, feed, review tổng hợp, club post/comment, club chat/unread và notification mới có actor. |
+| AC-SAFE-012 | P0 | Unblock lặp lại idempotent, khôi phục visibility nhưng không tự khôi phục follow cũ. |
+| AC-SAFE-013 | P0 | Mute một chiều vẫn cho xem profile/follow nhưng loại actor khỏi feed, review tổng hợp, club post/comment, chat/unread, recommendation social signal và notification mới. |
+| AC-SAFE-014 | P0 | Unmute khôi phục read model; mute/unmute lặp lại idempotent, tự mute trả 400 và mute khi đang block trả 409 `USER_RELATION_BLOCKED`. |
+| AC-SAFE-015 | P0 | `GET /api/users/me/safety` chỉ trả block/mute do principal tạo, phân trang mới nhất trước và không lộ user đã chặn principal. |
 
 ## 18. Dashboard
 
@@ -471,7 +478,7 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-WEB-013 | P0 | `/journal` | focus timer server-backed có start/pause/resume/finish/cancel, recovery sau reload, list/create/correction completed session |
 | AC-WEB-014 | P0 | `/feed` | feed 10 item/trang từ network, bộ lọc, phân trang, gợi ý follow và empty CTA tới `/people` |
 | AC-WEB-015 | P0 | `/notifications` | server unread count, tab all/unread, category filter, URL pagination, deep-link và optimistic read/read-all |
-| AC-WEB-016 | P0 | `/settings` | update display name, bio, avatar, hai quyền riêng tư đọc và bốn notification preferences |
+| AC-WEB-016 | P0 | `/settings` | update display name, bio, avatar, hai quyền riêng tư đọc, bốn notification preferences và quản lý bỏ ẩn/bỏ chặn |
 | AC-WEB-017 | P0 | `/profile` | hiển thị current user hoặc redirect đúng `/users/:id` |
 | AC-WEB-018 | P0 | `/goals` | list/filter, create/update/delete goal; progress/status hiển thị từ API, không có UI ghi progress tay |
 | AC-WEB-019 | P0 | `/notes` | list/filter/search, create/update/delete note; edit không đổi book và PATCH không gửi `bookId` |
@@ -513,6 +520,8 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 | AC-WEB-042 | P0 | Finish form mặc định từ `startPage`, kiểm tra ending page/note; thành công xóa active panel, thêm history và làm mới library/dashboard/goals/insights/challenges/feed/notifications. |
 | AC-WEB-043 | P0 | Entry point Focus từ Library, Dashboard hoặc Book Detail chỉ xuất hiện/hoạt động với book có thể đọc; URL preselect đúng book và không tạo active session trước thao tác xác nhận của user. |
 | AC-WEB-044 | P0 | Biểu mẫu manual khóa cuốn đang có Focus session và giải thích lý do; sách khác vẫn chọn được, còn backend tiếp tục là nguồn bảo vệ authoritative cho request cạnh tranh. |
+| AC-WEB-045 | P0 | Profile có nút ẩn nội dung và dialog xác nhận chặn; chặn thành công chuyển về `/people`, không để profile target còn trong cache. |
+| AC-WEB-046 | P0 | Feed, review và club chat cho phép ẩn actor trực tiếp; mutation làm mới mọi read model principal liên quan và hiển thị feedback tiếng Việt. |
 
 ## 20. Security và isolation
 

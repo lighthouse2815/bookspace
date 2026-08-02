@@ -160,6 +160,13 @@ internal sealed class ServiceMapper(IBookSpaceDbContext db)
     public ReviewDto Review(Review review, Guid? viewerId)
     {
         var book = db.Books.FirstOrDefault(x => x.Id == review.BookId);
+        var commentQuery = db.ReviewComments.Where(x => x.ReviewId == review.Id);
+        if (viewerId.HasValue)
+        {
+            var hiddenUserIds = UserSafetyPolicy.HiddenUserIds(db, viewerId.Value);
+            commentQuery = commentQuery.Where(x => !hiddenUserIds.Contains(x.UserId));
+        }
+
         return new ReviewDto(
             review.Id,
             review.BookId,
@@ -169,7 +176,7 @@ internal sealed class ServiceMapper(IBookSpaceDbContext db)
             review.Content,
             review.ContainsSpoilers,
             db.ReviewLikes.Count(x => x.ReviewId == review.Id),
-            db.ReviewComments.Count(x => x.ReviewId == review.Id),
+            commentQuery.Count(),
             viewerId.HasValue && db.ReviewLikes.Any(x => x.ReviewId == review.Id && x.UserId == viewerId.Value),
             null,
             review.CreatedAt,

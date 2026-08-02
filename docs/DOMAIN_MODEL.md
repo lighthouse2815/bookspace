@@ -98,6 +98,26 @@ Invariant:
 - Cả hai user phải đang hoạt động.
 - Unfollow xóa quan hệ; không ảnh hưởng nội dung lịch sử.
 
+### 2.3A `UserBlock` và `UserMute`
+
+Hai entity đều là quan hệ có hướng giữa hai `User`:
+
+| Entity | Cặp khóa nghiệp vụ | Ý nghĩa |
+|---|---|---|
+| `UserBlock` | unique `(BlockerId, BlockedUserId)` | thao tác do blocker quản lý, hiệu lực visibility/interaction hai chiều |
+| `UserMute` | unique `(UserId, MutedUserId)` | bộ lọc nội dung một chiều của principal |
+
+Invariant chung: hai ID phải khác nhau, hai user phải còn hoạt động và timestamp là
+UTC. Chặn lặp lại, bỏ chặn, ẩn lặp lại và bỏ ẩn đều idempotent. Khi tạo block, mọi
+`Follow` giữa hai user bị xóa theo cả hai chiều và mute cùng hướng bị xóa; bỏ block
+không khôi phục các quan hệ cũ. Không tạo mute mới khi tồn tại block theo bất kỳ chiều.
+
+Block là policy cloak: hai bên không discover/get profile hoặc đọc nội dung của nhau
+và không được follow, like hay comment. Mute không che profile và không cấm mutation;
+nó chỉ loại actor khỏi feed, review tổng hợp, club post/comment, club chat/unread,
+recommendation social signal và notification mới có actor. Lịch sử notification đã
+tạo không bị xóa.
+
 ### 2.4 People Discovery read model
 
 `UserDiscoveryItem` là projection công khai riêng, không phải entity và không

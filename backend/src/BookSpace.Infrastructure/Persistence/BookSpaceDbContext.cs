@@ -12,6 +12,8 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
     public DbSet<User> UserSet => Set<User>();
     public DbSet<RefreshToken> RefreshTokenSet => Set<RefreshToken>();
     public DbSet<Follow> FollowSet => Set<Follow>();
+    public DbSet<UserBlock> UserBlockSet => Set<UserBlock>();
+    public DbSet<UserMute> UserMuteSet => Set<UserMute>();
     public DbSet<Author> AuthorSet => Set<Author>();
     public DbSet<Category> CategorySet => Set<Category>();
     public DbSet<Book> BookSet => Set<Book>();
@@ -47,6 +49,8 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
     IQueryable<User> IBookSpaceDbContext.Users => UserSet;
     IQueryable<RefreshToken> IBookSpaceDbContext.RefreshTokens => RefreshTokenSet;
     IQueryable<Follow> IBookSpaceDbContext.Follows => FollowSet;
+    IQueryable<UserBlock> IBookSpaceDbContext.UserBlocks => UserBlockSet;
+    IQueryable<UserMute> IBookSpaceDbContext.UserMutes => UserMuteSet;
     IQueryable<Author> IBookSpaceDbContext.Authors => AuthorSet;
     IQueryable<Category> IBookSpaceDbContext.Categories => CategorySet;
     IQueryable<Book> IBookSpaceDbContext.Books => BookSet;
@@ -171,6 +175,40 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
             entity.HasOne(x => x.Following)
                 .WithMany(x => x.Followers)
                 .HasForeignKey(x => x.FollowingId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.Ignore(x => x.IsDeleted);
+        });
+
+        modelBuilder.Entity<UserBlock>(entity =>
+        {
+            entity.ToTable("user_blocks");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.BlockerId, x.BlockedUserId }).IsUnique();
+            entity.HasIndex(x => x.BlockedUserId);
+            entity.HasOne(x => x.Blocker)
+                .WithMany()
+                .HasForeignKey(x => x.BlockerId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.BlockedUser)
+                .WithMany()
+                .HasForeignKey(x => x.BlockedUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.Ignore(x => x.IsDeleted);
+        });
+
+        modelBuilder.Entity<UserMute>(entity =>
+        {
+            entity.ToTable("user_mutes");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.UserId, x.MutedUserId }).IsUnique();
+            entity.HasIndex(x => x.MutedUserId);
+            entity.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.MutedUser)
+                .WithMany()
+                .HasForeignKey(x => x.MutedUserId)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.Ignore(x => x.IsDeleted);
         });
@@ -602,6 +640,14 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
             x.DeletedAt == null &&
             x.Follower.DeletedAt == null &&
             x.Following.DeletedAt == null);
+        modelBuilder.Entity<UserBlock>().HasQueryFilter(x =>
+            x.DeletedAt == null &&
+            x.Blocker.DeletedAt == null &&
+            x.BlockedUser.DeletedAt == null);
+        modelBuilder.Entity<UserMute>().HasQueryFilter(x =>
+            x.DeletedAt == null &&
+            x.User.DeletedAt == null &&
+            x.MutedUser.DeletedAt == null);
         modelBuilder.Entity<Author>().HasQueryFilter(x => x.DeletedAt == null);
         modelBuilder.Entity<Category>().HasQueryFilter(x => x.DeletedAt == null);
         modelBuilder.Entity<Book>().HasQueryFilter(x => x.DeletedAt == null);

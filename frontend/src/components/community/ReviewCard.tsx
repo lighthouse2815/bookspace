@@ -26,6 +26,7 @@ import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
 import { Rating } from '../ui/Rating'
 import { ReportContentButton } from '../moderation/ReportContentButton'
+import { MuteUserButton } from './UserSafetyActions'
 
 export function ReviewCard({ review, bookId }: { review: Review; bookId?: string }) {
   const [showComments, setShowComments] = useState(false)
@@ -146,6 +147,11 @@ export function ReviewCard({ review, bookId }: { review: Review; bookId?: string
                 targetId={review.id}
                 ownerId={review.user.id}
                 label="Báo cáo đánh giá"
+              />
+              <MuteUserButton
+                targetId={review.user.id}
+                displayName={review.user.displayName}
+                compact
               />
             </div>
           </div>

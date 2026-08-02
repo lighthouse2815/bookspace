@@ -83,10 +83,12 @@ public sealed class CatalogService(IBookSpaceDbContext db) : ICatalogService
             !knownBookIds.Contains(book.Id));
         var (normalizedPage, size, skip) = Paging.Normalize(page, pageSize);
         var total = candidateBooks.LongCount();
+        var hiddenUserIds = UserSafetyPolicy.HiddenUserIds(db, userId);
         var followedUserIds = db.Follows
             .Where(follow =>
                 follow.FollowerId == userId &&
                 follow.DeletedAt == null &&
+                !hiddenUserIds.Contains(follow.FollowingId) &&
                 db.Users.Any(user =>
                     user.Id == follow.FollowingId &&
                     !user.IsLocked &&

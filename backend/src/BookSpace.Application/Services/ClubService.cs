@@ -108,7 +108,7 @@ public sealed class ClubService(
             NotificationType.CLUB,
             "Thành viên mới",
             $"{GetUserName(userId)} vừa tham gia {club.Name}.",
-            $"/clubs/{club.Id}"));
+            $"/clubs/{club.Id}"), userId);
         await db.SaveChangesAsync(cancellationToken);
     }
 
@@ -191,7 +191,7 @@ public sealed class ClubService(
             request.Role == ClubMemberRole.MODERATOR
                 ? $"Bạn đã trở thành điều hành viên của {club.Name}."
                 : $"Vai trò của bạn trong {club.Name} đã được chuyển thành thành viên.",
-            $"/clubs/{club.Id}"));
+            $"/clubs/{club.Id}"), ownerId);
         await db.SaveChangesAsync(cancellationToken);
         return _mapper.ClubMember(membership);
     }
@@ -226,7 +226,7 @@ public sealed class ClubService(
             NotificationType.CLUB,
             "Đã rời câu lạc bộ",
             $"Bạn đã được đưa ra khỏi {club.Name}.",
-            "/clubs"));
+            "/clubs"), actorId);
         await db.SaveChangesAsync(cancellationToken);
     }
 
@@ -273,12 +273,13 @@ public sealed class ClubService(
             now,
             now.Add(InvitationLifetime));
         db.Add(invitation);
+        UserSafetyPolicy.EnsureCanInteract(db, actorId, invitedUser.Id);
         NotificationDelivery.AddIfEnabled(db, new Notification(
             invitedUser.Id,
             NotificationType.CLUB,
             "Lời mời tham gia câu lạc bộ",
             $"{GetUserName(actorId)} đã mời bạn tham gia {club.Name}.",
-            "/clubs/invitations"));
+            "/clubs/invitations"), actorId);
         await db.SaveChangesAsync(cancellationToken);
         return _mapper.ClubInvitation(invitation, actorId);
     }
@@ -385,7 +386,7 @@ public sealed class ClubService(
                 NotificationType.CLUB,
                 "Lời mời đã được chấp nhận",
                 $"{GetUserName(userId)} đã tham gia {club.Name}.",
-                $"/clubs/{club.Id}"));
+                $"/clubs/{club.Id}"), userId);
         }
 
         await db.SaveChangesAsync(cancellationToken);
@@ -523,6 +524,11 @@ public sealed class ClubService(
         var club = FindClub(clubId);
         EnsureCanView(club, viewerId);
         var query = db.ClubPosts.Where(x => x.ClubId == clubId);
+        if (viewerId.HasValue)
+        {
+            var hiddenUserIds = UserSafetyPolicy.HiddenUserIds(db, viewerId.Value);
+            query = query.Where(x => !hiddenUserIds.Contains(x.AuthorId));
+        }
         var (normalizedPage, size, skip) = Paging.Normalize(page, pageSize);
         var total = query.LongCount();
         var items = query
@@ -578,6 +584,11 @@ public sealed class ClubService(
         var post = FindPost(postId);
         EnsureCanView(FindClub(post.ClubId), viewerId);
         var query = db.ClubPostComments.Where(x => x.PostId == postId);
+        if (viewerId.HasValue)
+        {
+            var hiddenUserIds = UserSafetyPolicy.HiddenUserIds(db, viewerId.Value);
+            query = query.Where(x => !hiddenUserIds.Contains(x.AuthorId));
+        }
         var (normalizedPage, size, skip) = Paging.Normalize(page, pageSize);
         var total = query.LongCount();
         var items = query
@@ -598,6 +609,7 @@ public sealed class ClubService(
     {
         var post = FindPost(postId);
         EnsureMember(post.ClubId, userId);
+        UserSafetyPolicy.EnsureCanInteract(db, userId, post.AuthorId);
         var comment = new ClubPostComment(postId, userId, request.Content);
         db.Add(comment);
         if (post.AuthorId != userId)
@@ -607,7 +619,7 @@ public sealed class ClubService(
                 NotificationType.CLUB,
                 "Bình luận mới trong câu lạc bộ",
                 $"{GetUserName(userId)} đã bình luận bài viết của bạn.",
-                $"/clubs/{post.ClubId}"));
+                $"/clubs/{post.ClubId}"), userId);
         }
 
         await db.SaveChangesAsync(cancellationToken);
@@ -768,8 +780,11 @@ public sealed class ClubService(
             .Select(x => x.UserId)
             .Distinct()
             .ToList();
-        NotificationDelivery.AddRangeIfEnabled(db, recipientIds.Select(userId =>
-            new Notification(userId, NotificationType.CLUB, title, message, link)));
+        NotificationDelivery.AddRangeIfEnabled(
+            db,
+            recipientIds.Select(userId =>
+                new Notification(userId, NotificationType.CLUB, title, message, link)),
+            actorId);
     }
 
     private void LeaveActiveSprintParticipations(Guid clubId, Guid userId)

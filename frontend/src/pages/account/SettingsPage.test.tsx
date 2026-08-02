@@ -8,6 +8,9 @@ const mocks = vi.hoisted(() => ({
   updatePrivacy: vi.fn(),
   updateNotificationPreferences: vi.fn(),
   updateProfile: vi.fn(),
+  unmute: vi.fn(),
+  unblock: vi.fn(),
+  safety: vi.fn(),
   toast: vi.fn(),
 }))
 
@@ -52,6 +55,9 @@ vi.mock('../../hooks/useCommunity', () => ({
     mutateAsync: (...args: unknown[]) => mocks.updatePrivacy(...args),
     isPending: false,
   }),
+  useUserSafetyList: () => mocks.safety(),
+  useMuteUser: () => ({ mutate: mocks.unmute, isPending: false }),
+  useUnblockUser: () => ({ mutate: mocks.unblock, isPending: false }),
 }))
 
 vi.mock('../../hooks/useNotifications', () => ({
@@ -76,6 +82,11 @@ describe('profile privacy settings', () => {
     vi.clearAllMocks()
     mocks.updatePrivacy.mockResolvedValue({})
     mocks.updateNotificationPreferences.mockResolvedValue({})
+    mocks.safety.mockReturnValue({
+      data: { items: [], page: 1, pageSize: 100, totalItems: 0, totalPages: 0 },
+      isLoading: false,
+      isError: false,
+    })
   })
 
   it('loads server visibility and saves both public profile switches', async () => {
@@ -131,5 +142,44 @@ describe('profile privacy settings', () => {
       'Tùy chọn thông báo đã được cập nhật',
       'success',
     )
+  })
+
+  it('lets the reader undo mute and block controls', async () => {
+    mocks.unmute.mockImplementation((_value, options) => options.onSuccess())
+    mocks.unblock.mockImplementation((_value, options) => options.onSuccess())
+    mocks.safety.mockReturnValue({
+      data: {
+        items: [
+          {
+            user: { id: 'reader-2', displayName: 'Hà Linh', role: 'USER' },
+            isBlocked: true,
+            isMuted: true,
+            blockedAt: '2026-08-02T08:00:00Z',
+            mutedAt: '2026-08-02T07:00:00Z',
+          },
+        ],
+        page: 1,
+        pageSize: 100,
+        totalItems: 1,
+        totalPages: 1,
+      },
+      isLoading: false,
+      isError: false,
+    })
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <SettingsPage />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('Hà Linh')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Bỏ ẩn' }))
+    await user.click(screen.getByRole('button', { name: 'Bỏ chặn' }))
+
+    expect(mocks.unmute).toHaveBeenCalledOnce()
+    expect(mocks.unblock).toHaveBeenCalledOnce()
+    expect(mocks.toast).toHaveBeenCalledWith('Đã hiển thị lại nội dung', 'success')
+    expect(mocks.toast).toHaveBeenCalledWith('Đã bỏ chặn người đọc', 'success')
   })
 })

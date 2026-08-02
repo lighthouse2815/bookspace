@@ -73,6 +73,10 @@ vi.mock('../../contexts/ToastContext', () => ({
   useToast: () => ({ showToast: mocks.toast }),
 }))
 
+vi.mock('../../components/community/UserSafetyActions', () => ({
+  MuteUserButton: () => null,
+}))
+
 vi.mock('../../hooks/useCommunity', () => ({
   useFeed: (...args: unknown[]) => mocks.feed(...args),
   usePeopleSuggestions: (...args: unknown[]) => mocks.suggestions(...args),

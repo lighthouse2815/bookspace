@@ -117,6 +117,7 @@ Danh sách rỗng trả `items: []`. Metadata nằm trong body, không nằm tro
 | `isFollowing` | boolean |
 | `followsYou` | boolean; guest luôn `false` |
 | `mutualFollowCount` | integer; guest luôn `0` |
+| `isMuted` | boolean; chỉ có ý nghĩa với principal đã đăng nhập |
 | `privacy` | `{ isReadingShelfPublic, isReadingActivityPublic }` |
 | `joinedAt` | datetime |
 
@@ -662,6 +663,40 @@ Response `200`: `ApiResponse<PageResult<UserResponse>>`.
 ### `GET /api/users/{userId}/following?page=1&pageSize=20` — Public
 
 Response `200`: `ApiResponse<PageResult<UserResponse>>`.
+
+### `GET /api/users/me/safety?page=1&pageSize=20` — Authenticated
+
+Response `200`: `ApiResponse<PageResult<UserSafetyEntryResponse>>`, mới nhất trước.
+Mỗi item gồm `user`, `isBlocked`, `isMuted`, `blockedAt` và `mutedAt`. Danh sách chỉ
+chứa quan hệ do principal tạo và không làm lộ người đã chặn principal.
+
+### `POST /api/users/{userId}/block` — Authenticated
+
+Body rỗng. Response `200`: `ApiResponse<UserSafetyEntryResponse>`. Chặn lặp lại là
+idempotent, tự gỡ follow hai chiều và xóa trạng thái mute cùng hướng nếu có.
+
+Errors: `CANNOT_BLOCK_SELF` 400, `USER_NOT_FOUND` 404.
+
+### `DELETE /api/users/{userId}/block` — Authenticated
+
+Response `200` với data null. Bỏ chặn lặp lại là idempotent và không khôi phục follow.
+
+### `POST /api/users/{userId}/mute` — Authenticated
+
+Body rỗng. Response `200`: `ApiResponse<UserSafetyEntryResponse>`. Mute lặp lại là
+idempotent và không ngăn xem hồ sơ. Nếu đang có block hai chiều, trả 409
+`USER_RELATION_BLOCKED` cho đến khi bỏ chặn.
+
+Errors: `CANNOT_MUTE_SELF` 400, `USER_NOT_FOUND` 404.
+
+### `DELETE /api/users/{userId}/mute` — Authenticated
+
+Response `200` với data null. Bỏ ẩn lặp lại là idempotent.
+
+Khi tồn tại block theo bất kỳ chiều nào, các endpoint hồ sơ/nội dung công khai dùng
+404 `USER_NOT_FOUND` để không tiết lộ target; follow/like/comment dùng 403
+`USER_RELATION_BLOCKED`. Mute chỉ lọc read model của principal: feed, review tổng hợp,
+club post/comment, club chat/unread và notification mới có actor.
 
 ## 5. Catalog API
 

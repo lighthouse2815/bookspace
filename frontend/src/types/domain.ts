@@ -17,6 +17,7 @@ export interface User {
   isFollowing?: boolean
   followsYou?: boolean
   mutualFollowCount?: number
+  isMuted?: boolean
   privacy?: ProfilePrivacy
   joinedAt?: string
 }
@@ -24,6 +25,14 @@ export interface User {
 export interface ProfilePrivacy {
   isReadingShelfPublic: boolean
   isReadingActivityPublic: boolean
+}
+
+export interface UserSafetyEntry {
+  user: User
+  isBlocked: boolean
+  isMuted: boolean
+  blockedAt?: string | null
+  mutedAt?: string | null
 }
 
 export interface UserDiscoveryItem {

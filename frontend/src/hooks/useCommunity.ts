@@ -2,7 +2,8 @@ import { useIsMutating, useMutation, useQuery, useQueryClient } from '@tanstack/
 import { useAuth } from '../contexts/AuthContext'
 import { communityService, type FeedQuery } from '../services/community.service'
 import type { PageResult } from '../types/api'
-import type { FeedFilter, Shelf, UserDiscoveryItem } from '../types/domain'
+import type { FeedFilter, Shelf, User, UserDiscoveryItem } from '../types/domain'
+import { clubChatKeys } from './clubChatKeys'
 import { recommendationKeys } from './recommendationKeys'
 
 export const viewerScope = (userId?: string | null) => userId ?? 'guest'
@@ -48,6 +49,13 @@ export const feedKeys = {
 export const followKeys = {
   all: ['follow-mutation'] as const,
   target: (scope: string, targetId: string) => [...followKeys.all, scope, targetId] as const,
+}
+
+export const safetyKeys = {
+  all: ['user-safety'] as const,
+  scope: (scope: string) => [...safetyKeys.all, scope] as const,
+  list: (scope: string, page: number, pageSize: number) =>
+    [...safetyKeys.scope(scope), page, pageSize] as const,
 }
 
 export function useFeed({
@@ -342,4 +350,70 @@ export function useFollowUser(targetId: string, isFollowing: boolean) {
     ...mutation,
     isPending: mutation.isPending || relatedMutationCount > 0,
   }
+}
+
+export function useUserSafetyList(page = 1, pageSize = 50) {
+  const { user, isLoading } = useAuth()
+  const scope = viewerScope(user?.id)
+  return useQuery({
+    queryKey: safetyKeys.list(scope, page, pageSize),
+    queryFn: () => communityService.safetyList(page, pageSize),
+    enabled: Boolean(user) && !isLoading,
+  })
+}
+
+async function invalidateSafetyViews(
+  queryClient: ReturnType<typeof useQueryClient>,
+  scope: string,
+) {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: safetyKeys.scope(scope) }),
+    queryClient.invalidateQueries({ queryKey: peopleKeys.scope(scope) }),
+    queryClient.invalidateQueries({ queryKey: userKeys.scope(scope) }),
+    queryClient.invalidateQueries({ queryKey: feedKeys.scoped(scope) }),
+    queryClient.invalidateQueries({ queryKey: ['reviews'] }),
+    queryClient.invalidateQueries({ queryKey: clubChatKeys.scope(scope) }),
+    queryClient.invalidateQueries({ queryKey: ['notifications', scope] }),
+    queryClient.invalidateQueries({ queryKey: recommendationKeys.scoped(scope) }),
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+  ])
+}
+
+export function useMuteUser(targetId: string, isMuted: boolean) {
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+  const scope = viewerScope(user?.id)
+  return useMutation({
+    mutationFn: () =>
+      isMuted ? communityService.unmute(targetId) : communityService.mute(targetId),
+    onSuccess: async () => {
+      queryClient.setQueryData<User>(userKeys.detail(scope, targetId), (current) =>
+        current ? { ...current, isMuted: !isMuted } : current,
+      )
+      await invalidateSafetyViews(queryClient, scope)
+    },
+  })
+}
+
+export function useBlockUser(targetId: string) {
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+  const scope = viewerScope(user?.id)
+  return useMutation({
+    mutationFn: () => communityService.block(targetId),
+    onSuccess: async () => {
+      await invalidateSafetyViews(queryClient, scope)
+      queryClient.removeQueries({ queryKey: userKeys.detail(scope, targetId), exact: true })
+    },
+  })
+}
+
+export function useUnblockUser(targetId: string) {
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+  const scope = viewerScope(user?.id)
+  return useMutation({
+    mutationFn: () => communityService.unblock(targetId),
+    onSuccess: () => invalidateSafetyViews(queryClient, scope),
+  })
 }

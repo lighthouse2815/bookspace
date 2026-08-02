@@ -35,8 +35,23 @@ public interface IUserService
         CancellationToken cancellationToken);
     Task FollowAsync(Guid userId, Guid targetUserId, CancellationToken cancellationToken);
     Task UnfollowAsync(Guid userId, Guid targetUserId, CancellationToken cancellationToken);
-    PageResult<UserSummary> GetFollowers(Guid userId, int page, int pageSize);
-    PageResult<UserSummary> GetFollowing(Guid userId, int page, int pageSize);
+    PageResult<UserSummary> GetFollowers(Guid userId, Guid? viewerId, int page, int pageSize);
+    PageResult<UserSummary> GetFollowing(Guid userId, Guid? viewerId, int page, int pageSize);
+}
+
+public interface IUserSafetyService
+{
+    PageResult<UserSafetyEntryDto> GetMine(Guid userId, int page, int pageSize);
+    Task<UserSafetyEntryDto> BlockAsync(
+        Guid userId,
+        Guid targetUserId,
+        CancellationToken cancellationToken);
+    Task UnblockAsync(Guid userId, Guid targetUserId, CancellationToken cancellationToken);
+    Task<UserSafetyEntryDto> MuteAsync(
+        Guid userId,
+        Guid targetUserId,
+        CancellationToken cancellationToken);
+    Task UnmuteAsync(Guid userId, Guid targetUserId, CancellationToken cancellationToken);
 }
 
 public interface ICatalogService
@@ -119,7 +134,11 @@ public interface ICommunityService
     Task DeleteReviewAsync(Guid userId, bool isAdmin, Guid reviewId, CancellationToken cancellationToken);
     Task LikeReviewAsync(Guid userId, Guid reviewId, CancellationToken cancellationToken);
     Task UnlikeReviewAsync(Guid userId, Guid reviewId, CancellationToken cancellationToken);
-    PageResult<ReviewCommentDto> GetComments(Guid reviewId, int page, int pageSize);
+    PageResult<ReviewCommentDto> GetComments(
+        Guid reviewId,
+        Guid? viewerId,
+        int page,
+        int pageSize);
     Task<ReviewCommentDto> AddCommentAsync(Guid userId, Guid reviewId, CreateCommentRequest request, CancellationToken cancellationToken);
     Task DeleteCommentAsync(Guid userId, bool isAdmin, Guid commentId, CancellationToken cancellationToken);
     PageResult<FeedItem> GetFeed(Guid userId, string? type, int page, int pageSize);

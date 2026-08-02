@@ -12,10 +12,11 @@ import {
   Users,
 } from '@phosphor-icons/react'
 import { useCallback, useState } from 'react'
-import { Link, Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ActivityCard } from '../../components/community/ActivityCard'
 import { ProfileConnectionsDialog } from '../../components/community/ProfileConnectionsDialog'
 import { ReviewCard } from '../../components/community/ReviewCard'
+import { BlockUserButton, MuteUserButton } from '../../components/community/UserSafetyActions'
 import { ReportContentButton } from '../../components/moderation/ReportContentButton'
 import { BookCard } from '../../components/books/BookCard'
 import { Avatar } from '../../components/ui/Avatar'
@@ -61,6 +62,7 @@ export function ProfilePage() {
   const { id } = useParams()
   const { user: currentUser, isAuthenticated, isLoading: isAuthLoading } = useAuth()
   const location = useLocation()
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [connections, setConnections] = useState<ConnectionKind | null>(null)
   const profile = useUser(id)
@@ -168,6 +170,11 @@ export function ProfilePage() {
                     Đang theo dõi bạn
                   </span>
                 ) : null}
+                {person.isMuted ? (
+                  <span className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-semibold text-muted">
+                    Đã ẩn nội dung
+                  </span>
+                ) : null}
               </div>
               <p className="mt-1 text-sm text-muted">Hồ sơ đọc sách công khai</p>
             </div>
@@ -201,6 +208,16 @@ export function ProfilePage() {
                   targetId={person.id}
                   ownerId={person.id}
                   label="Báo cáo hồ sơ"
+                />
+                <MuteUserButton
+                  targetId={person.id}
+                  displayName={person.displayName}
+                  isMuted={Boolean(person.isMuted)}
+                />
+                <BlockUserButton
+                  targetId={person.id}
+                  displayName={person.displayName}
+                  onBlocked={() => navigate('/people', { replace: true })}
                 />
               </div>
             ) : (

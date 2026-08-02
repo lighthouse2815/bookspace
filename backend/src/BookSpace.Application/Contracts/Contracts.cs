@@ -26,7 +26,8 @@ public sealed record UserProfile(
     bool FollowsYou,
     int MutualFollowCount,
     ProfilePrivacyDto Privacy,
-    DateTimeOffset JoinedAt);
+    DateTimeOffset JoinedAt,
+    bool IsMuted = false);
 
 public sealed record ProfilePrivacyDto(
     bool IsReadingShelfPublic,
@@ -71,6 +72,13 @@ public sealed record UpdateProfileRequest(
 public sealed record UpdateProfilePrivacyRequest(
     bool IsReadingShelfPublic,
     bool IsReadingActivityPublic);
+
+public sealed record UserSafetyEntryDto(
+    UserSummary User,
+    bool IsBlocked,
+    bool IsMuted,
+    DateTimeOffset? BlockedAt,
+    DateTimeOffset? MutedAt);
 
 public sealed record AuthorDto(
     Guid Id,

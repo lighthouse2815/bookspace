@@ -99,7 +99,7 @@ public sealed class CommunityController(ICommunityService communityService) : Ap
         Guid reviewId,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50) =>
-        OkData(communityService.GetComments(reviewId, page, pageSize));
+        OkData(communityService.GetComments(reviewId, OptionalUserId, page, pageSize));
 
     [Authorize]
     [HttpPost("reviews/{reviewId:guid}/comments")]

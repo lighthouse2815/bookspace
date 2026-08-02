@@ -1082,8 +1082,11 @@ public sealed class ClubReadingSprintService(
             .Select(x => x.UserId)
             .Distinct()
             .ToList();
-        NotificationDelivery.AddRangeIfEnabled(db, recipientIds.Select(userId =>
-            new Notification(userId, NotificationType.CLUB, title, message, link)));
+        NotificationDelivery.AddRangeIfEnabled(
+            db,
+            recipientIds.Select(userId =>
+                new Notification(userId, NotificationType.CLUB, title, message, link)),
+            actorId);
     }
 
     private void AddParticipantNotifications(
@@ -1109,8 +1112,11 @@ public sealed class ClubReadingSprintService(
             .Select(x => x.UserId)
             .Distinct()
             .ToList();
-        NotificationDelivery.AddRangeIfEnabled(db, recipientIds.Select(userId =>
-            new Notification(userId, NotificationType.CLUB, title, message, link)));
+        NotificationDelivery.AddRangeIfEnabled(
+            db,
+            recipientIds.Select(userId =>
+                new Notification(userId, NotificationType.CLUB, title, message, link)),
+            actorId);
     }
 
     private static string SprintLink(Guid clubId, Guid sprintId) =>

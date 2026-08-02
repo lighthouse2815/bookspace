@@ -54,6 +54,10 @@ vi.mock('../../hooks/useClubChat', () => ({
   useClubChat: () => mocks.chat,
 }))
 
+vi.mock('../community/UserSafetyActions', () => ({
+  MuteUserButton: () => null,
+}))
+
 function setDefaultChat(overrides: Record<string, unknown> = {}) {
   mocks.chat = {
     messages: [firstMessage, secondMessage],

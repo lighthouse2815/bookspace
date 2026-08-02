@@ -180,6 +180,45 @@ $moderationResolution = Invoke-BookSpaceRequest `
         resolutionNote = 'Đã xác minh đường đi smoke của Community Safety.'
     } `
     -AccessToken $adminToken
+$safetyMute = Invoke-BookSpaceRequest `
+    -Method Post `
+    -Path "/api/users/$($moderationTarget.data.user.id)/mute" `
+    -AccessToken $token
+$safetyListMuted = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/users/me/safety?page=1&pageSize=100' `
+    -AccessToken $token
+$profileWhileMuted = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path "/api/users/$($moderationTarget.data.user.id)" `
+    -AccessToken $token
+$safetyUnmute = Invoke-BookSpaceRequest `
+    -Method Delete `
+    -Path "/api/users/$($moderationTarget.data.user.id)/mute" `
+    -AccessToken $token
+$safetyFollow = Invoke-BookSpaceRequest `
+    -Method Post `
+    -Path "/api/users/$($moderationTarget.data.user.id)/follow" `
+    -AccessToken $token
+$safetyBlock = Invoke-BookSpaceRequest `
+    -Method Post `
+    -Path "/api/users/$($moderationTarget.data.user.id)/block" `
+    -AccessToken $token
+$profileWhileBlocked = Invoke-BookSpaceExpectedError `
+    -Path "/api/users/$($moderationTarget.data.user.id)" `
+    -AccessToken $token
+$safetyListBlocked = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/users/me/safety?page=1&pageSize=100' `
+    -AccessToken $token
+$safetyUnblock = Invoke-BookSpaceRequest `
+    -Method Delete `
+    -Path "/api/users/$($moderationTarget.data.user.id)/block" `
+    -AccessToken $token
+$profileAfterUnblock = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path "/api/users/$($moderationTarget.data.user.id)" `
+    -AccessToken $token
 $adminLibrary = Invoke-BookSpaceRequest `
     -Method Get `
     -Path '/api/library?page=1&pageSize=20' `
@@ -577,6 +616,37 @@ if (
     throw 'Community Safety report, admin queue hoặc resolution contract không hợp lệ.'
 }
 
+$mutedSafetyEntry = @($safetyListMuted.data.items | Where-Object {
+    $_.user.id -eq $moderationTarget.data.user.id
+})
+$blockedSafetyEntry = @($safetyListBlocked.data.items | Where-Object {
+    $_.user.id -eq $moderationTarget.data.user.id
+})
+if (
+    -not $safetyMute.success -or
+    -not $safetyMute.data.isMuted -or
+    $mutedSafetyEntry.Count -ne 1 -or
+    -not $mutedSafetyEntry[0].isMuted -or
+    -not $profileWhileMuted.success -or
+    -not $profileWhileMuted.data.isMuted -or
+    -not $safetyUnmute.success -or
+    -not $safetyFollow.success -or
+    -not $safetyFollow.data.isFollowing -or
+    -not $safetyBlock.success -or
+    -not $safetyBlock.data.isBlocked -or
+    $safetyBlock.data.isMuted -or
+    $profileWhileBlocked.StatusCode -ne 404 -or
+    $profileWhileBlocked.Payload.code -ne 'USER_NOT_FOUND' -or
+    $blockedSafetyEntry.Count -ne 1 -or
+    -not $blockedSafetyEntry[0].isBlocked -or
+    $blockedSafetyEntry[0].isMuted -or
+    -not $safetyUnblock.success -or
+    -not $profileAfterUnblock.success -or
+    $profileAfterUnblock.data.isFollowing
+) {
+    throw 'Block/mute safety contract, visibility cloak hoặc follow cleanup không hợp lệ.'
+}
+
 if (
     $invalidFeedType.StatusCode -ne 400 -or
     $null -eq $invalidFeedType.Payload -or
@@ -637,6 +707,7 @@ if (
     FirstSprintTimelineItems = if ($null -ne $sprintTimeline) { $sprintTimeline.data.totalItems } else { 0 }
     ClubChatMessages = if ($null -ne $clubChatHistory) { $clubChatHistory.data.items.Count } else { 0 }
     ModerationReports = $moderationQueue.data.totalItems
+    SafetyControls = 'PASS'
     CurrentStreak = $insightsOverview.data.currentStreak
     InsightCalendarDays = $insightsCalendar.data.daysData.Count
     InsightWeeks = $insightsWeekly.data.items.Count

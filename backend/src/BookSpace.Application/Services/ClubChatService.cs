@@ -25,7 +25,10 @@ public sealed class ClubChatService(
         var normalizedSize = pageSize <= 0
             ? DefaultPageSize
             : Math.Clamp(pageSize, 1, 100);
-        var query = db.ClubChatMessages.Where(x => x.ClubId == clubId);
+        var hiddenUserIds = UserSafetyPolicy.HiddenUserIds(db, userId);
+        var query = db.ClubChatMessages.Where(x =>
+            x.ClubId == clubId &&
+            !hiddenUserIds.Contains(x.SenderId));
         var decodedCursor = DecodeCursor(cursor);
         if (decodedCursor is not null)
         {
@@ -96,6 +99,10 @@ public sealed class ClubChatService(
             .Where(x => x.ClubId == clubId)
             .Select(x => x.UserId)
             .Distinct()
+            .ToList()
+            .Where(recipientId =>
+                recipientId == userId ||
+                !UserSafetyPolicy.IsHiddenFrom(db, recipientId, userId))
             .ToList();
         var preview = message.Content.Length <= 180
             ? message.Content
@@ -110,7 +117,8 @@ public sealed class ClubChatService(
                     $"Tin nhắn mới trong {club.Name}",
                     $"{sender.DisplayName}: {preview}",
                     $"/clubs/{clubId}?tab=chat",
-                    $"club-chat:{message.Id:N}:{recipientId:N}")));
+                    $"club-chat:{message.Id:N}:{recipientId:N}")),
+            userId);
 
         await db.SaveChangesAsync(cancellationToken);
         var dto = MapMessage(message, sender);
@@ -152,7 +160,8 @@ public sealed class ClubChatService(
 
         var message = db.ClubChatMessages.FirstOrDefault(x =>
                           x.Id == request.LastReadMessageId &&
-                          x.ClubId == clubId)
+                          x.ClubId == clubId &&
+                          !UserSafetyPolicy.HiddenUserIds(db, userId).Contains(x.SenderId))
                       ?? throw ServiceErrors.NotFound(
                           "CLUB_CHAT_MESSAGE_NOT_FOUND",
                           "Không tìm thấy tin nhắn trong câu lạc bộ.");
@@ -216,9 +225,11 @@ public sealed class ClubChatService(
                     db.ClubChatReadStates.FirstOrDefault(x => x.MembershipId == membership.Id);
         var lastReadAt = state?.LastReadAt ?? membership.CreatedAt;
         var lastReadMessageId = state?.LastReadMessageId ?? Guid.Empty;
+        var hiddenUserIds = UserSafetyPolicy.HiddenUserIds(db, userId);
         var count = db.ClubChatMessages.Count(x =>
             x.ClubId == clubId &&
             x.SenderId != userId &&
+            !hiddenUserIds.Contains(x.SenderId) &&
             (x.CreatedAt > lastReadAt ||
              (x.CreatedAt == lastReadAt && x.Id.CompareTo(lastReadMessageId) > 0)));
         return new ClubChatUnreadDto(

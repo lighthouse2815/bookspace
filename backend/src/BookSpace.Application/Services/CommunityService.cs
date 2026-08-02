@@ -10,13 +10,22 @@ public sealed class CommunityService(IBookSpaceDbContext db) : ICommunityService
 {
     private readonly ServiceMapper _mapper = new(db);
 
-    public ReviewDto GetReview(Guid reviewId, Guid? viewerId) =>
-        _mapper.Review(FindReview(reviewId), viewerId);
+    public ReviewDto GetReview(Guid reviewId, Guid? viewerId)
+    {
+        var review = FindReview(reviewId);
+        EnsureContentVisible(viewerId, review.UserId, "REVIEW_NOT_FOUND", "Không tìm thấy đánh giá.");
+        return _mapper.Review(review, viewerId);
+    }
 
     public PageResult<ReviewDto> GetBookReviews(Guid bookId, Guid? viewerId, int page, int pageSize)
     {
         EnsureBook(bookId);
         var query = db.Reviews.Where(x => x.BookId == bookId);
+        if (viewerId.HasValue)
+        {
+            var hiddenUserIds = UserSafetyPolicy.HiddenUserIds(db, viewerId.Value);
+            query = query.Where(x => !hiddenUserIds.Contains(x.UserId));
+        }
         var (normalizedPage, size, skip) = Paging.Normalize(page, pageSize);
         var total = query.LongCount();
         var items = query
@@ -35,6 +44,7 @@ public sealed class CommunityService(IBookSpaceDbContext db) : ICommunityService
         int page,
         int pageSize)
     {
+        UserSafetyPolicy.EnsureCanView(db, viewerId, userId);
         EnsurePublicUser(userId);
         var query = db.Reviews.Where(x => x.UserId == userId);
         var (normalizedPage, size, skip) = Paging.Normalize(page, pageSize);
@@ -96,6 +106,7 @@ public sealed class CommunityService(IBookSpaceDbContext db) : ICommunityService
     public async Task LikeReviewAsync(Guid userId, Guid reviewId, CancellationToken cancellationToken)
     {
         var review = FindReview(reviewId);
+        UserSafetyPolicy.EnsureCanInteract(db, userId, review.UserId);
         if (db.ReviewLikes.Any(x => x.ReviewId == reviewId && x.UserId == userId))
         {
             return;
@@ -110,7 +121,7 @@ public sealed class CommunityService(IBookSpaceDbContext db) : ICommunityService
                 NotificationType.REVIEW_LIKE,
                 "Đánh giá của bạn được yêu thích",
                 $"{actorName} đã thích đánh giá của bạn.",
-                $"/books/{review.BookId}"));
+                $"/books/{review.BookId}"), userId);
         }
 
         await db.SaveChangesAsync(cancellationToken);
@@ -129,10 +140,20 @@ public sealed class CommunityService(IBookSpaceDbContext db) : ICommunityService
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    public PageResult<ReviewCommentDto> GetComments(Guid reviewId, int page, int pageSize)
+    public PageResult<ReviewCommentDto> GetComments(
+        Guid reviewId,
+        Guid? viewerId,
+        int page,
+        int pageSize)
     {
-        FindReview(reviewId);
+        var review = FindReview(reviewId);
+        EnsureContentVisible(viewerId, review.UserId, "REVIEW_NOT_FOUND", "Không tìm thấy đánh giá.");
         var query = db.ReviewComments.Where(x => x.ReviewId == reviewId);
+        if (viewerId.HasValue)
+        {
+            var hiddenUserIds = UserSafetyPolicy.HiddenUserIds(db, viewerId.Value);
+            query = query.Where(x => !hiddenUserIds.Contains(x.UserId));
+        }
         var (normalizedPage, size, skip) = Paging.Normalize(page, pageSize);
         var total = query.LongCount();
         var items = query
@@ -152,6 +173,7 @@ public sealed class CommunityService(IBookSpaceDbContext db) : ICommunityService
         CancellationToken cancellationToken)
     {
         var review = FindReview(reviewId);
+        UserSafetyPolicy.EnsureCanInteract(db, userId, review.UserId);
         var comment = new ReviewComment(reviewId, userId, request.Content);
         db.Add(comment);
         if (review.UserId != userId)
@@ -162,7 +184,7 @@ public sealed class CommunityService(IBookSpaceDbContext db) : ICommunityService
                 NotificationType.COMMENT,
                 "Bình luận mới",
                 $"{actorName} đã bình luận đánh giá của bạn.",
-                $"/books/{review.BookId}"));
+                $"/books/{review.BookId}"), userId);
         }
 
         await db.SaveChangesAsync(cancellationToken);
@@ -190,7 +212,11 @@ public sealed class CommunityService(IBookSpaceDbContext db) : ICommunityService
             .Select(x => x.FollowingId)
             .ToList();
         actorIds.Add(userId);
-        actorIds = actorIds.Distinct().ToList();
+        var hiddenUserIds = UserSafetyPolicy.HiddenUserIds(db, userId).ToHashSet();
+        actorIds = actorIds
+            .Distinct()
+            .Where(actorId => !hiddenUserIds.Contains(actorId))
+            .ToList();
         return GetActivityForActors(actorIds, userId, filter, page, pageSize);
     }
 
@@ -200,6 +226,7 @@ public sealed class CommunityService(IBookSpaceDbContext db) : ICommunityService
         int page,
         int pageSize)
     {
+        UserSafetyPolicy.EnsureCanView(db, viewerId, userId);
         var user = EnsurePublicUser(userId);
         if (viewerId != userId && !user.IsReadingActivityPublic)
         {
@@ -424,6 +451,19 @@ public sealed class CommunityService(IBookSpaceDbContext db) : ICommunityService
     private Review FindReview(Guid reviewId) =>
         db.Reviews.FirstOrDefault(x => x.Id == reviewId)
         ?? throw ServiceErrors.NotFound("REVIEW_NOT_FOUND", "Không tìm thấy đánh giá.");
+
+    private void EnsureContentVisible(
+        Guid? viewerId,
+        Guid actorId,
+        string code,
+        string message)
+    {
+        if (viewerId.HasValue &&
+            UserSafetyPolicy.IsHiddenFrom(db, viewerId.Value, actorId))
+        {
+            throw ServiceErrors.NotFound(code, message);
+        }
+    }
 
     private static void EnsureOwner(Guid ownerId, Guid userId, bool isAdmin)
     {

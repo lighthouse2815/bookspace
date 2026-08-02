@@ -7,6 +7,8 @@ public interface IBookSpaceDbContext
     IQueryable<User> Users { get; }
     IQueryable<RefreshToken> RefreshTokens { get; }
     IQueryable<Follow> Follows { get; }
+    IQueryable<UserBlock> UserBlocks => Array.Empty<UserBlock>().AsQueryable();
+    IQueryable<UserMute> UserMutes => Array.Empty<UserMute>().AsQueryable();
     IQueryable<Author> Authors { get; }
     IQueryable<Category> Categories { get; }
     IQueryable<Book> Books { get; }

@@ -40,6 +40,8 @@ const mocks = vi.hoisted(() => ({
   reviews: vi.fn(),
   activity: vi.fn(),
   connections: vi.fn(),
+  mute: vi.fn(),
+  block: vi.fn(),
   retry: vi.fn(),
   toast: vi.fn(),
 }))
@@ -68,6 +70,8 @@ vi.mock('../../hooks/useCommunity', () => ({
   useUserReviews: (...args: unknown[]) => mocks.reviews(...args),
   useUserActivity: (...args: unknown[]) => mocks.activity(...args),
   useUserConnections: (...args: unknown[]) => mocks.connections(...args),
+  useMuteUser: (...args: unknown[]) => mocks.mute(...args),
+  useBlockUser: (...args: unknown[]) => mocks.block(...args),
 }))
 
 function renderProfile() {
@@ -127,6 +131,8 @@ function queryResult(items: unknown[] = []) {
 describe('production public profile route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.mute.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    mocks.block.mockReturnValue({ mutate: vi.fn(), isPending: false })
     Object.assign(mocks.auth, {
       user: null,
       isAuthenticated: false,

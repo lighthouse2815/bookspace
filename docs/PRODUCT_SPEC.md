@@ -94,7 +94,7 @@ Goal 1 không thêm vai trò nhân viên, nhà cung cấp hoặc quản trị h�
 | Clubs | câu lạc bộ, thành viên, bài đăng, bình luận, đợt đọc chung và cột mốc thảo luận | Identity, Catalog, Notifications |
 | Challenges | thử thách, tham gia, tiến độ | Identity, Reading |
 | Notifications | thông báo trong ứng dụng | các sự kiện nội bộ |
-| Community Safety | báo cáo nội dung, hàng đợi kiểm duyệt, audit và khóa tài khoản | Identity, Community, Clubs |
+| Community Safety | chặn, ẩn nội dung, báo cáo nội dung, hàng đợi kiểm duyệt, audit và khóa tài khoản | Identity, Community, Clubs, Notifications |
 | Integration | provider catalog/offer, webhook mua hàng | tùy chọn, bị cô lập |
 
 Chi tiết entity, invariant và quan hệ nằm trong [DOMAIN_MODEL.md](./DOMAIN_MODEL.md).
@@ -296,6 +296,8 @@ Atomicity của database không đồng nghĩa exactly-once ở HTTP: request b�
 
 Các sự kiện follow, like, comment, club và challenge tạo thông báo cho đúng người nhận, trừ khi tác nhân cũng là người nhận. Thành viên chỉ đọc/đánh dấu thông báo của chính mình. Danh sách hỗ trợ trạng thái đã đọc, nhóm `FOLLOW|REVIEW|CLUB|CHALLENGE|SYSTEM` và phân trang; unread count luôn do server tính trên toàn bộ dữ liệu principal.
 
+Thông báo mới có tác nhân cụ thể không được tạo nếu người nhận đã ẩn tác nhân hoặc giữa hai tài khoản đang có quan hệ chặn. Thông báo lịch sử không bị xóa ngược.
+
 Tài khoản mặc định nhận follow, tương tác review, club và challenge. Thành viên có thể tắt độc lập bốn nhóm này; preference được kiểm tra tại nguồn tạo sự kiện mới. `SYSTEM` luôn bật để giữ thông báo vận hành quan trọng. Thay đổi preference không xóa hoặc ẩn lịch sử đã tạo.
 
 ### UC-10A — An toàn cộng đồng
@@ -314,6 +316,17 @@ khác của cùng mục tiêu. Không thể khóa tài khoản `ADMIN` hoặc t�
 đến nội dung của chính admin. JWT của tài khoản bị khóa bị từ chối từ request kế
 tiếp; profile và nội dung do tài khoản bị khóa tạo không còn xuất hiện ở public
 query.
+
+Thành viên có thể chặn một tài khoản khác. Quan hệ chặn có hướng ở thao tác quản lý
+nhưng có hiệu lực hai chiều: hai bên không thể xem hồ sơ, tìm thấy nhau trong discovery,
+theo dõi hoặc tương tác với review; nội dung của nhau bị loại khỏi feed, review tổng hợp,
+bài viết/bình luận câu lạc bộ, chat và thông báo mới. Chặn tự gỡ mọi quan hệ follow hai
+chiều và thao tác bỏ chặn không tự khôi phục follow cũ.
+
+Ẩn nội dung là quan hệ một chiều, không làm mất quyền xem hồ sơ hoặc follow. Nội dung
+của tài khoản bị ẩn được loại khỏi feed, review tổng hợp, bài viết/bình luận câu lạc bộ,
+chat, unread chat và thông báo mới của principal. Danh sách đã chặn/đã ẩn được phân
+trang tại `/settings`; chặn, bỏ chặn, ẩn và bỏ ẩn đều idempotent.
 
 ### UC-11 — Quản trị catalog
 
@@ -357,7 +370,7 @@ Tên route là hợp đồng điều hướng Goal 1; thay đổi cần đồng 
 | `/insights` | Reading insights | heatmap, streak, báo cáo tuần/tháng, so sánh kỳ và dự báo |
 | `/dashboard` | My dashboard | số sách, trang/phút đọc, challenge |
 | `/profile` | My profile | hồ sơ hiện tại hoặc chuyển tới `/users/:id` |
-| `/settings` | Settings | chỉnh hồ sơ, quyền riêng tư hành trình đọc, notification preferences và giao diện |
+| `/settings` | Settings | chỉnh hồ sơ, quyền riêng tư hành trình đọc, danh sách chặn/ẩn nội dung, notification preferences và giao diện |
 | `/notifications` | Notifications | server unread count, lọc trạng thái/nhóm, phân trang và deep-link |
 | `/clubs/new` | Create club | tạo câu lạc bộ công khai hoặc riêng tư |
 | `/clubs/invitations` | Club invitations | lời mời CLB đang chờ và thao tác chấp nhận/từ chối |

@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { formatRelativeTime } from '../../lib/format'
 import type { FeedItem } from '../../types/domain'
 import { Avatar } from '../ui/Avatar'
+import { MuteUserButton } from './UserSafetyActions'
 import { ReviewCard } from './ReviewCard'
 
 const activityLabel: Record<Exclude<FeedItem['type'], 'REVIEW'>, string> = {
@@ -32,7 +33,14 @@ export function ActivityCard({ item }: { item: FeedItem }) {
             </Link>{' '}
             {item.type === 'REVIEW' ? 'đã chia sẻ một đánh giá' : activityLabel[item.type]}
           </p>
-          <p className="mt-1 text-xs text-muted">{formatRelativeTime(item.createdAt)}</p>
+          <div className="mt-1 flex items-center gap-1">
+            <p className="text-xs text-muted">{formatRelativeTime(item.createdAt)}</p>
+            <MuteUserButton
+              targetId={item.actor.id}
+              displayName={item.actor.displayName}
+              compact
+            />
+          </div>
 
           {item.book ? (
             <Link

@@ -14,6 +14,7 @@ public sealed class UserService(
 {
     public UserProfile Get(Guid userId, Guid? viewerId)
     {
+        UserSafetyPolicy.EnsureCanView(db, viewerId, userId);
         var user = db.Users.FirstOrDefault(x => x.Id == userId && !x.IsLocked)
                    ?? throw ServiceErrors.NotFound("USER_NOT_FOUND", "Không tìm thấy người dùng.");
         return Map(user, viewerId);
@@ -38,7 +39,10 @@ public sealed class UserService(
         var users = db.Users.Where(user => !user.IsLocked);
         if (viewerId.HasValue)
         {
-            users = users.Where(user => user.Id != viewerId.Value);
+            var blockedUserIds = UserSafetyPolicy.BlockedUserIds(db, viewerId.Value);
+            users = users.Where(user =>
+                user.Id != viewerId.Value &&
+                !blockedUserIds.Contains(user.Id));
         }
 
         if (!string.IsNullOrEmpty(normalizedSearch))
@@ -83,9 +87,11 @@ public sealed class UserService(
         var followedUserIds = db.Follows
             .Where(follow => follow.FollowerId == userId)
             .Select(follow => follow.FollowingId);
+        var hiddenUserIds = UserSafetyPolicy.HiddenUserIds(db, userId);
         var users = db.Users.Where(user =>
             !user.IsLocked &&
             user.Id != userId &&
+            !hiddenUserIds.Contains(user.Id) &&
             !followedUserIds.Contains(user.Id));
 
         var total = await queryExecutor.CountAsync(users, cancellationToken);
@@ -137,10 +143,11 @@ public sealed class UserService(
 
     public async Task FollowAsync(Guid userId, Guid targetUserId, CancellationToken cancellationToken)
     {
-        var targetUser = db.Users.FirstOrDefault(x => x.Id == targetUserId)
+        var targetUser = db.Users.FirstOrDefault(x => x.Id == targetUserId && !x.IsLocked)
                          ?? throw ServiceErrors.NotFound(
                              "USER_NOT_FOUND",
                              "Không tìm thấy người dùng cần theo dõi.");
+        UserSafetyPolicy.EnsureCanInteract(db, userId, targetUserId);
         if (db.Follows.Any(x => x.FollowerId == userId && x.FollowingId == targetUserId))
         {
             throw ServiceErrors.Conflict("ALREADY_FOLLOWING", "Bạn đã theo dõi người dùng này.");
@@ -149,7 +156,11 @@ public sealed class UserService(
         var actorName = db.Users.Where(x => x.Id == userId).Select(x => x.DisplayName).First();
         var created = await followMutationBoundary.TryCreateAsync(
             new Follow(userId, targetUserId),
-            targetUser.AllowsNotification(NotificationType.FOLLOW)
+            NotificationDelivery.IsEnabled(
+                db,
+                targetUserId,
+                NotificationType.FOLLOW,
+                userId)
                 ? new Notification(
                     targetUserId,
                     NotificationType.FOLLOW,
@@ -177,32 +188,54 @@ public sealed class UserService(
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    public PageResult<UserSummary> GetFollowers(Guid userId, int page, int pageSize)
+    public PageResult<UserSummary> GetFollowers(
+        Guid userId,
+        Guid? viewerId,
+        int page,
+        int pageSize)
     {
+        UserSafetyPolicy.EnsureCanView(db, viewerId, userId);
         EnsureUser(userId);
         var ids = db.Follows.Where(x => x.FollowingId == userId).Select(x => x.FollowerId).ToList();
-        return PageUsers(ids, page, pageSize);
+        return PageUsers(ids, viewerId, page, pageSize);
     }
 
-    public PageResult<UserSummary> GetFollowing(Guid userId, int page, int pageSize)
+    public PageResult<UserSummary> GetFollowing(
+        Guid userId,
+        Guid? viewerId,
+        int page,
+        int pageSize)
     {
+        UserSafetyPolicy.EnsureCanView(db, viewerId, userId);
         EnsureUser(userId);
         var ids = db.Follows.Where(x => x.FollowerId == userId).Select(x => x.FollowingId).ToList();
-        return PageUsers(ids, page, pageSize);
+        return PageUsers(ids, viewerId, page, pageSize);
     }
 
-    private PageResult<UserSummary> PageUsers(IReadOnlyCollection<Guid> ids, int page, int pageSize)
+    private PageResult<UserSummary> PageUsers(
+        IReadOnlyCollection<Guid> ids,
+        Guid? viewerId,
+        int page,
+        int pageSize)
     {
         var (normalizedPage, size, skip) = Paging.Normalize(page, pageSize);
-        var users = db.Users
-            .Where(x => ids.Contains(x.Id))
+        var query = db.Users.Where(x => ids.Contains(x.Id) && !x.IsLocked);
+        if (viewerId.HasValue)
+        {
+            var blockedUserIds = UserSafetyPolicy.BlockedUserIds(db, viewerId.Value);
+            query = query.Where(x => !blockedUserIds.Contains(x.Id));
+        }
+
+        var total = query.Count();
+        var users = query
             .OrderBy(x => x.DisplayName)
+            .ThenBy(x => x.Id)
             .Skip(skip)
             .Take(size)
             .ToList()
             .Select(new ServiceMapper(db).User)
             .ToList();
-        return PageResult<UserSummary>.Create(users, normalizedPage, size, ids.Count);
+        return PageResult<UserSummary>.Create(users, normalizedPage, size, total);
     }
 
     private UserProfile Map(User user, Guid? viewerId)
@@ -236,7 +269,8 @@ public sealed class UserService(
             new ProfilePrivacyDto(
                 user.IsReadingShelfPublic,
                 user.IsReadingActivityPublic),
-            user.CreatedAt);
+            user.CreatedAt,
+            isOtherViewer && UserSafetyPolicy.IsMutedBy(db, viewerId!.Value, user.Id));
     }
 
     private IQueryable<DiscoveryCandidate> ProjectDiscovery(

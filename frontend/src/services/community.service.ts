@@ -8,6 +8,7 @@ import type {
   ReviewComment,
   User,
   UserDiscoveryItem,
+  UserSafetyEntry,
 } from '../types/domain'
 
 export interface FeedQuery {
@@ -124,6 +125,25 @@ export const communityService = {
 
   unfollow: async (id: string) =>
     unwrap(await api.delete<ApiEnvelope<User>>(`/users/${id}/follow`)),
+
+  safetyList: async (page = 1, pageSize = 50) =>
+    unwrap(
+      await api.get<ApiEnvelope<PageResult<UserSafetyEntry>>>('/users/me/safety', {
+        params: { page, pageSize },
+      }),
+    ),
+
+  block: async (id: string) =>
+    unwrap(await api.post<ApiEnvelope<UserSafetyEntry>>(`/users/${id}/block`)),
+
+  unblock: async (id: string) =>
+    unwrap(await api.delete<ApiEnvelope<null>>(`/users/${id}/block`)),
+
+  mute: async (id: string) =>
+    unwrap(await api.post<ApiEnvelope<UserSafetyEntry>>(`/users/${id}/mute`)),
+
+  unmute: async (id: string) =>
+    unwrap(await api.delete<ApiEnvelope<null>>(`/users/${id}/mute`)),
 
   updateProfile: async (input: { displayName: string; bio?: string; avatarUrl?: string }) =>
     unwrap(await api.patch<ApiEnvelope<User>>('/users/me', input)),
