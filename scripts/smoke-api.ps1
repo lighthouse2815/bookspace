@@ -376,6 +376,40 @@ $directMessageReadState = Invoke-BookSpaceRequest `
     -Path "/api/conversations/$($directConversation.data.id)/read" `
     -Body @{ lastReadMessageId = $directMessage.data.id } `
     -AccessToken $moderationTarget.data.accessToken
+$bookListName = "Book list smoke $([Guid]::NewGuid().ToString('N'))"
+$bookList = Invoke-BookSpaceRequest `
+    -Method Post `
+    -Path '/api/book-lists' `
+    -Body @{ name = $bookListName; description = 'Luồng kiểm tra bộ sưu tập'; visibility = 'PRIVATE' } `
+    -AccessToken $token
+$privateBookList = Invoke-BookSpaceExpectedError -Path "/api/book-lists/$($bookList.data.id)"
+$publicBookListUpdate = Invoke-BookSpaceRequest `
+    -Method Patch `
+    -Path "/api/book-lists/$($bookList.data.id)" `
+    -Body @{ name = $bookListName; description = 'Luồng kiểm tra bộ sưu tập'; visibility = 'PUBLIC' } `
+    -AccessToken $token
+$bookListAdd = Invoke-BookSpaceRequest `
+    -Method Post `
+    -Path "/api/book-lists/$($bookList.data.id)/books" `
+    -Body @{ bookId = $books.data.items[0].id } `
+    -AccessToken $token
+$bookListReorder = Invoke-BookSpaceRequest `
+    -Method Put `
+    -Path "/api/book-lists/$($bookList.data.id)/books/reorder" `
+    -Body @{ bookIds = @($books.data.items[0].id) } `
+    -AccessToken $token
+$bookListsMine = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path "/api/book-lists?page=1&pageSize=20&bookId=$($books.data.items[0].id)" `
+    -AccessToken $token
+$publicBookList = Invoke-BookSpaceRequest -Method Get -Path "/api/book-lists/$($bookList.data.id)"
+$bookListDelete = Invoke-BookSpaceRequest `
+    -Method Delete `
+    -Path "/api/book-lists/$($bookList.data.id)" `
+    -AccessToken $token
+$deletedBookList = Invoke-BookSpaceExpectedError `
+    -Path "/api/book-lists/$($bookList.data.id)" `
+    -AccessToken $token
 $adminLibrary = Invoke-BookSpaceRequest `
     -Method Get `
     -Path '/api/library?page=1&pageSize=20' `
@@ -510,6 +544,13 @@ if (
     -not $adminLibrary.success -or
     -not $adminRecommendations.success -or
     -not $adminRecommendationsRepeat.success -or
+    -not $bookList.success -or
+    -not $publicBookListUpdate.success -or
+    -not $bookListAdd.success -or
+    -not $bookListReorder.success -or
+    -not $bookListsMine.success -or
+    -not $publicBookList.success -or
+    -not $bookListDelete.success -or
     -not $feed.success -or
     -not $books.success -or
     -not $dashboard.success -or
@@ -986,6 +1027,22 @@ if (
     throw 'Direct Messages persistence, mutual follow, public DTO, unread hoặc read-state contract không hợp lệ.'
 }
 
+$bookListMineItem = @($bookListsMine.data.items | Where-Object { $_.id -eq $bookList.data.id })
+if (
+    $privateBookList.StatusCode -ne 404 -or
+    $privateBookList.Payload.code -ne 'BOOK_LIST_NOT_FOUND' -or
+    $publicBookList.data.visibility -ne 'PUBLIC' -or
+    $publicBookList.data.items.Count -ne 1 -or
+    $publicBookList.data.items[0].book.id -ne $books.data.items[0].id -or
+    $bookListReorder.data.items[0].position -ne 0 -or
+    $bookListMineItem.Count -ne 1 -or
+    -not $bookListMineItem[0].containsBook -or
+    $deletedBookList.StatusCode -ne 404 -or
+    $deletedBookList.Payload.code -ne 'BOOK_LIST_NOT_FOUND'
+) {
+    throw 'Book Lists create/privacy/add/reorder/contains/public/delete contract không hợp lệ.'
+}
+
 if (
     $insightsCalendar.data.daysData.Count -ne 365 -or
     $insightsWeekly.data.items.Count -ne 12 -or
@@ -1022,6 +1079,7 @@ if (
     FirstSprintTimelineItems = if ($null -ne $sprintTimeline) { $sprintTimeline.data.totalItems } else { 0 }
     ClubChatMessages = if ($null -ne $clubChatHistory) { $clubChatHistory.data.items.Count } else { 0 }
     DirectMessages = if ($null -ne $directMessageHistory) { $directMessageHistory.data.items.Count } else { 0 }
+    BookLists = 'PASS'
     ModerationReports = $moderationQueue.data.totalItems
     SafetyControls = 'PASS'
     CurrentStreak = $insightsOverview.data.currentStreak

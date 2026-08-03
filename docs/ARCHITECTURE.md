@@ -144,6 +144,7 @@ Mỗi use case được tiếp cận qua interface:
 | `IClubService` | club settings, invitations, membership roles, shared current book, post/comment |
 | `IClubChatService` | member-only history, send, unread high-water và read marker |
 | `IDirectMessageService` | mutual-follow conversation, private history, send, unread/read marker |
+| `IBookListService` | ownership/privacy, CRUD list, add/remove/reorder và public profile projection |
 | `IClubReadingSprintService` | sprint lifecycle, participant state, progress, leaderboard, timeline, milestone/response và reminder |
 | `IChallengeService` | challenge, join, progress, publish |
 | `INotificationService` | list, unread count, mark read |
@@ -220,6 +221,8 @@ Các unique index bắt buộc:
 | `Conversation` | unique normalized `(UserOneId, UserTwoId)`; inbox `(LastActivityAt, Id)` |
 | `DirectMessage` | history `(ConversationId, CreatedAt, Id)` |
 | `DirectMessageReadState` | unique `(ConversationId, UserId)` |
+| `BookList` | filtered unique `(OwnerId, NormalizedName)`; owner/visibility/update index |
+| `BookListItem` | unique `(BookListId, BookId)` toàn lifecycle; order `(BookListId, Position)` |
 | `ClubInvitation` | unique pending `(ClubId, InvitedUserId)`; inbox index `(InvitedUserId, Status, ExpiresAt)` |
 | `ClubReadingSprint` | `(ClubId, CreatedAt)`; status-filter support `(ClubId, StartsAt, EndsAt, CompletedAt, CancelledAt)` |
 | `ClubReadingSprintParticipant` | unique `(SprintId, UserId)`; leaderboard `(SprintId, LeftAt, ProgressValue)` |
@@ -368,6 +371,9 @@ Mutation phải invalidate đúng consumer:
   của đúng principal; reconnect refetch trang mới nhất thay vì tin hoàn toàn vào event stream.
 - Direct message send/read/realtime: merge theo `message.id`, invalidate inbox/detail/
   unread và notification scope; REST là nguồn sự thật và reconnect refetch toàn scope.
+- Book list mutations invalidate namespace `book-lists`; query key chứa principal để dữ liệu
+  private không đi qua phiên đăng nhập khác. Profile dùng endpoint mine cho chủ sở hữu và
+  public endpoint cho người xem khác.
 - Reading sprint: list/detail/history, participant state, leaderboard, timeline và milestone; mutation đồng thời invalidate club detail và notification khi có recipient.
 - Challenge: `challenges`, `my-challenges`, `feed`, `dashboard`, `notifications`.
 - Mark notification: `notifications`, `notification-unread-count`.

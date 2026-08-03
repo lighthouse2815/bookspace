@@ -794,6 +794,35 @@ gửi hoặc message của actor principal đã mute. Mark-read retry/request c�
 Block cloak toàn bộ conversation hai chiều. Mute chỉ lọc message của actor khỏi read
 model của principal; dữ liệu vẫn được giữ để hiện lại sau unmute.
 
+## 6B. Bounded context Personal Book Lists
+
+### 6B.1 `BookList`
+
+| Trường | Kiểu | Quy tắc |
+|---|---|---|
+| `Id` | `Guid` | khóa chính |
+| `OwnerId` | `Guid` | chủ sở hữu đang hoạt động |
+| `Name` | `string` | trim, 1–120 ký tự |
+| `NormalizedName` | `string` | uppercase invariant; unique `(OwnerId, NormalizedName)` khi chưa xóa |
+| `Description` | `string?` | trim, tối đa 1.000 ký tự |
+| `Visibility` | `BookListVisibility` | `PUBLIC`, `PRIVATE` |
+| audit fields | timestamps | UTC, soft-delete |
+
+Một user có tối đa 50 list đang hoạt động. `UpdatedAt` thay đổi khi metadata hoặc tập/thứ
+tự sách thay đổi và là khóa sắp xếp chính của danh sách cá nhân.
+
+### 6B.2 `BookListItem`
+
+| Trường | Kiểu | Quy tắc |
+|---|---|---|
+| `BookListId` | `Guid` | list cha |
+| `BookId` | `Guid` | sách catalog đang hoạt động |
+| `Position` | `int` | từ 0, liên tục trong tập active |
+| audit fields | timestamps | UTC, soft-delete |
+
+`(BookListId, BookId)` unique toàn lifecycle để re-add khôi phục đúng row. Một list có tối
+đa 200 item active. Reorder phải gửi đúng tập `BookId` hiện tại, không thiếu hoặc trùng.
+
 ## 7. Bounded context Challenges
 
 ### 7.1 `ReadingChallenge`

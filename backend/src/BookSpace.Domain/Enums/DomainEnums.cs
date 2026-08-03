@@ -39,6 +39,12 @@ public enum ClubVisibility
     PRIVATE
 }
 
+public enum BookListVisibility
+{
+    PUBLIC,
+    PRIVATE
+}
+
 public enum ClubInvitationStatus
 {
     PENDING,

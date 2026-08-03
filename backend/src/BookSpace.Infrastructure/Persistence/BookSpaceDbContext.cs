@@ -21,6 +21,8 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
     public DbSet<Book> BookSet => Set<Book>();
     public DbSet<BookAuthor> BookAuthorSet => Set<BookAuthor>();
     public DbSet<BookCategory> BookCategorySet => Set<BookCategory>();
+    public DbSet<BookList> BookListSet => Set<BookList>();
+    public DbSet<BookListItem> BookListItemSet => Set<BookListItem>();
     public DbSet<ExternalBookLink> ExternalBookLinkSet => Set<ExternalBookLink>();
     public DbSet<LibraryItem> LibraryItemSet => Set<LibraryItem>();
     public DbSet<ReadingSession> ReadingSessionSet => Set<ReadingSession>();
@@ -70,6 +72,10 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
     IQueryable<Book> IBookSpaceDbContext.Books => BookSet;
     IQueryable<BookAuthor> IBookSpaceDbContext.BookAuthors => BookAuthorSet;
     IQueryable<BookCategory> IBookSpaceDbContext.BookCategories => BookCategorySet;
+    IQueryable<BookList> IBookSpaceDbContext.BookLists => BookListSet;
+    IQueryable<BookListItem> IBookSpaceDbContext.BookListItems => BookListItemSet;
+    IQueryable<BookListItem> IBookSpaceDbContext.BookListItemsIncludingDeleted =>
+        BookListItemSet.IgnoreQueryFilters();
     IQueryable<ExternalBookLink> IBookSpaceDbContext.ExternalBookLinks => ExternalBookLinkSet;
     IQueryable<LibraryItem> IBookSpaceDbContext.LibraryItems => LibraryItemSet;
     IQueryable<LibraryItem> IBookSpaceDbContext.LibraryItemsIncludingDeleted =>
@@ -139,6 +145,7 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
         base.OnModelCreating(modelBuilder);
         ConfigureIdentity(modelBuilder);
         ConfigureCatalog(modelBuilder);
+        ConfigureBookLists(modelBuilder);
         ConfigureReading(modelBuilder);
         modelBuilder.ConfigureReadingGoals();
         modelBuilder.ConfigureReadingNotes();
@@ -150,6 +157,45 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
         ConfigureNotifications(modelBuilder);
         ConfigureContentModeration(modelBuilder);
         ApplySoftDeleteFilters(modelBuilder);
+    }
+
+    private static void ConfigureBookLists(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<BookList>(entity =>
+        {
+            entity.ToTable("book_lists");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.OwnerId, x.NormalizedName })
+                .IsUnique()
+                .HasFilter("\"DeletedAt\" IS NULL");
+            entity.HasIndex(x => new { x.OwnerId, x.Visibility, x.UpdatedAt });
+            entity.Property(x => x.Name).HasMaxLength(120).IsRequired();
+            entity.Property(x => x.NormalizedName).HasMaxLength(120).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(1000);
+            entity.Property(x => x.Visibility).HasConversion<string>().HasMaxLength(20);
+            entity.HasOne(x => x.Owner)
+                .WithMany()
+                .HasForeignKey(x => x.OwnerId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.Ignore(x => x.IsDeleted);
+        });
+
+        modelBuilder.Entity<BookListItem>(entity =>
+        {
+            entity.ToTable("book_list_items");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.BookListId, x.BookId }).IsUnique();
+            entity.HasIndex(x => new { x.BookListId, x.Position });
+            entity.HasOne(x => x.BookList)
+                .WithMany(x => x.Items)
+                .HasForeignKey(x => x.BookListId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Book)
+                .WithMany()
+                .HasForeignKey(x => x.BookId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.Ignore(x => x.IsDeleted);
+        });
     }
 
     private static void ConfigureIdentity(ModelBuilder modelBuilder)
@@ -795,6 +841,16 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
             x.DeletedAt == null &&
             x.Book.DeletedAt == null &&
             x.Category.DeletedAt == null);
+        modelBuilder.Entity<BookList>().HasQueryFilter(x =>
+            x.DeletedAt == null &&
+            x.Owner.DeletedAt == null &&
+            !x.Owner.IsLocked);
+        modelBuilder.Entity<BookListItem>().HasQueryFilter(x =>
+            x.DeletedAt == null &&
+            x.BookList.DeletedAt == null &&
+            x.BookList.Owner.DeletedAt == null &&
+            !x.BookList.Owner.IsLocked &&
+            x.Book.DeletedAt == null);
         modelBuilder.Entity<ExternalBookLink>().HasQueryFilter(x => x.DeletedAt == null);
         modelBuilder.Entity<LibraryItem>().HasQueryFilter(x => x.DeletedAt == null);
         modelBuilder.Entity<ReadingSession>().HasQueryFilter(x => x.DeletedAt == null);

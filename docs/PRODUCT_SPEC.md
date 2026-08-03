@@ -378,6 +378,18 @@ gửi nhưng loại tin của actor khỏi history, last-message, unread, realti
 của principal. Tin nhắn người khác có thể được báo cáo bằng target `DIRECT_MESSAGE` và
 admin soft-delete qua moderation queue. Notification tin nhắn có preference độc lập.
 
+### UC-10C — Bộ sưu tập sách cá nhân
+
+Thành viên tạo tối đa 50 bộ sưu tập, mỗi bộ có tên duy nhất không phân biệt hoa thường,
+mô tả tùy chọn và quyền xem `PUBLIC` hoặc `PRIVATE`. Mỗi bộ chứa tối đa 200 sách catalog;
+chủ sở hữu có thể thêm, bỏ và sắp xếp lại thứ tự. Xóa bộ hoặc bỏ sách là soft-delete;
+thêm lại sách khôi phục bản ghi cũ ở cuối danh sách.
+
+Bộ riêng tư và mọi mutation chỉ chủ sở hữu truy cập; người khác nhận 404 để không làm lộ
+sự tồn tại. Bộ công khai hiển thị trên tab Bộ sưu tập của hồ sơ và có trang chia sẻ riêng.
+Block ở bất kỳ chiều nào cũng che bộ sưu tập giữa hai tài khoản; mute không ảnh hưởng việc
+xem trực tiếp. V1 không có cộng tác viên, like/comment hoặc smart list.
+
 ### UC-11 — Quản trị catalog
 
 Quản trị viên tạo/sửa/soft-delete sách, tác giả, thể loại. Không cho xóa mềm tác giả/thể loại đang là liên kết duy nhất cần thiết của một sách đang hoạt động nếu request không đồng thời gỡ/chuyển liên kết hợp lệ.
@@ -405,6 +417,7 @@ Tên route là hợp đồng điều hướng Goal 1; thay đổi cần đồng 
 | `/explore` | Explore | tìm kiếm/lọc sách có phân trang; thành viên thấy khu “Dành cho bạn” 12 item/trang, lý do gợi ý và thêm nhanh vào `WANT_TO_READ`; khách giữ catalog công khai và không gọi API cá nhân hóa |
 | `/books` | Books | catalog đầy đủ có phân trang |
 | `/books/:id` | Book detail | metadata, tác giả, thể loại, review |
+| `/lists/:listId` | Book list detail | bộ sưu tập công khai hoặc bộ riêng của chủ sở hữu; chủ sở hữu có thể sửa, xóa, bỏ và sắp xếp sách |
 | `/challenges` | Challenges | thử thách đã xuất bản |
 | `/challenges/:id` | Challenge detail | chi tiết, tiến độ tự động và join/leave |
 | `/clubs` | Clubs | danh sách câu lạc bộ công khai |
@@ -422,6 +435,7 @@ Tên route là hợp đồng điều hướng Goal 1; thay đổi cần đồng 
 | `/onboarding` | Personalized onboarding | lưu/khôi phục lựa chọn 3–5 thể loại và 3–5 sách tham chiếu; hoàn tất hoặc bỏ qua; thêm nhanh sách, gợi ý follow và mục tiêu đầu tiên là bước tùy chọn |
 | `/feed` | Feed | hoạt động phân trang 10 item/trang, gợi ý follow và bộ lọc URL `?type=review&page=...` với `type` là `review`, `reading`, `club` hoặc `challenge`; bỏ `type` khi xem tất cả, empty state dẫn tới `/people` |
 | `/library` | My library | lọc theo ba trạng thái |
+| `/lists` | My book lists | tạo, sửa, xóa và quản lý bộ sưu tập công khai/riêng tư |
 | `/journal` | Reading journal | focus timer khôi phục sau reload; pause/resume/finish/cancel; ghi thủ công, xem và sửa history |
 | `/goals` | Reading goals | tạo, sửa, xóa và theo dõi tiến độ mục tiêu riêng |
 | `/notes` | Reading notes | tạo, sửa, xóa, lọc và tìm ghi chú riêng tư |

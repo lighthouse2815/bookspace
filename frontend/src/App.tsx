@@ -15,6 +15,12 @@ const BooksPage = lazy(() =>
 const BookDetailPage = lazy(() =>
   import('./pages/catalog/BookDetailPage').then((module) => ({ default: module.BookDetailPage })),
 )
+const BookListsPage = lazy(() =>
+  import('./pages/book-lists/BookListsPage').then((module) => ({ default: module.BookListsPage })),
+)
+const BookListDetailPage = lazy(() =>
+  import('./pages/book-lists/BookListDetailPage').then((module) => ({ default: module.BookListDetailPage })),
+)
 const LoginPage = lazy(() =>
   import('./pages/auth/AuthPages').then((module) => ({ default: module.LoginPage })),
 )
@@ -137,6 +143,7 @@ export default function App() {
           <Route path="explore" element={<ExplorePage />} />
           <Route path="books" element={<BooksPage />} />
           <Route path="books/:id" element={<BookDetailPage />} />
+          <Route path="lists/:listId" element={<BookListDetailPage />} />
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />
           <Route path="users/:id" element={<ProfilePage />} />
@@ -151,6 +158,7 @@ export default function App() {
             <Route path="onboarding" element={<OnboardingPage />} />
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="library" element={<LibraryPage />} />
+            <Route path="lists" element={<BookListsPage />} />
             <Route path="journal" element={<JournalPage />} />
             <Route path="goals" element={<GoalsPage />} />
             <Route path="notes" element={<NotesPage />} />

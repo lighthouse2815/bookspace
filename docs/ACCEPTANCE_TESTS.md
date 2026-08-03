@@ -427,6 +427,17 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-SPRINT-015 | P0 | Khi Bookstore integration tắt hoặc không khả dụng, create/list/detail/join/progress/leaderboard/timeline/milestone/reminder/complete/cancel vẫn dùng catalog và database BookSpace, không phát sinh outbound dependency. |
 | AC-SPRINT-016 | P0 | UI club detail có list/history, form manager, join/leave, progress, leaderboard, timeline, milestone/response và reminder theo quyền; mutation cập nhật state không reload toàn trang. |
 
+## 14B. Personal Book Lists v1
+
+| ID | Priority | Acceptance |
+|---|---|---|
+| AC-LIST-001 | P0 | Chủ sở hữu tạo/sửa/soft-delete list; tên active duy nhất không phân biệt hoa thường, tối đa 50 list. |
+| AC-LIST-002 | P0 | Chủ sở hữu thêm/bỏ/restore và reorder đúng tập sách; tối đa 200 sách, position liên tục. |
+| AC-LIST-003 | P0 | Guest/người khác xem list public; list private và mutation non-owner đều cloak bằng 404. |
+| AC-LIST-004 | P0 | Block hai chiều cloak detail và public profile list; mute không che direct view. |
+| AC-LIST-005 | P0 | `/lists` quản lý đầy đủ; `/lists/:listId` hiển thị công khai; Book Detail có bộ chọn thêm/bỏ; Profile có tab Bộ sưu tập. |
+| AC-LIST-006 | P1 | Picker dùng `bookId` để hiển thị `containsBook`, có loading/error/empty/pagination và link tạo list. |
+
 ## 15. Challenges
 
 | ID | P | Given/When/Then |

@@ -1790,6 +1790,51 @@ Hub yêu cầu JWT; browser có thể truyền `access_token` chỉ trên path n
 actor. Client merge theo `message.id`; reconnect phải refetch inbox/detail/history/unread
 từ REST. Lỗi broadcast sau commit không đổi response persistence.
 
+## 14B. Personal Book Lists API
+
+`BookListVisibility`: `PUBLIC | PRIVATE`. Summary gồm `id`, `name`, `description`,
+`visibility`, `owner`, `bookCount`, tối đa 4 `previewBooks`, `isOwner`, `containsBook?`,
+`createdAt`, `updatedAt`. Detail thay preview bằng `items` đã sắp theo `position`.
+
+### `GET /api/book-lists?page=1&pageSize=20&visibility=&bookId=` — Authenticated
+
+Trả các list của principal, mới cập nhật trước. `visibility` và `bookId` tùy chọn; khi có
+`bookId`, mỗi summary trả `containsBook` để phục vụ bộ chọn trên trang sách.
+
+### `POST /api/book-lists` — Authenticated
+
+```json
+{ "name": "Sách cho mùa mưa", "description": "Đọc chậm", "visibility": "PUBLIC" }
+```
+
+Response `201`. Tối đa 50 list/user; tên active duy nhất không phân biệt hoa thường.
+
+### `GET /api/book-lists/{listId}` — Public
+
+Khách/người khác chỉ xem `PUBLIC`; chủ sở hữu xem cả `PRIVATE`. Không có quyền hoặc bị
+block hai chiều trả `404 BOOK_LIST_NOT_FOUND`.
+
+### `PATCH /api/book-lists/{listId}` / `DELETE /api/book-lists/{listId}` — Owner
+
+Patch dùng cùng shape create. Delete soft-delete list và item active. Non-owner nhận 404.
+
+### `POST /api/book-lists/{listId}/books` — Owner
+
+Body `{ "bookId": "..." }`. Thêm mới hoặc restore item cũ vào cuối. Tối đa 200 sách;
+trùng active trả `409 BOOK_ALREADY_IN_LIST`.
+
+### `DELETE /api/book-lists/{listId}/books/{bookId}` — Owner
+
+Soft-delete item và chuẩn hóa lại `position`.
+
+### `PUT /api/book-lists/{listId}/books/reorder` — Owner
+
+Body `{ "bookIds": ["...", "..."] }`; phải chứa đúng mỗi sách active một lần.
+
+### `GET /api/users/{userId}/book-lists?page=1&pageSize=20` — Public
+
+Chỉ trả list `PUBLIC`. Block hai chiều trả `404 USER_NOT_FOUND`.
+
 ## 15. Challenge API
 
 ### `GET /api/challenges?page=1&pageSize=20` — Public
@@ -2072,6 +2117,13 @@ thành lỗi của core API.
 | `ALREADY_FOLLOWING` | 409 | follow trùng |
 | `PROFILE_SECTION_PRIVATE` | 403 | kệ sách hoặc activity trên hồ sơ chưa được công khai |
 | `BOOK_NOT_FOUND` | 404 | sách không tồn tại |
+| `BOOK_LIST_NOT_FOUND` | 404 | list không tồn tại, private/non-owner hoặc bị block |
+| `BOOK_LIST_NAME_EXISTS` | 409 | owner đã có list active cùng tên không phân biệt hoa thường |
+| `BOOK_LIST_LIMIT_REACHED` | 409 | user đã có 50 list active |
+| `BOOK_LIST_ITEM_LIMIT_REACHED` | 409 | list đã có 200 sách active |
+| `BOOK_ALREADY_IN_LIST` | 409 | sách đã có trong list |
+| `BOOK_LIST_ITEM_NOT_FOUND` | 404 | sách không có trong list active |
+| `INVALID_BOOK_LIST_ORDER` | 400 | reorder thiếu, thừa hoặc trùng book ID |
 | `ISBN_ALREADY_EXISTS` | 409 | ISBN trùng |
 | `AUTHOR_NOT_FOUND` | 404 | tác giả không tồn tại |
 | `CATEGORY_NOT_FOUND` | 404 | category không tồn tại |

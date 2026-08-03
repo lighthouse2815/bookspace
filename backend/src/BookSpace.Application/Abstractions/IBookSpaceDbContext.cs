@@ -22,6 +22,9 @@ public interface IBookSpaceDbContext
     IQueryable<Book> Books { get; }
     IQueryable<BookAuthor> BookAuthors { get; }
     IQueryable<BookCategory> BookCategories { get; }
+    IQueryable<BookList> BookLists => Array.Empty<BookList>().AsQueryable();
+    IQueryable<BookListItem> BookListItems => Array.Empty<BookListItem>().AsQueryable();
+    IQueryable<BookListItem> BookListItemsIncludingDeleted => BookListItems;
     IQueryable<ExternalBookLink> ExternalBookLinks =>
         Array.Empty<ExternalBookLink>().AsQueryable();
     IQueryable<LibraryItem> LibraryItems { get; }

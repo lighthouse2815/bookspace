@@ -97,6 +97,41 @@ export interface Book {
   } | null
 }
 
+export type BookListVisibility = 'PUBLIC' | 'PRIVATE'
+
+export interface BookListSummary {
+  id: string
+  name: string
+  description?: string | null
+  visibility: BookListVisibility
+  owner: User
+  bookCount: number
+  previewBooks: Book[]
+  isOwner: boolean
+  containsBook?: boolean | null
+  createdAt: string
+  updatedAt?: string | null
+}
+
+export interface BookListItem {
+  id: string
+  book: Book
+  position: number
+  addedAt: string
+}
+
+export interface BookListDetail {
+  id: string
+  name: string
+  description?: string | null
+  visibility: BookListVisibility
+  owner: User
+  isOwner: boolean
+  items: BookListItem[]
+  createdAt: string
+  updatedAt?: string | null
+}
+
 export interface ExternalBook {
   externalId: string
   title: string

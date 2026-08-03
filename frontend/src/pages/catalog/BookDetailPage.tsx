@@ -12,6 +12,7 @@ import {
 import { useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { BookCover } from '../../components/books/BookCover'
+import { BookListPickerDialog } from '../../components/book-lists/BookListPickerDialog'
 import { ReviewCard } from '../../components/community/ReviewCard'
 import { Button } from '../../components/ui/Button'
 import { Rating } from '../../components/ui/Rating'
@@ -44,6 +45,7 @@ export function BookDetailPage() {
   const [rating, setRating] = useState(0)
   const [reviewContent, setReviewContent] = useState('')
   const [containsSpoilers, setContainsSpoilers] = useState(false)
+  const [listPickerOpen, setListPickerOpen] = useState(false)
 
   if (book.isLoading) {
     return (
@@ -223,6 +225,14 @@ export function BookDetailPage() {
                   <NotePencil size={16} />
                   Ghi chú
                 </Link>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={<BookmarkSimple size={16} />}
+                  onClick={() => setListPickerOpen(true)}
+                >
+                  Lưu vào bộ sưu tập
+                </Button>
                 {entry?.shelf === 'READING' || book.data.shelf === 'READING' ? (
                   <Link
                     to={`/journal?bookId=${book.data.id}`}
@@ -243,6 +253,11 @@ export function BookDetailPage() {
               </Link>
             </div>
           )}
+          <BookListPickerDialog
+            bookId={book.data.id}
+            open={listPickerOpen}
+            onClose={() => setListPickerOpen(false)}
+          />
           {book.data.externalOffer?.purchaseUrl ? (
             <div className="mt-6 border-t border-border pt-6">
               <a

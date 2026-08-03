@@ -12,9 +12,10 @@ public sealed class ChallengeMutationBoundary(BookSpaceDbContext db)
     : IChallengeMutationBoundary,
       IReadingMutationBoundary,
        IClubChatMutationBoundary,
-       IDirectMessageMutationBoundary,
-       IOnboardingMutationBoundary,
-      IExternalCatalogMutationBoundary
+      IDirectMessageMutationBoundary,
+      IOnboardingMutationBoundary,
+      IExternalCatalogMutationBoundary,
+      IBookListMutationBoundary
 {
     public async Task<TResult> ExecuteAsync<TResult>(
         Func<CancellationToken, Task<TResult>> operation,
@@ -63,6 +64,22 @@ public sealed class ChallengeMutationBoundary(BookSpaceDbContext db)
             throw new UseCaseException(
                 "ACTIVE_READING_SESSION_EXISTS",
                 "Bạn đang có một phiên đọc tập trung chưa hoàn tất.",
+                409);
+        }
+        catch (DbUpdateException exception) when (
+            IsBookListNameUniqueViolation(exception))
+        {
+            throw new UseCaseException(
+                "BOOK_LIST_NAME_EXISTS",
+                "Bạn đã có một bộ sưu tập mang tên này.",
+                409);
+        }
+        catch (DbUpdateException exception) when (
+            IsBookListItemUniqueViolation(exception))
+        {
+            throw new UseCaseException(
+                "BOOK_ALREADY_IN_LIST",
+                "Sách đã có trong bộ sưu tập này.",
                 409);
         }
     }
@@ -186,6 +203,34 @@ public sealed class ChallengeMutationBoundary(BookSpaceDbContext db)
         } sqliteException &&
         sqliteException.Message.Contains(
             "active_reading_sessions.UserId",
+            StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsBookListNameUniqueViolation(
+        DbUpdateException exception) =>
+        exception.InnerException is SqliteException
+        {
+            SqliteErrorCode: 19,
+            SqliteExtendedErrorCode: 2067
+        } sqliteException &&
+        sqliteException.Message.Contains(
+            "book_lists.OwnerId",
+            StringComparison.OrdinalIgnoreCase) &&
+        sqliteException.Message.Contains(
+            "book_lists.NormalizedName",
+            StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsBookListItemUniqueViolation(
+        DbUpdateException exception) =>
+        exception.InnerException is SqliteException
+        {
+            SqliteErrorCode: 19,
+            SqliteExtendedErrorCode: 2067
+        } sqliteException &&
+        sqliteException.Message.Contains(
+            "book_list_items.BookListId",
+            StringComparison.OrdinalIgnoreCase) &&
+        sqliteException.Message.Contains(
+            "book_list_items.BookId",
             StringComparison.OrdinalIgnoreCase);
 
     private static bool IsSqliteBusy(SqliteException exception) =>

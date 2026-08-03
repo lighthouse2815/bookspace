@@ -20,6 +20,7 @@ cơ sở dữ liệu.
 - Quản trị viên tìm metadata ngoài, xem trước rồi import vào catalog BookSpace;
   ISBN và mã provider được chống trùng, còn provider vẫn có thể tắt hoàn toàn
 - Quản lý các kệ cá nhân: muốn đọc, đang đọc và đã đọc
+- Tạo bộ sưu tập sách công khai hoặc riêng tư, thêm/bỏ và sắp xếp sách, chia sẻ qua hồ sơ
 - Ghi nhận tiến độ theo trang, hẹn giờ đọc tập trung do máy chủ quản lý và hiệu chỉnh lịch sử phiên đọc
 - Đặt mục tiêu đọc cá nhân với tiến độ được tính từ hoạt động đọc thực tế
 - Lưu ghi chú riêng tư, trích dẫn, số trang và thẻ có thể tìm kiếm

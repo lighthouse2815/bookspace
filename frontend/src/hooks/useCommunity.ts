@@ -4,6 +4,7 @@ import { communityService, type FeedQuery } from '../services/community.service'
 import type { PageResult } from '../types/api'
 import type { FeedFilter, Shelf, User, UserDiscoveryItem } from '../types/domain'
 import { clubChatKeys } from './clubChatKeys'
+import { bookListKeys } from './bookListKeys'
 import { directMessageKeys } from './directMessageKeys'
 import { recommendationKeys } from './recommendationKeys'
 
@@ -378,6 +379,7 @@ async function invalidateSafetyViews(
     queryClient.invalidateQueries({ queryKey: ['notifications', scope] }),
     queryClient.invalidateQueries({ queryKey: recommendationKeys.scoped(scope) }),
     queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+    queryClient.invalidateQueries({ queryKey: bookListKeys.all }),
   ])
 }
 

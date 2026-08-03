@@ -14,6 +14,7 @@ import {
 } from '@phosphor-icons/react'
 import { useCallback, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { BookListCard } from '../../components/book-lists/BookListCard'
 import { ActivityCard } from '../../components/community/ActivityCard'
 import { ProfileConnectionsDialog } from '../../components/community/ProfileConnectionsDialog'
 import { ReviewCard } from '../../components/community/ReviewCard'
@@ -27,6 +28,7 @@ import { EmptyState, ErrorState, LoadingGrid, LoadingRows } from '../../componen
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import { useStartConversation } from '../../hooks/useDirectMessages'
+import { useProfileBookLists } from '../../hooks/useBookLists'
 import {
   useFollowUser,
   useUser,
@@ -38,12 +40,13 @@ import { errorMessage, isNotFoundError } from '../../lib/api'
 import { formatDate } from '../../lib/format'
 import type { Shelf } from '../../types/domain'
 
-type ProfileTab = 'overview' | 'books' | 'reviews' | 'activity'
+type ProfileTab = 'overview' | 'books' | 'collections' | 'reviews' | 'activity'
 type ConnectionKind = 'followers' | 'following'
 
 const tabs: Array<{ id: ProfileTab; label: string; icon: typeof Books }> = [
   { id: 'overview', label: 'Tổng quan', icon: UserCircle },
   { id: 'books', label: 'Kệ sách', icon: Books },
+  { id: 'collections', label: 'Bộ sưu tập', icon: BookOpenText },
   { id: 'reviews', label: 'Đánh giá', icon: Star },
   { id: 'activity', label: 'Hoạt động', icon: ClockCounterClockwise },
 ]
@@ -104,6 +107,12 @@ export function ProfilePage() {
     activeTab === 'activity' ? page : 1,
     activeTab === 'activity' ? 10 : 3,
     Boolean(profile.data) && canSeeActivity && (activeTab === 'overview' || activeTab === 'activity'),
+  )
+
+  const collections = useProfileBookLists(
+    id,
+    activeTab === 'collections' ? page : 1,
+    Boolean(profile.data) && activeTab === 'collections',
   )
 
   const closeConnections = useCallback(() => setConnections(null), [])
@@ -415,6 +424,53 @@ export function ProfilePage() {
                   title="Chưa có đánh giá công khai"
                   description="Khi độc giả viết cảm nhận về sách, nội dung sẽ xuất hiện tại đây."
                   icon={Star}
+                />
+              )}
+            </div>
+          </section>
+        ) : null}
+
+        {activeTab === 'collections' ? (
+          <section>
+            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+              <div>
+                <p className="eyebrow">Tuyển chọn theo chủ đề</p>
+                <h2 className="mt-3 text-2xl font-bold text-heading">
+                  {ownProfile ? 'Các bộ sưu tập của bạn' : `Bộ sưu tập của ${person.displayName}`}
+                </h2>
+              </div>
+              {ownProfile ? (
+                <Link to="/lists" className="button button-primary button-sm">
+                  Quản lý bộ sưu tập
+                </Link>
+              ) : null}
+            </div>
+            <div className="mt-7">
+              {collections.isLoading ? (
+                <LoadingRows count={4} />
+              ) : collections.isError ? (
+                <ErrorState message="Không thể tải các bộ sưu tập." retry={() => void collections.refetch()} />
+              ) : collections.data?.items.length ? (
+                <>
+                  <div className="grid gap-5 lg:grid-cols-2">
+                    {collections.data.items.map((collection) => (
+                      <BookListCard key={collection.id} list={collection} />
+                    ))}
+                  </div>
+                  <Pagination
+                    page={collections.data.page}
+                    totalPages={collections.data.totalPages}
+                    disabled={collections.isFetching}
+                    onPageChange={(nextPage) => changeView({ tab: 'collections', page: nextPage })}
+                    className="mt-8"
+                  />
+                </>
+              ) : (
+                <EmptyState
+                  title="Chưa có bộ sưu tập để hiển thị"
+                  description={ownProfile ? 'Tạo bộ sưu tập đầu tiên để nhóm sách theo sở thích của bạn.' : 'Độc giả này chưa chia sẻ bộ sưu tập công khai nào.'}
+                  icon={BookOpenText}
+                  action={ownProfile ? <Link to="/lists" className="button button-primary button-sm">Tạo bộ sưu tập</Link> : undefined}
                 />
               )}
             </div>

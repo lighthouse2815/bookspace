@@ -45,6 +45,7 @@ const mocks = vi.hoisted(() => ({
   retry: vi.fn(),
   toast: vi.fn(),
   startConversation: vi.fn(),
+  collections: vi.fn(),
 }))
 
 vi.mock('../../contexts/AuthContext', () => ({
@@ -80,6 +81,10 @@ vi.mock('../../hooks/useDirectMessages', () => ({
     mutate: mocks.startConversation,
     isPending: false,
   }),
+}))
+
+vi.mock('../../hooks/useBookLists', () => ({
+  useProfileBookLists: (...args: unknown[]) => mocks.collections(...args),
 }))
 
 function renderProfile() {
@@ -152,6 +157,7 @@ describe('production public profile route', () => {
     mocks.library.mockReturnValue(queryResult())
     mocks.reviews.mockReturnValue(queryResult())
     mocks.activity.mockReturnValue(queryResult())
+    mocks.collections.mockReturnValue(queryResult())
     mocks.connections.mockReturnValue(queryResult())
   })
 

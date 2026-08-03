@@ -118,6 +118,9 @@ export function Header() {
                     <Link to={`/users/${user.id}`} onClick={() => setAccountOpen(false)}>
                       Hồ sơ
                     </Link>
+                    <Link to="/lists" onClick={() => setAccountOpen(false)}>
+                      Bộ sưu tập
+                    </Link>
                     <Link to="/journal" onClick={() => setAccountOpen(false)}>
                       Nhật ký đọc
                     </Link>
@@ -191,6 +194,10 @@ export function Header() {
               </NavLink>
               <NavLink to="/library" onClick={() => setMobileOpen(false)}>
                 Thư viện cá nhân
+              </NavLink>
+              <NavLink to="/lists" onClick={() => setMobileOpen(false)}>
+                <Books size={19} />
+                Bộ sưu tập
               </NavLink>
               <NavLink to="/dashboard" onClick={() => setMobileOpen(false)}>
                 Tổng quan
