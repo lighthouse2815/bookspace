@@ -77,6 +77,9 @@ public sealed class CatalogService(IBookSpaceDbContext db) : ICatalogService
             .Concat(db.Reviews
                 .Where(review => review.UserId == userId && review.DeletedAt == null)
                 .Select(review => review.BookId))
+            .Concat(db.UserReferenceBooks
+                .Where(link => link.UserId == userId && link.DeletedAt == null)
+                .Select(link => link.BookId))
             .Distinct();
         var candidateBooks = db.Books.Where(book =>
             book.DeletedAt == null &&
@@ -103,6 +106,9 @@ public sealed class CatalogService(IBookSpaceDbContext db) : ICatalogService
                     review.Rating >= 4 &&
                     review.DeletedAt == null)
                 .Select(review => review.BookId))
+            .Concat(db.UserReferenceBooks
+                .Where(link => link.UserId == userId && link.DeletedAt == null)
+                .Select(link => link.BookId))
             .Distinct();
         var preferredAuthorIds = db.BookAuthors
             .Where(link =>
@@ -119,6 +125,14 @@ public sealed class CatalogService(IBookSpaceDbContext db) : ICatalogService
                 db.Books.Any(book => book.Id == link.BookId && book.DeletedAt == null) &&
                 db.Categories.Any(category => category.Id == link.CategoryId && category.DeletedAt == null))
             .Select(link => link.CategoryId)
+            .Concat(db.UserPreferredCategories
+                .Where(link =>
+                    link.UserId == userId &&
+                    link.DeletedAt == null &&
+                    db.Categories.Any(category =>
+                        category.Id == link.CategoryId &&
+                        category.DeletedAt == null))
+                .Select(link => link.CategoryId))
             .Distinct();
 
         var ranked = candidateBooks

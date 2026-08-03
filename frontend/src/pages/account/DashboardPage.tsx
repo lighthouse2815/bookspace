@@ -1,10 +1,11 @@
-import { BookOpenText, Fire, Flag, Hourglass, Lightning, Play, TrendUp } from '@phosphor-icons/react'
+import { BookOpenText, Fire, Flag, Hourglass, Lightning, Play, Sparkle, TrendUp } from '@phosphor-icons/react'
 import { Link } from 'react-router-dom'
 import { BookCover } from '../../components/books/BookCover'
 import { Progress } from '../../components/ui/Progress'
 import { ErrorState, LoadingRows } from '../../components/ui/States'
 import { useAuth } from '../../contexts/AuthContext'
 import { useInsightsOverview } from '../../hooks/useInsights'
+import { useOnboarding } from '../../hooks/useOnboarding'
 import { useReadingGoals } from '../../hooks/useReadingProduct'
 import { useDashboard } from '../../hooks/useSocialProduct'
 import { formatDate } from '../../lib/format'
@@ -12,6 +13,7 @@ import { formatDate } from '../../lib/format'
 export function DashboardPage() {
   const { user } = useAuth()
   const dashboard = useDashboard()
+  const onboarding = useOnboarding()
   const readingGoals = useReadingGoals()
   const localInsights = useInsightsOverview(30)
 
@@ -45,6 +47,31 @@ export function DashboardPage() {
         <h1 className="page-title mt-2">Chào {user?.displayName}, hôm nay mình đọc gì?</h1>
         <p className="mt-3 text-muted">Nhịp đọc gần đây và những cuốn sách đang chờ bạn quay lại.</p>
       </div>
+
+      {onboarding.data?.status === 'PENDING' || onboarding.data?.status === 'SKIPPED' ? (
+        <section className="mt-8 grid gap-5 rounded-2xl border border-accent/25 bg-accent-soft p-5 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:p-6">
+          <div className="grid h-11 w-11 place-items-center rounded-xl bg-accent text-white">
+            <Sparkle size={22} weight="fill" aria-hidden />
+          </div>
+          <div>
+            <h2 className="font-bold text-heading">
+              {onboarding.data.status === 'PENDING'
+                ? 'Tiếp tục cá nhân hóa góc đọc'
+                : 'Làm mới gợi ý dành cho bạn'}
+            </h2>
+            <p className="mt-1 text-sm leading-6 text-muted">
+              Chọn vài chủ đề và cuốn sách yêu thích để BookSpace hiểu gu đọc của bạn.
+            </p>
+          </div>
+          <Link
+            to="/onboarding"
+            state={{ from: '/dashboard' }}
+            className="button button-primary button-md"
+          >
+            {onboarding.data.status === 'PENDING' ? 'Tiếp tục thiết lập' : 'Thiết lập ngay'}
+          </Link>
+        </section>
+      ) : null}
 
       <section className="mt-10 grid gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2 xl:grid-cols-4">
         {[

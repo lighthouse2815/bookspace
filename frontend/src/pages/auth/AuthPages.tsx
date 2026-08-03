@@ -1,24 +1,18 @@
 import { ArrowLeft, BookOpenText, Eye, EyeSlash } from '@phosphor-icons/react'
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '../../components/ui/Button'
 import { InputField } from '../../components/ui/FormField'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import { errorMessage } from '../../lib/api'
+import { returnPathFromState } from '../../lib/navigation'
 
 interface FormErrors {
   displayName?: string
   email?: string
   password?: string
   confirmPassword?: string
-}
-
-function safeReturnPath(state: unknown) {
-  const from = (state as { from?: unknown } | null)?.from
-  return typeof from === 'string' && from.startsWith('/') && !from.startsWith('//')
-    ? from
-    : '/dashboard'
 }
 
 function AuthShell({ children, title, copy }: { children: React.ReactNode; title: string; copy: string }) {
@@ -55,7 +49,7 @@ export function LoginPage() {
   const { showToast } = useToast()
   const navigate = useNavigate()
   const location = useLocation()
-  const returnPath = safeReturnPath(location.state)
+  const returnPath = returnPathFromState(location.state)
 
   if (isAuthenticated) return <Navigate to={returnPath} replace />
 
@@ -133,13 +127,16 @@ export function RegisterPage() {
   const [form, setForm] = useState({ displayName: '', email: '', password: '', confirmPassword: '' })
   const [errors, setErrors] = useState<FormErrors>({})
   const [submitting, setSubmitting] = useState(false)
+  const registrationInFlight = useRef(false)
   const { register, isAuthenticated } = useAuth()
   const { showToast } = useToast()
   const navigate = useNavigate()
   const location = useLocation()
-  const returnPath = safeReturnPath(location.state)
+  const returnPath = returnPathFromState(location.state)
 
-  if (isAuthenticated) return <Navigate to={returnPath} replace />
+  if (isAuthenticated && !registrationInFlight.current) {
+    return <Navigate to={returnPath} replace />
+  }
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -151,6 +148,7 @@ export function RegisterPage() {
     setErrors(next)
     if (Object.keys(next).length) return
 
+    registrationInFlight.current = true
     setSubmitting(true)
     try {
       await register({
@@ -159,11 +157,11 @@ export function RegisterPage() {
         password: form.password,
       })
       showToast('Tài khoản BookSpace đã sẵn sàng', 'success')
-      navigate(returnPath, { replace: true })
+      navigate('/onboarding', { replace: true, state: { from: returnPath } })
     } catch (error) {
-      showToast(errorMessage(error, 'Không thể tạo tài khoản'), 'error')
-    } finally {
+      registrationInFlight.current = false
       setSubmitting(false)
+      showToast(errorMessage(error, 'Không thể tạo tài khoản'), 'error')
     }
   }
 

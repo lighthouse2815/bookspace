@@ -1,6 +1,11 @@
 import { api, unwrap } from '../lib/api'
 import type { ApiEnvelope, PageResult } from '../types/api'
-import type { Book, Challenge } from '../types/domain'
+import type {
+  Book,
+  Challenge,
+  ExternalBookImportResult,
+  ExternalBookSearchResult,
+} from '../types/domain'
 
 export interface BookAdminInput {
   title: string
@@ -22,6 +27,19 @@ export interface ChallengeAdminInput {
   coverImageUrl?: string
 }
 
+export interface ExternalBookImportInput {
+  provider: string
+  externalId: string
+  authorId?: string
+  authorName?: string
+  categoryIds: string[]
+  categoryNames: string[]
+  description?: string
+  pageCount?: number
+  publishedYear?: number
+  language?: string
+}
+
 export const adminService = {
   challenges: async () =>
     unwrap(
@@ -38,6 +56,18 @@ export const adminService = {
 
   deleteBook: async (id: string) =>
     unwrap(await api.delete<ApiEnvelope<null>>(`/admin/books/${id}`)),
+
+  searchExternalBooks: async (query: string) =>
+    unwrap(
+      await api.get<ApiEnvelope<ExternalBookSearchResult>>('/external-books/search', {
+        params: { query, limit: 12 },
+      }),
+    ),
+
+  importExternalBook: async (input: ExternalBookImportInput) =>
+    unwrap(
+      await api.post<ApiEnvelope<ExternalBookImportResult>>('/admin/books/import', input),
+    ),
 
   createChallenge: async (input: ChallengeAdminInput) =>
     unwrap(await api.post<ApiEnvelope<Challenge>>('/admin/challenges', input)),

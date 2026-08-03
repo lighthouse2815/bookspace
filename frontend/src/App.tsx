@@ -90,6 +90,11 @@ const NotificationsPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import('./pages/account/SettingsPage').then((module) => ({ default: module.SettingsPage })),
 )
+const OnboardingPage = lazy(() =>
+  import('./pages/onboarding/OnboardingPage').then((module) => ({
+    default: module.OnboardingPage,
+  })),
+)
 const AdminBooksPage = lazy(() =>
   import('./pages/admin/AdminBooksPage').then((module) => ({ default: module.AdminBooksPage })),
 )
@@ -138,6 +143,7 @@ export default function App() {
           <Route path="challenges/:id" element={<ChallengeDetailPage />} />
 
           <Route element={<ProtectedRoute />}>
+            <Route path="onboarding" element={<OnboardingPage />} />
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="library" element={<LibraryPage />} />
             <Route path="journal" element={<JournalPage />} />

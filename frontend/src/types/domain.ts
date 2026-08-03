@@ -97,6 +97,40 @@ export interface Book {
   } | null
 }
 
+export interface ExternalBook {
+  externalId: string
+  title: string
+  authors: string[]
+  coverImageUrl?: string | null
+  isbn?: string | null
+  description?: string | null
+  pageCount?: number | null
+  publishedYear?: number | null
+  language?: string | null
+  categories: string[]
+  price?: number | null
+  purchaseUrl?: string | null
+}
+
+export interface ExternalBookSearchResult {
+  available: boolean
+  provider: string
+  message: string
+  items: ExternalBook[]
+}
+
+export type ExternalBookImportStatus =
+  | 'IMPORTED'
+  | 'LINKED_EXISTING'
+  | 'ALREADY_IMPORTED'
+
+export interface ExternalBookImportResult {
+  status: ExternalBookImportStatus
+  provider: string
+  externalId: string
+  book: Book
+}
+
 export type BookRecommendationReason =
   | 'FOLLOWED_READER_LIKED'
   | 'MATCHED_AUTHOR'
@@ -107,6 +141,15 @@ export interface BookRecommendation {
   book: Book
   reasonCode: BookRecommendationReason
   reasonText: string
+}
+
+export type OnboardingStatus = 'PENDING' | 'COMPLETED' | 'SKIPPED'
+
+export interface OnboardingState {
+  status: OnboardingStatus
+  finishedAt?: string | null
+  preferredCategoryIds: string[]
+  referenceBookIds: string[]
 }
 
 export interface LibraryEntry {

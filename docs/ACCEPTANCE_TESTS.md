@@ -116,6 +116,25 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-AUTH-018 | P0 | `GET /api/users/{id}` không lộ password hash, refresh token hoặc email private. |
 | AC-AUTH-019 | P0 | User bị lock/soft delete không login được và token cũ không truy cập core API. |
 
+## 4A. Personalized onboarding v1
+
+| ID | P | Given/When/Then |
+|---|---|---|
+| AC-ONB-001 | P0 | Register user mới trả session dùng được; `GET /api/users/me/onboarding` trả đúng bốn field `status=PENDING`, `finishedAt=null`, `preferredCategoryIds=[]`, `referenceBookIds=[]`. |
+| AC-ONB-002 | P0 | Cả bốn endpoint onboarding thiếu/sai token trả 401; admin không có endpoint đọc preference theo user ID. |
+| AC-ONB-003 | P0 | Khi state là `PENDING`/`SKIPPED`, PUT 0–2 ID duy nhất mỗi tập lưu được draft, full-replace cả hai mảng, không tự đổi state và tải lại bằng GET giữ đúng dữ liệu; thiếu/null một mảng trả `VALIDATION_ERROR`. |
+| AC-ONB-004 | P0 | Duplicate ID được chuẩn hóa thành tập duy nhất; hơn 5 ID duy nhất trả đúng error limit tiếng Việt và không thay đổi tập nào. |
+| AC-ONB-005 | P0 | Category/book không tồn tại hoặc soft-delete trả `...NOT_FOUND`; update hai tập atomic, không để một tập mới và một tập cũ. Full-replace phải xóa cả association bị query filter che khi target soft-delete, nên restore target không làm preference cũ xuất hiện lại. |
+| AC-ONB-006 | P0 | Complete khi một tập có dưới 3 target active trả 400 `ONBOARDING_INCOMPLETE`, giữ `PENDING` và `finishedAt=null`. |
+| AC-ONB-007 | P0 | Với 3–5 category và 3–5 reference book active, complete trả `COMPLETED`, `finishedAt` UTC; GET phản ánh cùng state và timestamp. |
+| AC-ONB-008 | P0 | Complete lặp lại idempotent, không đổi `finishedAt`; preference đã lưu có thể sửa bằng PUT mà không tự thay đổi status/timestamp, nhưng state `COMPLETED` từ chối mọi payload làm một tập còn dưới 3 target active. |
+| AC-ONB-009 | P0 | Skip từ `PENDING` trả `SKIPPED` và timestamp; retry không đổi timestamp và không xóa draft. |
+| AC-ONB-010 | P0 | `SKIPPED` có thể complete khi đủ lựa chọn; skip sau `COMPLETED` không downgrade hoặc đổi timestamp. |
+| AC-ONB-011 | P0 | Public profile, directory, feed và response user khác không chứa status, category IDs hoặc reference book IDs của owner. |
+| AC-ONB-012 | P0 | Recommendation hợp nhất preferred category và author/category từ reference books với tín hiệu hiện hữu, giữ reason code cũ và luôn loại chính reference books khỏi candidate/count/pagination. |
+| AC-ONB-013 | P0 | Recommendation của user đã skip không có preference vẫn dùng `POPULAR_FALLBACK`; không đọc preference của user khác và không gọi Bookstore/ML. |
+| AC-ONB-014 | P0 | PUT/complete/skip đồng thời được tuần tự hóa: complete và skip luôn kết thúc ở `COMPLETED`; draft dưới 3 phần tử không thể commit vào state `COMPLETED`, timestamp và preference vẫn nhất quán. |
+
 ## 5. Follow và hồ sơ công khai
 
 | ID | P | Given/When/Then |
@@ -189,6 +208,14 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-ADM-010 | P0 | ADMIN tạo category hợp lệ; tên trùng không phân biệt hoa thường trả 409. |
 | AC-ADM-011 | P0 | ADMIN patch category name/description thành công. |
 | AC-ADM-012 | P0 | ADMIN chỉ soft-delete category chưa được gắn với book; category đang dùng trả 409 `CATEGORY_IN_USE`. |
+| AC-ADM-013 | P0 | USER gọi `POST /api/admin/books/import` nhận 403; request thiếu token nhận 401. |
+| AC-ADM-014 | P0 | ADMIN tìm metadata ngoài, chọn kết quả và import; book nhận `Guid` nội bộ rồi xuất hiện trong catalog, onboarding và recommendation candidate theo luật hiện hữu. |
+| AC-ADM-015 | P0 | Import tải lại detail theo external ID; author/category được ghép theo ID/tên không phân biệt hoa thường hoặc tạo mới atomically. |
+| AC-ADM-016 | P0 | Retry cùng `(provider, externalId)` trả `ALREADY_IMPORTED`, cùng `book.id`, không gọi provider lại và không tạo link/book/relation trùng. |
+| AC-ADM-017 | P0 | ISBN ngoài sau chuẩn hóa trùng sách active trả `LINKED_EXISTING`, chỉ tạo source link và không ghi đè metadata nội bộ. |
+| AC-ADM-018 | P0 | Import mới thiếu author, category hoặc page count trả lỗi tiếng Việt ổn định và không lưu row dở dang. |
+| AC-ADM-019 | P0 | Provider tắt/lỗi trả 503 `EXTERNAL_CATALOG_UNAVAILABLE` cho import mới; catalog và mọi core flow vẫn hoạt động. |
+| AC-ADM-020 | P0 | Unique `(Provider, ExternalId)` và FK `BookId` restrict được migration/model bảo vệ. |
 
 ## 8. Library và state transition
 
@@ -463,7 +490,7 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-WEB-003 | P0 | `/books` | catalog phân trang từ API |
 | AC-WEB-004 | P0 | `/books/:id` | metadata, shelf action và review thật |
 | AC-WEB-005 | P0 | `/login` | validation, login, redirect intended route |
-| AC-WEB-006 | P0 | `/register` | validation, register, session bootstrap |
+| AC-WEB-006 | P0 | `/register` | validation, register, session bootstrap và chuyển `/onboarding` với intended path nội bộ đã sanitize |
 | AC-WEB-007 | P0 | `/users/:id` | tabs tổng quan/kệ sách/review/activity, privacy state, follow/unfollow và dialog connections |
 | AC-WEB-007A | P0 | `/people` | URL search, directory pagination, guest CTA, suggestions có reason và follow/unfollow trực tiếp |
 | AC-WEB-008 | P0 | `/clubs` | list/search và empty state |
@@ -481,13 +508,15 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-WEB-013 | P0 | `/journal` | focus timer server-backed có start/pause/resume/finish/cancel, recovery sau reload, list/create/correction completed session |
 | AC-WEB-014 | P0 | `/feed` | feed 10 item/trang từ network, bộ lọc, phân trang, gợi ý follow và empty CTA tới `/people` |
 | AC-WEB-015 | P0 | `/notifications` | server unread count, tab all/unread, category filter, URL pagination, deep-link và optimistic read/read-all |
-| AC-WEB-016 | P0 | `/settings` | update display name, bio, avatar, hai quyền riêng tư đọc, bốn notification preferences và quản lý bỏ ẩn/bỏ chặn |
+| AC-WEB-016 | P0 | `/settings` | update display name, bio, avatar, hai quyền riêng tư đọc, bốn notification preferences, quản lý bỏ ẩn/bỏ chặn và liên kết “Sở thích đọc” tới `/onboarding?mode=edit` |
 | AC-WEB-017 | P0 | `/profile` | hiển thị current user hoặc redirect đúng `/users/:id` |
 | AC-WEB-018 | P0 | `/goals` | list/filter, create/update/delete goal; progress/status hiển thị từ API, không có UI ghi progress tay |
 | AC-WEB-019 | P0 | `/notes` | list/filter/search, create/update/delete note; edit không đổi book và PATCH không gửi `bookId` |
 | AC-WEB-020 | P0 | `/insights` | overview, rolling heatmap, streak, weekly/monthly, comparison và forecast từ API theo offset trình duyệt |
+| AC-WEB-020A | P0 | `/onboarding` | protected, khôi phục state server, lưu draft 3–5 thể loại/sách tham chiếu, complete/skip và các quick action tùy chọn |
 
-Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` sau khi auth bootstrap kết thúc.
+Khách vào từng route AC-WEB-011 đến AC-WEB-020 và AC-WEB-020A phải chuyển `/login`
+sau khi auth bootstrap kết thúc.
 
 ### 19.3 Route admin
 
@@ -525,6 +554,14 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 | AC-WEB-044 | P0 | Biểu mẫu manual khóa cuốn đang có Focus session và giải thích lý do; sách khác vẫn chọn được, còn backend tiếp tục là nguồn bảo vệ authoritative cho request cạnh tranh. |
 | AC-WEB-045 | P0 | Profile có nút ẩn nội dung và dialog xác nhận chặn; chặn thành công chuyển về `/people`, không để profile target còn trong cache. |
 | AC-WEB-046 | P0 | Feed, review và club chat cho phép ẩn actor trực tiếp; mutation làm mới mọi read model principal liên quan và hiển thị feedback tiếng Việt. |
+| AC-WEB-047 | P0 | Onboarding query chờ auth bootstrap, key chứa principal ID; reload hoặc đăng nhập lại không mất draft và đổi account không dùng lại preference. |
+| AC-WEB-048 | P0 | Chỉ bật Complete khi có 3–5 thể loại và 3–5 sách; mutation có disabled/loading chống double-submit, lỗi tiếng Việt giữ lựa chọn để sửa. |
+| AC-WEB-049 | P0 | Complete/Skip quay về intended internal path an toàn, mặc định `/dashboard`; external URL không được dùng làm redirect. Login thường không ép redirect, Dashboard có CTA khi chưa completed. |
+| AC-WEB-050 | P0 | Chế độ edit từ Settings tải state hiện tại, lưu preference và quay `/settings`; edit không tự skip hoặc làm đổi terminal status. |
+| AC-WEB-051 | P0 | Quick-add recommendation dùng contract `WANT_TO_READ`, follow suggestion dùng contract follow, mục tiêu đầu tiên dùng reading-goal contract; từng bước độc lập, tùy chọn và lỗi không chặn Complete. |
+| AC-WEB-052 | P0 | Sau PUT/complete/skip, frontend ghi state authoritative vào cache onboarding theo principal và invalidate recommendation/dashboard/các consumer hiện hữu; quick-add/follow giữ invalidation riêng, reference book không render lại trong recommendation. |
+| AC-WEB-053 | P0 | Category picker tải đủ mọi trang catalog, dedupe theo ID và luôn hiển thị preference đã lưu ngoài trang đầu để người dùng có thể bỏ chọn; chuyển bước focus heading mới và Skip lưu draft hiện tại trước khi đổi state. |
+| AC-WEB-054 | P0 | `/admin/books` cho ADMIN tìm metadata ngoài, thấy provider-disabled/empty/error state, xem trước, sửa author/category/page/year/language/description và nhận feedback riêng cho imported/linked/already-imported. |
 
 ## 20. Security và isolation
 
@@ -553,7 +590,7 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 | AC-IND-005 | P0 | `/api/external-books/search` khi tắt trả 200, `success=true`, `data.available=false`, `items=[]`; API không crash. |
 | AC-IND-006 | P0 | Source/config BookSpace không chứa connection string trỏ database Bookstore. |
 | AC-IND-007 | P0 | Source/config không copy JWT signing secret, refresh secret hoặc password hash Bookstore. |
-| AC-IND-008 | P1 | Khi bật provider với Bookstore test URL, search map đúng external ID/title/authors/cover/ISBN/price/purchase URL. |
+| AC-IND-008 | P1 | Khi bật provider với Bookstore test URL, search/detail map đúng external ID/title/authors/categories/cover/ISBN/description/page/year/language/price/purchase URL. |
 | AC-IND-009 | P1 | Provider timeout trả result `available=false` trong timeout budget và core health vẫn xanh. |
 | AC-IND-010 | P1 | Payload upstream không nhận diện được trả result có giới hạn, không lưu dữ liệu rác. |
 | AC-IND-011 | P0 | Recommendation rule-based hoạt động khi Bookstore integration tắt, không gọi provider ngoài và không yêu cầu model/ML service. |
@@ -563,6 +600,7 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 ### Unit tests
 
 - Domain invariant cho User login availability.
+- Onboarding state transition/timestamp idempotency và giới hạn preference.
 - Follow self.
 - Library transition và page bounds.
 - Reading session time/pages/duration và correction forward-only.
@@ -579,8 +617,11 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 ### Integration tests
 
 - Auth register/login/refresh/logout.
+- Onboarding owner/auth, draft full-replace atomic, catalog validation, complete/skip
+  transition/idempotency, privacy và migration mapping.
 - Role policy cho admin route.
 - Catalog query/pagination.
+- External provider search/detail mapping và admin import mới/link ISBN/retry idempotent.
 - Recommendation auth, reason mapping, exclusion library, ranking/tie-break,
   cold-start, privacy source và freshness sau mutation.
 - Library ownership.
@@ -616,6 +657,8 @@ Khách vào từng route AC-WEB-011 đến AC-WEB-020 phải chuyển `/login` s
 - Feed URL filter/pagination, page size 10, suggestion follow, privacy-aware rendering và empty CTA `/people`.
 - Explore recommendation guest/member states, principal-scoped pagination,
   reason rendering, quick-add `WANT_TO_READ` và mutation invalidation.
+- Onboarding register redirect, protected/resumable draft, selection bounds,
+  complete/skip/intended redirect, optional quick actions, Dashboard CTA và Settings edit mode.
 
 Không đặt ngưỡng coverage phần trăm giả tạo cho Goal 1. Mọi invariant và authorization branch liệt kê trên phải có test trực tiếp.
 

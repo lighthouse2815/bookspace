@@ -1,5 +1,6 @@
 import {
   Bell,
+  Books,
   ClockCounterClockwise,
   Eye,
   EyeSlash,
@@ -13,6 +14,7 @@ import {
   type Icon as PhosphorIcon,
 } from '@phosphor-icons/react'
 import { useEffect, useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { Avatar } from '../../components/ui/Avatar'
 import { Button } from '../../components/ui/Button'
 import { InputField, TextareaField } from '../../components/ui/FormField'
@@ -32,6 +34,7 @@ import {
   useNotificationPreferences,
   useUpdateNotificationPreferences,
 } from '../../hooks/useNotifications'
+import { useOnboarding } from '../../hooks/useOnboarding'
 import { communityService } from '../../services/community.service'
 import type { UserSafetyEntry } from '../../types/domain'
 
@@ -44,6 +47,7 @@ export function SettingsPage() {
   const notificationPreferences = useNotificationPreferences()
   const updateNotificationPreferences = useUpdateNotificationPreferences()
   const safetyList = useUserSafetyList(1, 100)
+  const onboarding = useOnboarding()
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     displayName: user?.displayName ?? '',
@@ -196,6 +200,38 @@ export function SettingsPage() {
             </Button>
           </div>
         </form>
+      </section>
+
+      <section className="mt-6 surface p-5 sm:p-7">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-4">
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent-strong">
+              <Books size={23} weight="duotone" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-heading">Sở thích đọc</h2>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-muted">
+                Chọn chủ đề và các cuốn sách tham chiếu để gợi ý dành cho bạn chính xác hơn.
+              </p>
+              {onboarding.data ? (
+                <p className="mt-2 text-xs font-semibold text-accent-strong">
+                  {onboarding.data.status === 'COMPLETED'
+                    ? `${onboarding.data.preferredCategoryIds.length} chủ đề, ${onboarding.data.referenceBookIds.length} sách tham chiếu`
+                    : onboarding.data.status === 'SKIPPED'
+                      ? 'Bạn đã để phần thiết lập này lại sau.'
+                      : 'Thiết lập đang chờ hoàn thiện.'}
+                </p>
+              ) : null}
+            </div>
+          </div>
+          <Link
+            to="/onboarding?mode=edit"
+            state={{ from: '/settings' }}
+            className="button button-secondary button-md"
+          >
+            {onboarding.data?.status === 'COMPLETED' ? 'Chỉnh sở thích' : 'Thiết lập sở thích'}
+          </Link>
+        </div>
       </section>
 
       <section className="mt-6 surface p-5 sm:p-7">

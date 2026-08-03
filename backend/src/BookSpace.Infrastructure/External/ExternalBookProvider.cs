@@ -67,6 +67,56 @@ public sealed class ExternalBookProvider(
         }
     }
 
+    public async Task<ExternalBookSearchResult> GetByIdAsync(
+        string externalId,
+        CancellationToken cancellationToken)
+    {
+        if (!_options.Enabled)
+        {
+            return Disabled();
+        }
+
+        try
+        {
+            using var response = await httpClient.GetAsync(
+                $"books/{Uri.EscapeDataString(externalId)}",
+                cancellationToken);
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                return new ExternalBookSearchResult(
+                    true,
+                    "bookstore",
+                    "Không tìm thấy sách từ Bookstore.",
+                    []);
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return Unavailable("Bookstore hiện không phản hồi thành công.");
+            }
+
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+            var itemElement = FindSingleItem(document.RootElement);
+            var item = itemElement.HasValue ? ParseBook(itemElement.Value) : null;
+            return item is null
+                ? new ExternalBookSearchResult(true, "bookstore", "Không tìm thấy sách từ Bookstore.", [])
+                : new ExternalBookSearchResult(true, "bookstore", "Đã tải chi tiết sách từ Bookstore.", [item]);
+        }
+        catch (Exception exception) when (
+            exception is HttpRequestException or TaskCanceledException or JsonException)
+        {
+            return Unavailable("Không thể kết nối Bookstore. Bạn vẫn có thể dùng đầy đủ BookSpace.");
+        }
+    }
+
+    private ExternalBookSearchResult Disabled() =>
+        new(
+            false,
+            "bookstore",
+            "Kết nối Bookstore đang tắt. BookSpace vẫn hoạt động độc lập.",
+            []);
+
     private ExternalBookSearchResult Unavailable(string message) =>
         new(false, "bookstore", message, []);
 
@@ -108,6 +158,29 @@ public sealed class ExternalBookProvider(
         return null;
     }
 
+    private static JsonElement? FindSingleItem(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        if (root.TryGetProperty("data", out var data))
+        {
+            if (data.ValueKind == JsonValueKind.Object)
+            {
+                return data;
+            }
+
+            if (data.ValueKind == JsonValueKind.Array)
+            {
+                return data.EnumerateArray().Select(item => (JsonElement?)item).FirstOrDefault();
+            }
+        }
+
+        return root.TryGetProperty("id", out _) ? root : null;
+    }
+
     private ExternalBookResult? ParseBook(JsonElement item)
     {
         var id = GetString(item, "id");
@@ -142,6 +215,22 @@ public sealed class ExternalBookProvider(
             authors.Add(singleAuthor);
         }
 
+        var categories = new List<string>();
+        if (item.TryGetProperty("categories", out var categoriesElement) &&
+            categoriesElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var category in categoriesElement.EnumerateArray())
+            {
+                var name = category.ValueKind == JsonValueKind.String
+                    ? category.GetString()
+                    : GetString(category, "name");
+                if (!string.IsNullOrWhiteSpace(name))
+                {
+                    categories.Add(name);
+                }
+            }
+        }
+
         return new ExternalBookResult(
             id,
             title,
@@ -151,6 +240,13 @@ public sealed class ExternalBookProvider(
             GetString(item, "coverUrl") ??
             GetString(item, "imageUrl"),
             GetString(item, "isbn"),
+            GetString(item, "description"),
+            GetInt32(item, "pageCount") ??
+            GetInt32(item, "pages") ??
+            GetInt32(item, "numberOfPages"),
+            GetInt32(item, "publishedYear") ?? GetInt32(item, "publicationYear"),
+            GetString(item, "language"),
+            categories,
             GetDecimal(item, "price"),
             $"{_options.StorefrontUrl.TrimEnd('/')}/books/{id}");
     }
@@ -184,6 +280,24 @@ public sealed class ExternalBookProvider(
 
         return value.ValueKind == JsonValueKind.String &&
                decimal.TryParse(value.GetString(), NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : null;
+    }
+
+    private static int? GetInt32(JsonElement element, string property)
+    {
+        if (!element.TryGetProperty(property, out var value))
+        {
+            return null;
+        }
+
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number))
+        {
+            return number;
+        }
+
+        return value.ValueKind == JsonValueKind.String &&
+               int.TryParse(value.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
             ? parsed
             : null;
     }

@@ -137,6 +137,7 @@ Mỗi use case được tiếp cận qua interface:
 |---|---|
 | `IAuthService` | register, login, refresh, logout, me |
 | `IUserService` | hồ sơ, follow, followers/following |
+| `IOnboardingService` | owner-private preference draft, complete/skip state machine |
 | `ICatalogService` | catalog công khai, recommendation read model theo principal và admin CRUD |
 | `IReadingService` | library, progress, completed-session correction và Focus Reading lifecycle |
 | `ICommunityService` | review, like, comment, feed |
@@ -146,7 +147,7 @@ Mỗi use case được tiếp cận qua interface:
 | `IChallengeService` | challenge, join, progress, publish |
 | `INotificationService` | list, unread count, mark read |
 | `IDashboardService` | projection dashboard của principal |
-| `IExternalCatalogService` | tìm metadata ngoài qua provider |
+| `IExternalCatalogService` | tìm metadata ngoài và import có kiểm duyệt vào catalog nội bộ |
 
 Application:
 
@@ -158,17 +159,34 @@ Application:
 
 Recommendation là query/use case của Application trên các abstraction dữ liệu
 hiện có, không phải aggregate mới. `ICatalogService` nhận principal từ controller,
-loại book trong own library hoặc đã được principal review rồi tính vector social/author/category/global review
-theo hợp đồng trước khi count/phân trang. Query chỉ dùng own library + own review
-4–5 sao, public active review của followed user active và aggregate public active
-review; không load library/session/note của user khác. Không có migration, model
-ML, provider ngoài hoặc server cache riêng cho read model này.
+loại book trong own library, own review hoặc onboarding reference books rồi tính
+vector social/author/category/global review theo hợp đồng trước khi count/phân trang.
+Query hợp nhất author/category từ reference books và explicit preferred categories
+với own library/review; chỉ đọc review công khai của followed user active, không
+load preference/library/session/note của user khác. Không có model ML, provider
+ngoài hoặc server cache riêng cho read model này.
+
+`IOnboardingService` cũng nhận principal từ controller và trả duy nhất state gồm
+status/timestamp cùng hai mảng catalog ID. PUT full-replace cho phép draft 0–5 khi
+state là `PENDING`/`SKIPPED`, nhưng giữ invariant 3–5 target active mỗi tập khi state
+đã `COMPLETED`; command chuyển state sang complete cũng revalidate cùng invariant. Các quick action add-library,
+follow và create-goal vẫn gọi service hiện hữu, không tạo transaction xuyên bounded
+context và không trở thành điều kiện complete.
+
+PUT/complete/skip onboarding dùng `IOnboardingMutationBoundary` với SQLite immediate
+transaction để tuần tự hóa toàn bộ read-check-write. Vì vậy concurrent skip hoặc
+draft update không thể ghi đè một completion đã commit hay làm terminal state thiếu
+preference; GET vẫn là read-only và không lấy write lock.
 
 ### 4.3 Infrastructure layer
 
 Chứa:
 
 - `BookSpaceDbContext` và EF Core configuration.
+- `User.OnboardingStatus`/`OnboardingFinishedAt` cùng hai association
+  `UserPreferredCategory` và `UserReferenceBook`; preference association là dữ liệu
+  disposable nên PUT hard-replace atomically, kể cả row bị global filter che vì
+  target đã soft-delete; restore target không được làm preference cũ xuất hiện lại.
 - Global query filter cho `DeletedAt`.
 - Unique index theo invariant.
 - Triển khai service hoặc repository/adapter theo interface Application.
@@ -176,6 +194,7 @@ Chứa:
 - Refresh token hashing.
 - Development seeder.
 - `IExternalBookProvider` adapter và `HttpClient`.
+- `ExternalBookLink` lưu ánh xạ `(provider, externalId) -> Book.Id` để import idempotent.
 
 Các unique index bắt buộc:
 
@@ -277,6 +296,11 @@ Route công khai, protected và admin được liệt kê trong `PRODUCT_SPEC.md
 - Backend vẫn là nguồn phân quyền cuối cùng.
 - Mỗi page được lazy-load.
 - Query lỗi 401 thử refresh đúng một lần; refresh thất bại thì xóa session và về login.
+- Register thành công điều hướng tới `/onboarding` và chỉ giữ `location.state.from`
+  khi đó là đường dẫn nội bộ an toàn. Complete/skip quay về đường dẫn này, mặc định
+  `/dashboard`; login thông thường không bị ép qua onboarding.
+- Dashboard có CTA tiếp tục khi state chưa `COMPLETED`. Settings mở chế độ chỉnh sửa
+  qua `/onboarding?mode=edit` và quay lại `/settings` sau khi lưu.
 
 ### 5.4 Cache key
 
@@ -284,6 +308,7 @@ Query key tối thiểu:
 
 ```text
 ["me"]
+["onboarding", principalScope]
 ["books", filters]
 ["book", bookId]
 ["book-recommendations", principalScope, page, pageSize]
@@ -314,6 +339,10 @@ Query key tối thiểu:
 Mutation phải invalidate đúng consumer:
 
 - Library/progress/completed-session: `library`, `book`, `book-recommendations`, `reading-sessions`, `feed`, `dashboard`, `reading-goals`, `reading-insights`, `challenges`, `notifications`.
+- Onboarding PUT/complete/skip ghi response authoritative vào key `onboarding` của
+  principal rồi invalidate `book-recommendations`, `library`, people scope,
+  `dashboard` và `reading-goals`; key có principal ID để draft không thể dùng lại
+  giữa hai account.
 - Focus start/pause/resume/cancel cập nhật `reading-sessions/active`; finish đồng thời invalidate active key và toàn bộ consumer của completed session.
 - Review create/update/delete: `book-reviews`, `book`, `book-recommendations`, `feed`, `notifications`.
 - Review like/comment: `book-reviews`, `feed`, `notifications`.
@@ -330,7 +359,7 @@ Mutation phải invalidate đúng consumer:
 - Challenge: `challenges`, `my-challenges`, `feed`, `dashboard`, `notifications`.
 - Mark notification: `notifications`, `notification-unread-count`.
 
-Recommendation query chỉ bật sau auth bootstrap và key luôn chứa principal ID để
+Onboarding/recommendation query chỉ bật sau auth bootstrap và key luôn chứa principal ID để
 không chia sẻ dữ liệu giữa guest/account. Quick-add `WANT_TO_READ`, library
 add/update/remove, reading-session create, review create/update/delete và
 follow/unfollow phải invalidate key này. Vì backend tính read model từ dữ liệu
@@ -390,6 +419,7 @@ sequenceDiagram
 | Hành động | Policy |
 |---|---|
 | catalog/challenge mutation | `ADMIN` |
+| onboarding state/preferences | authenticated principal only; admin không đọc preference user khác |
 | profile/library/session của mình | authenticated owner |
 | review/comment/post mutation | author; `ADMIN` chỉ xóa khi contract cho phép moderation |
 | club post/comment | active club member |
@@ -419,6 +449,9 @@ không cần chia sẻ signing secret hoặc token store với hệ thống khá
 - Connection string local trỏ file nằm trong backend/runtime data.
 - Docker mount volume `bookspace-data` vào `/app/data`.
 - Seed chỉ chạy khi `ASPNETCORE_ENVIRONMENT=Development`.
+- Migration lưu `OnboardingStatus`/`OnboardingFinishedAt` trên user và hai bảng
+  `user_preferred_categories`, `user_reference_books` có FK vào catalog BookSpace,
+  unique theo cặp owner-target. Không có database hay provider bên ngoài tham gia.
 
 ### 8.2 Production
 
@@ -472,6 +505,8 @@ localhost:5080 ──> ASP.NET container:8080 ──> /app/data/bookspace.db
 |---|---|
 | register | user + refresh token nếu auto-login |
 | refresh | revoke token cũ + create token mới |
+| onboarding preference replace | validate toàn bộ target + hard-replace cả hai association |
+| onboarding complete/skip | state + finished timestamp; retry không phát side effect |
 | create club | club + owner membership |
 | join/rejoin sprint | tái kích hoạt hoặc tạo đúng một participant |
 | sprint progress | participant progress + một timeline activity khi giá trị thực sự tăng |
@@ -490,6 +525,12 @@ Read model dashboard/feed có consistency ngay trong monolith. Không cần even
 Application chỉ biết `IExternalBookProvider`. Infrastructure đăng ký
 `ExternalBookProvider`; adapter này short-circuit khi config tắt và gọi/mapping
 Bookstore khi config bật. Provider khác trong tương lai phải là adapter riêng.
+
+Import gọi `GetByIdAsync` và hoàn tất outbound HTTP trước khi lấy SQLite immediate
+transaction. Trong transaction, `IExternalCatalogService` kiểm tra link nguồn, đối
+sánh ISBN chuẩn hóa, ghép hoặc tạo author/category rồi lưu `Book` và `ExternalBookLink`
+atomically. Retry một link đã lưu đọc hoàn toàn từ BookSpace DB, kể cả khi provider
+sau đó không khả dụng.
 
 Reading sprint chỉ tham chiếu `Book.Id` của catalog BookSpace. Mọi command/query
 sprint, permission, leaderboard, timeline, milestone và notification phải hoàn

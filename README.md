@@ -12,7 +12,12 @@ cơ sở dữ liệu.
 ## Khả năng của sản phẩm
 
 - Đăng ký tài khoản, đăng nhập, làm mới mã truy cập (token) và quản lý hồ sơ
-- Tìm kiếm sách, tác giả, thể loại và nhận đề xuất cá nhân hóa dựa trên quy tắc
+- Onboarding cá nhân hóa có thể tiếp tục hoặc bỏ qua: chọn 3–5 thể loại, 3–5 cuốn
+  sách tham chiếu, thêm nhanh sách muốn đọc, khám phá độc giả và tùy chọn tạo mục tiêu đầu tiên
+- Tìm kiếm sách, tác giả, thể loại và nhận đề xuất cá nhân hóa rule-based từ
+  sở thích đã chọn cùng hoạt động BookSpace; sách tham chiếu không được gợi ý lại
+- Quản trị viên tìm metadata ngoài, xem trước rồi import vào catalog BookSpace;
+  ISBN và mã provider được chống trùng, còn provider vẫn có thể tắt hoàn toàn
 - Quản lý các kệ cá nhân: muốn đọc, đang đọc và đã đọc
 - Ghi nhận tiến độ theo trang, hẹn giờ đọc tập trung do máy chủ quản lý và hiệu chỉnh lịch sử phiên đọc
 - Đặt mục tiêu đọc cá nhân với tiến độ được tính từ hoạt động đọc thực tế
@@ -199,12 +204,17 @@ API sau reverse proxy/load balancer, khai báo IP/CIDR tin cậy tại
 `ForwardedHeaders:KnownProxies` hoặc `ForwardedHeaders:KnownNetworks`; header từ
 proxy không nằm trong allowlist sẽ bị bỏ qua.
 
-Khi API đang chạy, kiểm tra luồng của độc giả được tạo sẵn:
+Khi API đang chạy, kiểm tra luồng của độc giả được tạo sẵn và onboarding của tài
+khoản smoke được tạo riêng:
 
 ```powershell
 cd T:\bookspace
 .\scripts\smoke-api.ps1
 ```
+
+Smoke test tự lấy ID thể loại/sách đang hoạt động từ catalog, lưu và hoàn tất một
+onboarding, xác minh luồng bỏ qua bằng tài khoản khác, rồi kiểm tra sách tham chiếu
+không xuất hiện lại trong recommendation. Script không phụ thuộc UUID seed cố định.
 
 ## Tích hợp Bookstore tùy chọn
 

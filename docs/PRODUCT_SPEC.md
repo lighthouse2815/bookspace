@@ -18,8 +18,10 @@ Goal 1 chỉ được coi là hoàn thành khi có một vertical slice đầy �
 
 1. Backend ASP.NET Core theo Clean Architecture, có cơ sở dữ liệu riêng.
 2. Frontend React gọi API thật; không dùng dữ liệu giả cho luồng chính.
-3. Đăng ký, đăng nhập, refresh token, đăng xuất và phân quyền hoạt động.
-4. Catalog sách, tác giả, thể loại có trang công khai và CRUD dành cho quản trị viên.
+3. Đăng ký, đăng nhập, refresh token, đăng xuất, phân quyền và onboarding cá nhân
+   hóa có thể tiếp tục/bỏ qua hoạt động.
+4. Catalog sách, tác giả, thể loại có trang công khai, CRUD và import metadata
+   có kiểm duyệt dành cho quản trị viên.
    Thành viên nhận gợi ý sách cá nhân hóa theo luật minh bạch trên dữ liệu BookSpace.
 5. Thành viên quản lý thư viện và tiến độ đọc của riêng mình.
 6. Thành viên ghi nhận phiên đọc, đặt và theo dõi mục tiêu đọc cá nhân.
@@ -61,6 +63,8 @@ Goal 1 chỉ được coi là hoàn thành khi có một vertical slice đầy �
 Có toàn bộ quyền của khách và:
 
 - Cập nhật hồ sơ của chính mình.
+- Hoàn tất, tiếp tục hoặc bỏ qua onboarding; chỉnh lại thể loại và sách tham chiếu
+  riêng tư trong Settings.
 - Chọn công khai hoặc giữ riêng tư kệ sách chi tiết và dòng hoạt động trên hồ sơ.
 - Theo dõi hoặc bỏ theo dõi thành viên khác.
 - Xem gợi ý sách cá nhân hóa và thêm nhanh sách được gợi ý vào kệ muốn đọc.
@@ -79,6 +83,7 @@ Có quyền thành viên và:
 - CRUD sách, tác giả, thể loại.
 - CRUD và xuất bản thử thách.
 - Quản lý nội dung catalog bị soft delete.
+- Tìm metadata từ provider tùy chọn, kiểm tra và import thành sách do BookSpace sở hữu.
 - Xem dashboard quản trị tối thiểu.
 
 Goal 1 không thêm vai trò nhân viên, nhà cung cấp hoặc quản trị hệ thống nhiều cấp. Quyền nội bộ câu lạc bộ dùng `ClubMemberRole`, không phải vai trò hệ thống.
@@ -87,8 +92,8 @@ Goal 1 không thêm vai trò nhân viên, nhà cung cấp hoặc quản trị h�
 
 | Bounded context | Năng lực lõi | Phụ thuộc |
 |---|---|---|
-| Identity & Profile | tài khoản, phiên đăng nhập, hồ sơ, tìm độc giả, gợi ý theo dõi | không |
-| Catalog | sách, tác giả, thể loại, tìm kiếm, recommendation rule-based | Identity, Reading, Community |
+| Identity & Profile | tài khoản, phiên đăng nhập, hồ sơ, onboarding sở thích, tìm độc giả, gợi ý theo dõi | Catalog |
+| Catalog | sách, tác giả, thể loại, tìm kiếm, import metadata có kiểm duyệt, recommendation rule-based | Identity, Reading, Community, Integration |
 | Reading | thư viện, trạng thái đọc, tiến độ, phiên đọc, mục tiêu đọc, ghi chú riêng tư | Identity, Catalog |
 | Community | review, like, comment, feed lọc theo nhóm hoạt động và gợi ý kết nối | Identity, Catalog, Reading |
 | Clubs | câu lạc bộ, thành viên, bài đăng, bình luận, đợt đọc chung và cột mốc thảo luận | Identity, Catalog, Notifications |
@@ -103,7 +108,7 @@ Chi tiết entity, invariant và quan hệ nằm trong [DOMAIN_MODEL.md](./DOMAI
 
 ### UC-01 — Tạo tài khoản
 
-Khách nhập tên hiển thị, email và mật khẩu. Hệ thống chuẩn hóa email, kiểm tra trùng, hash mật khẩu và tạo `User`, sau đó trả phiên đăng nhập. Tài khoản mặc định có role `USER`.
+Khách nhập tên hiển thị, email và mật khẩu. Hệ thống chuẩn hóa email, kiểm tra trùng, hash mật khẩu và tạo `User`, sau đó trả phiên đăng nhập. Tài khoản mặc định có role `USER` và trạng thái onboarding `PENDING`; web chuyển phiên đăng ký thành công tới `/onboarding`.
 
 ### UC-02 — Đăng nhập và duy trì phiên
 
@@ -129,6 +134,32 @@ từng phần trong Settings và luôn xem được dữ liệu của mình. API
 trả email người khác, ghi chú đọc, nội dung note của phiên đọc hoặc token. Hồ sơ
 hiển thị `followsYou`, số kết nối chung và danh sách follower/following phân trang.
 
+### UC-02B — Onboarding cá nhân hóa
+
+Thành viên mới chọn 3–5 thể loại ưa thích và 3–5 sách đã yêu thích hoặc muốn dùng
+làm tham chiếu. Khi trạng thái còn `PENDING` hoặc `SKIPPED`, draft được lưu bằng hai
+danh sách ID thay thế toàn bộ, cho phép 0–5 giá trị duy nhất mỗi danh sách để người
+dùng rời trang rồi tiếp tục. Thao tác hoàn tất và mọi lần sửa preference khi đã
+`COMPLETED` đều yêu cầu cả hai danh sách có 3–5 ID đang hoạt động. Thành viên có thể bỏ
+qua; `PENDING`, `COMPLETED`, `SKIPPED` cùng `finishedAt` là trạng thái authoritative
+từ server. Onboarding đã bỏ qua vẫn có thể được hoàn tất sau này; bỏ qua không hạ
+một onboarding đã hoàn tất về `SKIPPED`.
+
+Thể loại và sách tham chiếu là dữ liệu riêng tư của owner: không xuất hiện trong hồ
+sơ công khai, feed, directory hay API của người khác. Recommendation rule-based hợp
+nhất thể loại đã chọn với các category sở thích hiện hữu; sách tham chiếu cung cấp
+tín hiệu tác giả/category nhưng luôn bị loại khỏi candidate để không gợi ý lại chính
+cuốn người dùng đã chọn.
+
+Sau bước sở thích, UI dùng các contract sẵn có để thêm nhanh recommendation vào
+`WANT_TO_READ`, hiển thị gợi ý độc giả để follow và tùy chọn tạo mục tiêu đầu tiên.
+Ba thao tác này không phải điều kiện hoàn tất onboarding và vẫn thuộc các bounded
+context Reading, Community và Reading Goals tương ứng. `/settings` có liên kết quay
+lại `/onboarding?mode=edit`; tải lại trang phải khôi phục draft từ server. Complete
+hoặc Skip trở về intended path nội bộ an toàn được mang từ Register, mặc định
+`/dashboard`; chế độ edit quay lại `/settings`. Login thông thường không bị ép điều
+hướng, nhưng Dashboard hiển thị CTA tiếp tục khi trạng thái chưa `COMPLETED`.
+
 ### UC-03 — Khám phá sách
 
 Người dùng tìm theo từ khóa và lọc theo tác giả/thể loại. Kết quả có phân trang. Chi tiết sách gồm tác giả, thể loại, thống kê rating và trạng thái thư viện của người đang đăng nhập nếu có.
@@ -140,17 +171,18 @@ thành viên review qua
 `GET /api/books/recommendations?page=1&pageSize=12`. Mỗi item kèm một lý do tiếng
 Việt và một reason code ổn định: `FOLLOWED_READER_LIKED`, `MATCHED_AUTHOR`,
 `MATCHED_CATEGORY` hoặc `POPULAR_FALLBACK`. Ranking ưu tiên số review 4–5 sao
-của các tài khoản principal đang follow, rồi tác giả đã xuất hiện trong thư viện
-hoặc review 4–5 sao của principal, số category trùng với các sở thích đó, rating
-trung bình và số review công khai toàn hệ thống, cuối cùng `book.id asc` để phân
-trang xác định.
+của các tài khoản principal đang follow, rồi tác giả đã xuất hiện trong thư viện,
+review 4–5 sao hoặc sách tham chiếu của principal; tiếp theo là số category trùng
+với thể loại onboarding, thư viện, review 4–5 sao hoặc sách tham chiếu, rating trung
+bình và số review công khai toàn hệ thống, cuối cùng `book.id asc` để phân trang xác định.
 
-Read model chỉ dùng thư viện và review của chính principal, review công khai còn
-hoạt động của tài khoản đang follow, cùng aggregate review công khai cho fallback.
+Read model chỉ dùng preference onboarding, thư viện và review của chính principal,
+review công khai còn hoạt động của tài khoản đang follow, cùng aggregate review công khai cho fallback.
 Nó không đọc thư viện, phiên đọc, ghi chú hoặc quyền riêng tư hành trình đọc của
 người khác. Review của user bị khóa/soft delete và sách soft delete không tạo tín
-hiệu. Tài khoản cold-start vẫn nhận `POPULAR_FALLBACK`; đây là recommendation
-rule-based, không dùng machine learning và không tạo entity/migration mới.
+hiệu. Sách tham chiếu, sách trong thư viện và sách principal đã review đều bị loại
+khỏi candidate. Tài khoản cold-start hoặc đã skip mà không lưu sở thích vẫn nhận
+`POPULAR_FALLBACK`; đây là recommendation rule-based, không dùng machine learning.
 
 ### UC-04 — Quản lý thư viện
 
@@ -332,6 +364,13 @@ trang tại `/settings`; chặn, bỏ chặn, ẩn và bỏ ẩn đều idempote
 
 Quản trị viên tạo/sửa/soft-delete sách, tác giả, thể loại. Không cho xóa mềm tác giả/thể loại đang là liên kết duy nhất cần thiết của một sách đang hoạt động nếu request không đồng thời gỡ/chuyển liên kết hợp lệ.
 
+Quản trị viên có thể tìm metadata bên ngoài theo tên, tác giả hoặc ISBN, xem trước
+rồi xác nhận import. Server tải lại chi tiết theo `provider + externalId`; admin ghép
+với tác giả/thể loại hiện hữu hoặc cho phép tạo tên mới. Sách được tạo luôn có `Guid`
+nội bộ và dùng như mọi sách BookSpace khác. ISBN trùng chỉ tạo liên kết nguồn tới
+sách hiện có, không ghi đè metadata. Retry cùng nguồn trả lại cùng sách và không tạo
+row trùng; outbound HTTP hoàn tất trước transaction ghi catalog.
+
 ### UC-12 — Tích hợp nhà cung cấp tùy chọn
 
 Khi provider được bật, người dùng có thể tìm metadata/offer ngoài hệ thống. Lỗi provider phải trả trạng thái tích hợp có kiểm soát và không làm hỏng catalog nội bộ, thư viện hay đăng nhập.
@@ -362,6 +401,7 @@ Tên route là hợp đồng điều hướng Goal 1; thay đổi cần đồng 
 
 | Route | Trang | Nội dung tối thiểu |
 |---|---|---|
+| `/onboarding` | Personalized onboarding | lưu/khôi phục lựa chọn 3–5 thể loại và 3–5 sách tham chiếu; hoàn tất hoặc bỏ qua; thêm nhanh sách, gợi ý follow và mục tiêu đầu tiên là bước tùy chọn |
 | `/feed` | Feed | hoạt động phân trang 10 item/trang, gợi ý follow và bộ lọc URL `?type=review&page=...` với `type` là `review`, `reading`, `club` hoặc `challenge`; bỏ `type` khi xem tất cả, empty state dẫn tới `/people` |
 | `/library` | My library | lọc theo ba trạng thái |
 | `/journal` | Reading journal | focus timer khôi phục sau reload; pause/resume/finish/cancel; ghi thủ công, xem và sửa history |
@@ -370,7 +410,7 @@ Tên route là hợp đồng điều hướng Goal 1; thay đổi cần đồng 
 | `/insights` | Reading insights | heatmap, streak, báo cáo tuần/tháng, so sánh kỳ và dự báo |
 | `/dashboard` | My dashboard | số sách, trang/phút đọc, challenge |
 | `/profile` | My profile | hồ sơ hiện tại hoặc chuyển tới `/users/:id` |
-| `/settings` | Settings | chỉnh hồ sơ, quyền riêng tư hành trình đọc, danh sách chặn/ẩn nội dung, notification preferences và giao diện |
+| `/settings` | Settings | chỉnh hồ sơ, liên kết chỉnh sở thích onboarding, quyền riêng tư hành trình đọc, danh sách chặn/ẩn nội dung, notification preferences và giao diện |
 | `/notifications` | Notifications | server unread count, lọc trạng thái/nhóm, phân trang và deep-link |
 | `/clubs/new` | Create club | tạo câu lạc bộ công khai hoặc riêng tư |
 | `/clubs/invitations` | Club invitations | lời mời CLB đang chờ và thao tác chấp nhận/từ chối |
@@ -379,7 +419,7 @@ Tên route là hợp đồng điều hướng Goal 1; thay đổi cần đồng 
 
 | Route | Trang |
 |---|---|
-| `/admin/books` | CRUD sách |
+| `/admin/books` | CRUD sách; tìm, xem trước và import metadata ngoài vào catalog nội bộ |
 | `/admin/challenges` | CRUD/xuất bản thử thách |
 | `/admin/moderation` | hàng đợi báo cáo, snapshot, bác bỏ, ẩn nội dung và khóa tài khoản |
 
@@ -456,6 +496,8 @@ Seed tối thiểu thêm:
 - 2 phiên đọc, 2 review có bình luận/like.
 - Dữ liệu thư viện/review đủ kiểm tra recommendation cá nhân hóa cho reader; admin
   không có thư viện để kiểm tra cold-start fallback.
+- Ít nhất 3 thể loại và 3 sách active để smoke test lấy ID động, hoàn tất/bỏ qua
+  onboarding và xác minh sách tham chiếu bị loại khỏi recommendation.
 - 3 hồ sơ người dùng để kiểm tra discovery/follow/feed; `Hà Linh` là hồ sơ demo
   không công bố credential đăng nhập, follow reader và được admin follow để tạo
   một gợi ý mutual thực tế cho `reader@bookspace.local`.

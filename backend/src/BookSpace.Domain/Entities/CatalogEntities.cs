@@ -131,3 +131,20 @@ public sealed class BookCategory : Entity
     public Guid CategoryId { get; private set; }
     public Category Category { get; private set; } = null!;
 }
+
+public sealed class ExternalBookLink : Entity
+{
+    private ExternalBookLink() { }
+
+    public ExternalBookLink(string provider, string externalId, Guid bookId)
+    {
+        Provider = Guard.Required(provider, "Nhà cung cấp", 50).ToLowerInvariant();
+        ExternalId = Guard.Required(externalId, "Mã sách bên ngoài", 200);
+        BookId = bookId;
+    }
+
+    public string Provider { get; private set; } = string.Empty;
+    public string ExternalId { get; private set; } = string.Empty;
+    public Guid BookId { get; private set; }
+    public Book Book { get; private set; } = null!;
+}

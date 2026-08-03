@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   unmute: vi.fn(),
   unblock: vi.fn(),
   safety: vi.fn(),
+  onboarding: vi.fn(),
   toast: vi.fn(),
 }))
 
@@ -77,16 +78,45 @@ vi.mock('../../hooks/useNotifications', () => ({
   }),
 }))
 
+vi.mock('../../hooks/useOnboarding', () => ({
+  useOnboarding: () => mocks.onboarding(),
+}))
+
 describe('profile privacy settings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.updatePrivacy.mockResolvedValue({})
     mocks.updateNotificationPreferences.mockResolvedValue({})
+    mocks.onboarding.mockReturnValue({
+      data: {
+        status: 'COMPLETED',
+        finishedAt: '2026-08-02T08:00:00Z',
+        preferredCategoryIds: ['category-1', 'category-2', 'category-3'],
+        referenceBookIds: ['book-1', 'book-2', 'book-3'],
+      },
+      isLoading: false,
+      isError: false,
+    })
     mocks.safety.mockReturnValue({
       data: { items: [], page: 1, pageSize: 100, totalItems: 0, totalPages: 0 },
       isLoading: false,
       isError: false,
     })
+  })
+
+  it('keeps the edit destination stable while onboarding status is loading', () => {
+    mocks.onboarding.mockReturnValue({ data: undefined, isLoading: true, isError: false })
+
+    render(
+      <MemoryRouter>
+        <SettingsPage />
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('link', { name: 'Thiết lập sở thích' })).toHaveAttribute(
+      'href',
+      '/onboarding?mode=edit',
+    )
   })
 
   it('loads server visibility and saves both public profile switches', async () => {

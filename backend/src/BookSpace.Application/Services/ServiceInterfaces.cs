@@ -54,6 +54,17 @@ public interface IUserSafetyService
     Task UnmuteAsync(Guid userId, Guid targetUserId, CancellationToken cancellationToken);
 }
 
+public interface IOnboardingService
+{
+    OnboardingStateDto Get(Guid userId);
+    Task<OnboardingStateDto> UpdatePreferencesAsync(
+        Guid userId,
+        UpdateOnboardingPreferencesRequest request,
+        CancellationToken cancellationToken);
+    Task<OnboardingStateDto> CompleteAsync(Guid userId, CancellationToken cancellationToken);
+    Task<OnboardingStateDto> SkipAsync(Guid userId, CancellationToken cancellationToken);
+}
+
 public interface ICatalogService
 {
     PageResult<BookSummary> GetBooks(
@@ -278,4 +289,7 @@ public interface IDashboardService
 public interface IExternalCatalogService
 {
     Task<ExternalBookSearchResult> SearchAsync(string query, int limit, CancellationToken cancellationToken);
+    Task<ExternalBookImportResult> ImportAsync(
+        ImportExternalBookRequest request,
+        CancellationToken cancellationToken);
 }

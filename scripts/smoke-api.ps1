@@ -114,6 +114,11 @@ if (
 
 $unauthorizedRecommendations = Invoke-BookSpaceExpectedError `
     -Path '/api/books/recommendations?page=1&pageSize=12'
+$unauthorizedOnboarding = Invoke-BookSpaceExpectedError `
+    -Path '/api/users/me/onboarding'
+$externalCatalog = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/external-books/search?query=clean%20code&limit=3'
 
 $login = Invoke-BookSpaceRequest `
     -Method Post `
@@ -125,6 +130,115 @@ if (-not $login.success -or -not $login.data.accessToken) {
 }
 
 $token = $login.data.accessToken
+$onboardingCategories = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/categories?page=1&pageSize=100' `
+    -AccessToken $token
+$onboardingBooks = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/books?page=1&pageSize=100' `
+    -AccessToken $token
+
+$onboardingBookItems = @($onboardingBooks.data.items)
+$referenceBookIds = @(
+    $onboardingBookItems |
+        Select-Object -First 3 |
+        ForEach-Object { [string]$_.id }
+)
+$onboardingCandidateBooks = @(
+    $onboardingBookItems |
+        Where-Object { [string]$_.id -notin $referenceBookIds }
+)
+$candidateCategoryIds = @(
+    $onboardingCandidateBooks |
+        ForEach-Object { @($_.categories) } |
+        ForEach-Object { [string]$_.id } |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+        Sort-Object -Unique
+)
+$allActiveCategoryIds = @(
+    $onboardingCategories.data.items |
+        ForEach-Object { [string]$_.id } |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+)
+$preferredCategoryIds = @($candidateCategoryIds | Select-Object -First 3)
+if ($preferredCategoryIds.Count -lt 3) {
+    $preferredCategoryIds += @(
+        $allActiveCategoryIds |
+            Where-Object { $_ -notin $preferredCategoryIds } |
+            Select-Object -First (3 - $preferredCategoryIds.Count)
+    )
+}
+
+if (
+    -not $onboardingCategories.success -or
+    -not $onboardingBooks.success -or
+    $preferredCategoryIds.Count -ne 3 -or
+    $referenceBookIds.Count -ne 3
+) {
+    throw 'Catalog active không có đủ 3 thể loại và 3 sách cho onboarding smoke.'
+}
+
+$onboardingSuffix = [Guid]::NewGuid().ToString('N')
+$onboardingRegistration = Invoke-BookSpaceRequest `
+    -Method Post `
+    -Path '/api/auth/register' `
+    -Body @{
+        email = "onboarding-smoke-$onboardingSuffix@bookspace.local"
+        password = 'Reader123!'
+        displayName = "Onboarding Smoke $($onboardingSuffix.Substring(0, 8))"
+    }
+if (-not $onboardingRegistration.success -or -not $onboardingRegistration.data.accessToken) {
+    throw 'Đăng ký tài khoản onboarding smoke không thành công.'
+}
+$onboardingToken = $onboardingRegistration.data.accessToken
+$onboardingInitial = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/users/me/onboarding' `
+    -AccessToken $onboardingToken
+$onboardingDraft = Invoke-BookSpaceRequest `
+    -Method Put `
+    -Path '/api/users/me/onboarding' `
+    -Body @{
+        preferredCategoryIds = $preferredCategoryIds
+        referenceBookIds = $referenceBookIds
+    } `
+    -AccessToken $onboardingToken
+$onboardingCompleted = Invoke-BookSpaceRequest `
+    -Method Post `
+    -Path '/api/users/me/onboarding/complete' `
+    -AccessToken $onboardingToken
+$onboardingReadback = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/users/me/onboarding' `
+    -AccessToken $onboardingToken
+$onboardingRecommendations = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/books/recommendations?page=1&pageSize=100' `
+    -AccessToken $onboardingToken
+
+$skipSuffix = [Guid]::NewGuid().ToString('N')
+$skipRegistration = Invoke-BookSpaceRequest `
+    -Method Post `
+    -Path '/api/auth/register' `
+    -Body @{
+        email = "onboarding-skip-smoke-$skipSuffix@bookspace.local"
+        password = 'Reader123!'
+        displayName = "Onboarding Skip $($skipSuffix.Substring(0, 8))"
+    }
+if (-not $skipRegistration.success -or -not $skipRegistration.data.accessToken) {
+    throw 'Đăng ký tài khoản skip onboarding smoke không thành công.'
+}
+$skipToken = $skipRegistration.data.accessToken
+$onboardingSkipped = Invoke-BookSpaceRequest `
+    -Method Post `
+    -Path '/api/users/me/onboarding/skip' `
+    -AccessToken $skipToken
+$onboardingSkippedReadback = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/users/me/onboarding' `
+    -AccessToken $skipToken
+
 $recommendations = Invoke-BookSpaceRequest `
     -Method Get `
     -Path '/api/books/recommendations?page=1&pageSize=12' `
@@ -350,6 +464,13 @@ $insightsMonthly = Invoke-BookSpaceRequest `
     -AccessToken $token
 
 if (
+    -not $onboardingInitial.success -or
+    -not $onboardingDraft.success -or
+    -not $onboardingCompleted.success -or
+    -not $onboardingReadback.success -or
+    -not $onboardingRecommendations.success -or
+    -not $onboardingSkipped.success -or
+    -not $onboardingSkippedReadback.success -or
     -not $people.success -or
     -not $peopleSuggestions.success -or
     -not $recommendations.success -or
@@ -389,6 +510,123 @@ if (
     $unauthorizedRecommendations.Payload.message -ne 'Bạn cần đăng nhập để tiếp tục.'
 ) {
     throw 'Recommendation không trả đúng envelope 401 UNAUTHORIZED tiếng Việt.'
+}
+
+if (
+    $unauthorizedOnboarding.StatusCode -ne 401 -or
+    $null -eq $unauthorizedOnboarding.Payload -or
+    $unauthorizedOnboarding.Payload.success -ne $false -or
+    $unauthorizedOnboarding.Payload.code -ne 'UNAUTHORIZED' -or
+    $unauthorizedOnboarding.Payload.message -ne 'Bạn cần đăng nhập để tiếp tục.'
+) {
+    throw 'Onboarding không trả đúng envelope 401 UNAUTHORIZED tiếng Việt.'
+}
+
+$requiredOnboardingStateFields = @(
+    'status',
+    'finishedAt',
+    'preferredCategoryIds',
+    'referenceBookIds'
+)
+$onboardingStateShapeInvalid = $false
+foreach ($onboardingState in @(
+    $onboardingInitial.data,
+    $onboardingDraft.data,
+    $onboardingCompleted.data,
+    $onboardingReadback.data,
+    $onboardingSkipped.data,
+    $onboardingSkippedReadback.data
+)) {
+    $onboardingStateFields = @($onboardingState.PSObject.Properties.Name)
+    if (
+        @(
+            $requiredOnboardingStateFields |
+                Where-Object { $_ -notin $onboardingStateFields }
+        ).Count -gt 0 -or
+        @(
+            $onboardingStateFields |
+                Where-Object { $_ -notin $requiredOnboardingStateFields }
+        ).Count -gt 0 -or
+        $null -eq $onboardingState.preferredCategoryIds -or
+        $null -eq $onboardingState.referenceBookIds
+    ) {
+        $onboardingStateShapeInvalid = $true
+        break
+    }
+}
+
+$expectedPreferredCategorySignature = @(
+    $preferredCategoryIds | Sort-Object
+) -join '|'
+$expectedReferenceBookSignature = @(
+    $referenceBookIds | Sort-Object
+) -join '|'
+$draftPreferredCategorySignature = @(
+    $onboardingDraft.data.preferredCategoryIds | ForEach-Object { [string]$_ } | Sort-Object
+) -join '|'
+$draftReferenceBookSignature = @(
+    $onboardingDraft.data.referenceBookIds | ForEach-Object { [string]$_ } | Sort-Object
+) -join '|'
+$completedPreferredCategorySignature = @(
+    $onboardingReadback.data.preferredCategoryIds | ForEach-Object { [string]$_ } | Sort-Object
+) -join '|'
+$completedReferenceBookSignature = @(
+    $onboardingReadback.data.referenceBookIds | ForEach-Object { [string]$_ } | Sort-Object
+) -join '|'
+
+if (
+    $onboardingStateShapeInvalid -or
+    $onboardingInitial.data.status -ne 'PENDING' -or
+    $null -ne $onboardingInitial.data.finishedAt -or
+    @($onboardingInitial.data.preferredCategoryIds).Count -ne 0 -or
+    @($onboardingInitial.data.referenceBookIds).Count -ne 0 -or
+    $onboardingDraft.data.status -ne 'PENDING' -or
+    $null -ne $onboardingDraft.data.finishedAt -or
+    $draftPreferredCategorySignature -ne $expectedPreferredCategorySignature -or
+    $draftReferenceBookSignature -ne $expectedReferenceBookSignature -or
+    $onboardingCompleted.data.status -ne 'COMPLETED' -or
+    [string]::IsNullOrWhiteSpace([string]$onboardingCompleted.data.finishedAt) -or
+    $onboardingReadback.data.status -ne 'COMPLETED' -or
+    $onboardingReadback.data.finishedAt -ne $onboardingCompleted.data.finishedAt -or
+    $completedPreferredCategorySignature -ne $expectedPreferredCategorySignature -or
+    $completedReferenceBookSignature -ne $expectedReferenceBookSignature
+) {
+    throw 'Onboarding draft, complete, readback hoặc response shape không hợp lệ.'
+}
+
+$completedAt = [DateTimeOffset]::Parse([string]$onboardingCompleted.data.finishedAt)
+$skippedAt = [DateTimeOffset]::Parse([string]$onboardingSkipped.data.finishedAt)
+if (
+    $completedAt.Offset -ne [TimeSpan]::Zero -or
+    $onboardingSkipped.data.status -ne 'SKIPPED' -or
+    [string]::IsNullOrWhiteSpace([string]$onboardingSkipped.data.finishedAt) -or
+    $skippedAt.Offset -ne [TimeSpan]::Zero -or
+    $onboardingSkippedReadback.data.status -ne 'SKIPPED' -or
+    $onboardingSkippedReadback.data.finishedAt -ne $onboardingSkipped.data.finishedAt -or
+    @($onboardingSkippedReadback.data.preferredCategoryIds).Count -ne 0 -or
+    @($onboardingSkippedReadback.data.referenceBookIds).Count -ne 0
+) {
+    throw 'Onboarding skip hoặc finishedAt UTC không hợp lệ.'
+}
+
+$onboardingRecommendationItems = @($onboardingRecommendations.data.items)
+$onboardingRecommendedBookIds = @(
+    $onboardingRecommendationItems |
+        ForEach-Object { [string]$_.book.id }
+)
+$onboardingPreferenceReasons = @(
+    $onboardingRecommendationItems |
+        Where-Object { $_.reasonCode -in @('MATCHED_AUTHOR', 'MATCHED_CATEGORY') }
+)
+if (
+    $onboardingRecommendationItems.Count -eq 0 -or
+    @(
+        $referenceBookIds |
+            Where-Object { $_ -in $onboardingRecommendedBookIds }
+    ).Count -gt 0 -or
+    $onboardingPreferenceReasons.Count -eq 0
+) {
+    throw 'Recommendation không dùng preference hoặc còn trả lại reference book.'
 }
 
 $recommendationItems = @($recommendations.data.items)
@@ -670,6 +908,17 @@ if (
 }
 
 if (
+    $null -eq $externalCatalog -or
+    -not $externalCatalog.success -or
+    $null -eq $externalCatalog.data -or
+    [string]::IsNullOrWhiteSpace([string]$externalCatalog.data.provider) -or
+    [string]::IsNullOrWhiteSpace([string]$externalCatalog.data.message) -or
+    $null -eq $externalCatalog.data.items
+) {
+    throw 'External catalog search không trả controlled provider contract.'
+}
+
+if (
     $null -eq $clubChatMessage -or
     -not $clubChatMessage.success -or
     $clubChatMessage.data.content -ne $chatContent -or
@@ -701,8 +950,12 @@ if (
     User = $login.data.user.email
     PeopleSearchResults = $people.data.totalItems
     PeopleSuggestions = $peopleSuggestions.data.totalItems
+    Onboarding = $onboardingReadback.data.status
+    SkippedOnboarding = $onboardingSkippedReadback.data.status
+    OnboardingRecommendations = $onboardingRecommendations.data.totalItems
     Recommendations = $recommendations.data.totalItems
     ColdStartRecommendations = $adminRecommendations.data.totalItems
+    ExternalCatalogAvailable = [bool]$externalCatalog.data.available
     ReadingFeedItems = $feed.data.totalItems
     Books = $books.data.totalItems
     LibraryItems = $library.data.totalItems

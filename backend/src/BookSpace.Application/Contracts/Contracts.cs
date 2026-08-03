@@ -73,6 +73,18 @@ public sealed record UpdateProfilePrivacyRequest(
     bool IsReadingShelfPublic,
     bool IsReadingActivityPublic);
 
+public sealed record OnboardingStateDto(
+    OnboardingStatus Status,
+    DateTimeOffset? FinishedAt,
+    IReadOnlyList<Guid> PreferredCategoryIds,
+    IReadOnlyList<Guid> ReferenceBookIds);
+
+public sealed record UpdateOnboardingPreferencesRequest(
+    [Required(ErrorMessage = "Danh sách thể loại yêu thích là bắt buộc.")]
+    IReadOnlyList<Guid>? PreferredCategoryIds,
+    [Required(ErrorMessage = "Danh sách sách tham chiếu là bắt buộc.")]
+    IReadOnlyList<Guid>? ReferenceBookIds);
+
 public sealed record UserSafetyEntryDto(
     UserSummary User,
     bool IsBlocked,
@@ -152,6 +164,24 @@ public sealed record SaveBookRequest(
     [MaxLength(20)] string? Language,
     Guid AuthorId,
     IReadOnlyList<Guid>? CategoryIds);
+
+public sealed record ImportExternalBookRequest(
+    [Required, MaxLength(50)] string Provider,
+    [Required, MaxLength(200)] string ExternalId,
+    Guid? AuthorId,
+    [MaxLength(200)] string? AuthorName,
+    IReadOnlyList<Guid>? CategoryIds,
+    IReadOnlyList<string>? CategoryNames,
+    [MaxLength(5000)] string? Description,
+    [Range(1, int.MaxValue)] int? PageCount,
+    [Range(1000, 2200)] int? PublishedYear,
+    [MaxLength(20)] string? Language);
+
+public sealed record ExternalBookImportResult(
+    string Status,
+    string Provider,
+    string ExternalId,
+    BookDetail Book);
 
 public sealed record LibraryItemDto(
     Guid Id,

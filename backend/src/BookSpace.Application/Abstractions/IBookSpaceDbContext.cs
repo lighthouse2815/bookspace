@@ -5,6 +5,14 @@ namespace BookSpace.Application.Abstractions;
 public interface IBookSpaceDbContext
 {
     IQueryable<User> Users { get; }
+    IQueryable<UserPreferredCategory> UserPreferredCategories =>
+        Array.Empty<UserPreferredCategory>().AsQueryable();
+    IQueryable<UserPreferredCategory> UserPreferredCategoriesIncludingDeleted =>
+        UserPreferredCategories;
+    IQueryable<UserReferenceBook> UserReferenceBooks =>
+        Array.Empty<UserReferenceBook>().AsQueryable();
+    IQueryable<UserReferenceBook> UserReferenceBooksIncludingDeleted =>
+        UserReferenceBooks;
     IQueryable<RefreshToken> RefreshTokens { get; }
     IQueryable<Follow> Follows { get; }
     IQueryable<UserBlock> UserBlocks => Array.Empty<UserBlock>().AsQueryable();
@@ -14,6 +22,8 @@ public interface IBookSpaceDbContext
     IQueryable<Book> Books { get; }
     IQueryable<BookAuthor> BookAuthors { get; }
     IQueryable<BookCategory> BookCategories { get; }
+    IQueryable<ExternalBookLink> ExternalBookLinks =>
+        Array.Empty<ExternalBookLink>().AsQueryable();
     IQueryable<LibraryItem> LibraryItems { get; }
     IQueryable<LibraryItem> LibraryItemsIncludingDeleted { get; }
     IQueryable<ReadingSession> ReadingSessions { get; }
@@ -76,6 +86,11 @@ public sealed record ExternalBookResult(
     IReadOnlyList<string> Authors,
     string? CoverImageUrl,
     string? Isbn,
+    string? Description,
+    int? PageCount,
+    int? PublishedYear,
+    string? Language,
+    IReadOnlyList<string> Categories,
     decimal? Price,
     string? PurchaseUrl);
 
@@ -88,4 +103,5 @@ public sealed record ExternalBookSearchResult(
 public interface IExternalBookProvider
 {
     Task<ExternalBookSearchResult> SearchAsync(string query, int limit, CancellationToken cancellationToken);
+    Task<ExternalBookSearchResult> GetByIdAsync(string externalId, CancellationToken cancellationToken);
 }

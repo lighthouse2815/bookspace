@@ -10,6 +10,8 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
     : DbContext(options), IBookSpaceDbContext
 {
     public DbSet<User> UserSet => Set<User>();
+    public DbSet<UserPreferredCategory> UserPreferredCategorySet => Set<UserPreferredCategory>();
+    public DbSet<UserReferenceBook> UserReferenceBookSet => Set<UserReferenceBook>();
     public DbSet<RefreshToken> RefreshTokenSet => Set<RefreshToken>();
     public DbSet<Follow> FollowSet => Set<Follow>();
     public DbSet<UserBlock> UserBlockSet => Set<UserBlock>();
@@ -19,6 +21,7 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
     public DbSet<Book> BookSet => Set<Book>();
     public DbSet<BookAuthor> BookAuthorSet => Set<BookAuthor>();
     public DbSet<BookCategory> BookCategorySet => Set<BookCategory>();
+    public DbSet<ExternalBookLink> ExternalBookLinkSet => Set<ExternalBookLink>();
     public DbSet<LibraryItem> LibraryItemSet => Set<LibraryItem>();
     public DbSet<ReadingSession> ReadingSessionSet => Set<ReadingSession>();
     public DbSet<ActiveReadingSession> ActiveReadingSessionSet => Set<ActiveReadingSession>();
@@ -47,6 +50,14 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
     public DbSet<ContentReport> ContentReportSet => Set<ContentReport>();
 
     IQueryable<User> IBookSpaceDbContext.Users => UserSet;
+    IQueryable<UserPreferredCategory> IBookSpaceDbContext.UserPreferredCategories =>
+        UserPreferredCategorySet;
+    IQueryable<UserPreferredCategory> IBookSpaceDbContext.UserPreferredCategoriesIncludingDeleted =>
+        UserPreferredCategorySet.IgnoreQueryFilters();
+    IQueryable<UserReferenceBook> IBookSpaceDbContext.UserReferenceBooks =>
+        UserReferenceBookSet;
+    IQueryable<UserReferenceBook> IBookSpaceDbContext.UserReferenceBooksIncludingDeleted =>
+        UserReferenceBookSet.IgnoreQueryFilters();
     IQueryable<RefreshToken> IBookSpaceDbContext.RefreshTokens => RefreshTokenSet;
     IQueryable<Follow> IBookSpaceDbContext.Follows => FollowSet;
     IQueryable<UserBlock> IBookSpaceDbContext.UserBlocks => UserBlockSet;
@@ -56,6 +67,7 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
     IQueryable<Book> IBookSpaceDbContext.Books => BookSet;
     IQueryable<BookAuthor> IBookSpaceDbContext.BookAuthors => BookAuthorSet;
     IQueryable<BookCategory> IBookSpaceDbContext.BookCategories => BookCategorySet;
+    IQueryable<ExternalBookLink> IBookSpaceDbContext.ExternalBookLinks => ExternalBookLinkSet;
     IQueryable<LibraryItem> IBookSpaceDbContext.LibraryItems => LibraryItemSet;
     IQueryable<LibraryItem> IBookSpaceDbContext.LibraryItemsIncludingDeleted =>
         LibraryItemSet.IgnoreQueryFilters();
@@ -143,12 +155,48 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
             entity.Property(x => x.Bio).HasMaxLength(500);
             entity.Property(x => x.AvatarUrl).HasMaxLength(1000);
             entity.Property(x => x.Role).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.OnboardingStatus)
+                .HasConversion<string>()
+                .HasMaxLength(20)
+                .HasDefaultValue(BookSpace.Domain.Enums.OnboardingStatus.PENDING);
             entity.Property(x => x.IsReadingShelfPublic).HasDefaultValue(false);
             entity.Property(x => x.IsReadingActivityPublic).HasDefaultValue(false);
             entity.Property(x => x.IsFollowNotificationEnabled).HasDefaultValue(true);
             entity.Property(x => x.IsReviewNotificationEnabled).HasDefaultValue(true);
             entity.Property(x => x.IsClubNotificationEnabled).HasDefaultValue(true);
             entity.Property(x => x.IsChallengeNotificationEnabled).HasDefaultValue(true);
+            entity.Ignore(x => x.IsDeleted);
+        });
+
+        modelBuilder.Entity<UserPreferredCategory>(entity =>
+        {
+            entity.ToTable("user_preferred_categories");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.UserId, x.CategoryId }).IsUnique();
+            entity.HasOne(x => x.User)
+                .WithMany(x => x.PreferredCategories)
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.Category)
+                .WithMany()
+                .HasForeignKey(x => x.CategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.Ignore(x => x.IsDeleted);
+        });
+
+        modelBuilder.Entity<UserReferenceBook>(entity =>
+        {
+            entity.ToTable("user_reference_books");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.UserId, x.BookId }).IsUnique();
+            entity.HasOne(x => x.User)
+                .WithMany(x => x.ReferenceBooks)
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.Book)
+                .WithMany()
+                .HasForeignKey(x => x.BookId)
+                .OnDelete(DeleteBehavior.Restrict);
             entity.Ignore(x => x.IsDeleted);
         });
 
@@ -263,6 +311,20 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
             entity.HasIndex(x => new { x.BookId, x.CategoryId }).IsUnique();
             entity.HasOne(x => x.Book).WithMany(x => x.Categories).HasForeignKey(x => x.BookId);
             entity.HasOne(x => x.Category).WithMany(x => x.Books).HasForeignKey(x => x.CategoryId);
+            entity.Ignore(x => x.IsDeleted);
+        });
+        modelBuilder.Entity<ExternalBookLink>(entity =>
+        {
+            entity.ToTable("external_book_links");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.Provider, x.ExternalId }).IsUnique();
+            entity.HasIndex(x => x.BookId);
+            entity.Property(x => x.Provider).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.ExternalId).HasMaxLength(200).IsRequired();
+            entity.HasOne(x => x.Book)
+                .WithMany()
+                .HasForeignKey(x => x.BookId)
+                .OnDelete(DeleteBehavior.Restrict);
             entity.Ignore(x => x.IsDeleted);
         });
     }
@@ -635,6 +697,14 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
     private static void ApplySoftDeleteFilters(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<User>().HasQueryFilter(x => x.DeletedAt == null);
+        modelBuilder.Entity<UserPreferredCategory>().HasQueryFilter(x =>
+            x.DeletedAt == null &&
+            x.User.DeletedAt == null &&
+            x.Category.DeletedAt == null);
+        modelBuilder.Entity<UserReferenceBook>().HasQueryFilter(x =>
+            x.DeletedAt == null &&
+            x.User.DeletedAt == null &&
+            x.Book.DeletedAt == null);
         modelBuilder.Entity<RefreshToken>().HasQueryFilter(x => x.DeletedAt == null && x.User.DeletedAt == null);
         modelBuilder.Entity<Follow>().HasQueryFilter(x =>
             x.DeletedAt == null &&
@@ -659,6 +729,7 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
             x.DeletedAt == null &&
             x.Book.DeletedAt == null &&
             x.Category.DeletedAt == null);
+        modelBuilder.Entity<ExternalBookLink>().HasQueryFilter(x => x.DeletedAt == null);
         modelBuilder.Entity<LibraryItem>().HasQueryFilter(x => x.DeletedAt == null);
         modelBuilder.Entity<ReadingSession>().HasQueryFilter(x => x.DeletedAt == null);
         modelBuilder.Entity<ActiveReadingSession>().HasQueryFilter(x => x.DeletedAt == null);

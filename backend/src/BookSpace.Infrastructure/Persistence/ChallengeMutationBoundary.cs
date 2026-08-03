@@ -9,7 +9,11 @@ using Microsoft.EntityFrameworkCore;
 namespace BookSpace.Infrastructure.Persistence;
 
 public sealed class ChallengeMutationBoundary(BookSpaceDbContext db)
-    : IChallengeMutationBoundary, IReadingMutationBoundary, IClubChatMutationBoundary
+    : IChallengeMutationBoundary,
+      IReadingMutationBoundary,
+      IClubChatMutationBoundary,
+      IOnboardingMutationBoundary,
+      IExternalCatalogMutationBoundary
 {
     public async Task<TResult> ExecuteAsync<TResult>(
         Func<CancellationToken, Task<TResult>> operation,

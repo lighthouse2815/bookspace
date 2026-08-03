@@ -73,6 +73,11 @@ public sealed record ExternalBookResult(
     IReadOnlyList<string> Authors,
     string? CoverImageUrl,
     string? Isbn,
+    string? Description,
+    int? PageCount,
+    int? PublishedYear,
+    string? Language,
+    IReadOnlyList<string> Categories,
     decimal? Price,
     string? PurchaseUrl);
 
@@ -87,6 +92,9 @@ public interface IExternalBookProvider
     Task<ExternalBookSearchResult> SearchAsync(
         string query,
         int limit,
+        CancellationToken cancellationToken);
+    Task<ExternalBookSearchResult> GetByIdAsync(
+        string externalId,
         CancellationToken cancellationToken);
 }
 ```
@@ -121,11 +129,29 @@ GET {baseUrl}/books/{bookId}
 | `title` | `title` |
 | author name/list | `authors[]` |
 | ISBN | `isbn` |
+| description | `description` |
+| page/number-of-pages | `pageCount` |
+| publication year | `publishedYear` |
+| language | `language` |
+| category name/list | `categories[]` |
 | effective/discount/base price phù hợp | `price` |
 | cover/image URL | `coverImageUrl` |
 | route frontend được cấu hình + ID | `purchaseUrl` |
 
 Nếu một field ngoài không có, dùng `null`; không tự bịa giá, tồn kho hoặc URL.
+
+### 5.1 Import catalog có kiểm duyệt
+
+`GET /api/external-books/search` chỉ trả preview. `ADMIN` chọn một item và gọi
+`POST /api/admin/books/import`; Application gọi `GetByIdAsync` để tải lại dữ liệu,
+sau đó mới mở transaction nội bộ. Admin có thể ghép author/category hiện có hoặc
+cho phép tạo tên mới.
+
+BookSpace lưu `ExternalBookLink(Provider, ExternalId, BookId)` với unique
+`(Provider, ExternalId)`. ISBN ngoài được bỏ separator và chuẩn hóa uppercase trước
+đối sánh. ISBN trùng chỉ link vào `Book` hiện hữu; metadata nội bộ không bị ghi đè.
+Import mới tạo `Book` với `Guid` BookSpace. Retry link đã tồn tại đọc dữ liệu local,
+không cần provider còn hoạt động.
 
 ## 6. Cấu hình provider
 

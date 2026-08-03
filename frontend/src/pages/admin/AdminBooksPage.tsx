@@ -1,7 +1,8 @@
-import { NotePencil, Plus, Trash, X } from '@phosphor-icons/react'
+import { DownloadSimple, NotePencil, Plus, Trash, X } from '@phosphor-icons/react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { AdminNav } from '../../components/admin/AdminNav'
+import { ExternalBookImportPanel } from '../../components/admin/ExternalBookImportPanel'
 import { BookCover } from '../../components/books/BookCover'
 import { Button } from '../../components/ui/Button'
 import { InputField, SelectField, TextareaField } from '../../components/ui/FormField'
@@ -31,6 +32,7 @@ export function AdminBooksPage() {
   const { showToast } = useToast()
   const [editing, setEditing] = useState<Book | null>(null)
   const [showForm, setShowForm] = useState(false)
+  const [showImport, setShowImport] = useState(false)
   const [form, setForm] = useState<BookAdminInput>(emptyBook)
 
   const save = useMutation({
@@ -97,14 +99,38 @@ export function AdminBooksPage() {
           <h1 className="page-title">Catalog sách</h1>
           <p className="mt-3 text-muted">Quản lý dữ liệu sách độc lập của BookSpace.</p>
         </div>
-        <Button
-          icon={showForm ? <X size={18} /> : <Plus size={18} />}
-          onClick={() => (showForm ? closeForm() : setShowForm(true))}
-        >
-          {showForm ? 'Đóng biểu mẫu' : 'Thêm sách'}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            icon={<DownloadSimple size={18} />}
+            onClick={() => {
+              closeForm()
+              setShowImport((current) => !current)
+            }}
+          >
+            {showImport ? 'Đóng import' : 'Import từ nguồn ngoài'}
+          </Button>
+          <Button
+            icon={showForm ? <X size={18} /> : <Plus size={18} />}
+            onClick={() => {
+              setShowImport(false)
+              if (showForm) closeForm()
+              else setShowForm(true)
+            }}
+          >
+            {showForm ? 'Đóng biểu mẫu' : 'Thêm sách'}
+          </Button>
+        </div>
       </div>
       <AdminNav />
+
+      {showImport ? (
+        <ExternalBookImportPanel
+          authors={authors.data?.items ?? []}
+          categories={categories.data?.items ?? []}
+          onClose={() => setShowImport(false)}
+        />
+      ) : null}
 
       {showForm ? (
         <form onSubmit={submit} className="mb-8 surface p-5 sm:p-7">

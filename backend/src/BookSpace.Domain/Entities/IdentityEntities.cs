@@ -22,6 +22,8 @@ public sealed class User : Entity
     public string? Bio { get; private set; }
     public string? AvatarUrl { get; private set; }
     public UserRole Role { get; private set; } = UserRole.USER;
+    public OnboardingStatus OnboardingStatus { get; private set; } = OnboardingStatus.PENDING;
+    public DateTimeOffset? OnboardingFinishedAt { get; private set; }
     public bool IsLocked { get; private set; }
     public bool IsReadingShelfPublic { get; private set; }
     public bool IsReadingActivityPublic { get; private set; }
@@ -32,6 +34,10 @@ public sealed class User : Entity
 
     public ICollection<Follow> Followers { get; } = new List<Follow>();
     public ICollection<Follow> Following { get; } = new List<Follow>();
+    public ICollection<UserPreferredCategory> PreferredCategories { get; } =
+        new List<UserPreferredCategory>();
+    public ICollection<UserReferenceBook> ReferenceBooks { get; } =
+        new List<UserReferenceBook>();
 
     public void UpdateProfile(string displayName, string? bio, string? avatarUrl)
     {
@@ -91,6 +97,39 @@ public sealed class User : Entity
     {
         PasswordHash = Guard.Required(passwordHash, "Mật khẩu đã mã hóa", 500);
         Touch();
+    }
+
+    public void CompleteOnboarding()
+    {
+        if (OnboardingStatus == OnboardingStatus.COMPLETED)
+        {
+            return;
+        }
+
+        OnboardingStatus = OnboardingStatus.COMPLETED;
+        OnboardingFinishedAt = UtcNowAtPersistencePrecision();
+        Touch();
+    }
+
+    public void SkipOnboarding()
+    {
+        if (OnboardingStatus is OnboardingStatus.COMPLETED or OnboardingStatus.SKIPPED)
+        {
+            return;
+        }
+
+        OnboardingStatus = OnboardingStatus.SKIPPED;
+        OnboardingFinishedAt = UtcNowAtPersistencePrecision();
+        Touch();
+    }
+
+    private static DateTimeOffset UtcNowAtPersistencePrecision()
+    {
+        var now = DateTimeOffset.UtcNow;
+        const long sqliteConverterPrecisionTicks = 1000;
+        return new DateTimeOffset(
+            now.Ticks - (now.Ticks % sqliteConverterPrecisionTicks),
+            TimeSpan.Zero);
     }
 
     public void Lock()
@@ -164,4 +203,36 @@ public sealed class Follow : Entity
     public User Follower { get; private set; } = null!;
     public Guid FollowingId { get; private set; }
     public User Following { get; private set; } = null!;
+}
+
+public sealed class UserPreferredCategory : Entity
+{
+    private UserPreferredCategory() { }
+
+    public UserPreferredCategory(Guid userId, Guid categoryId)
+    {
+        UserId = userId;
+        CategoryId = categoryId;
+    }
+
+    public Guid UserId { get; private set; }
+    public User User { get; private set; } = null!;
+    public Guid CategoryId { get; private set; }
+    public Category Category { get; private set; } = null!;
+}
+
+public sealed class UserReferenceBook : Entity
+{
+    private UserReferenceBook() { }
+
+    public UserReferenceBook(Guid userId, Guid bookId)
+    {
+        UserId = userId;
+        BookId = bookId;
+    }
+
+    public Guid UserId { get; private set; }
+    public User User { get; private set; } = null!;
+    public Guid BookId { get; private set; }
+    public Book Book { get; private set; } = null!;
 }

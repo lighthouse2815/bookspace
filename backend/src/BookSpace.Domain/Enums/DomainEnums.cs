@@ -6,6 +6,13 @@ public enum UserRole
     ADMIN
 }
 
+public enum OnboardingStatus
+{
+    PENDING,
+    COMPLETED,
+    SKIPPED
+}
+
 public enum LibraryStatus
 {
     WANT_TO_READ,

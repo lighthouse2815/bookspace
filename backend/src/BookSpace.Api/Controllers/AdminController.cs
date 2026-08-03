@@ -12,6 +12,7 @@ namespace BookSpace.Api.Controllers;
 [Route("api/admin")]
 public sealed class AdminController(
     ICatalogService catalogService,
+    IExternalCatalogService externalCatalogService,
     IChallengeService challengeService,
     IContentModerationService moderationService) : ApiControllerBase
 {
@@ -40,6 +41,14 @@ public sealed class AdminController(
         await catalogService.DeleteBookAsync(id, cancellationToken);
         return OkEmptyData("Đã xóa sách.");
     }
+
+    [HttpPost("books/import")]
+    public async Task<ActionResult<ApiResponse<ExternalBookImportResult>>> ImportBook(
+        ImportExternalBookRequest request,
+        CancellationToken cancellationToken) =>
+        OkData(
+            await externalCatalogService.ImportAsync(request, cancellationToken),
+            "Đã xử lý import sách từ nguồn ngoài.");
 
     [HttpPost("authors")]
     public async Task<ActionResult<ApiResponse<AuthorDto>>> CreateAuthor(

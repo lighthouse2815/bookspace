@@ -886,6 +886,44 @@ namespace BookSpace.Infrastructure.Persistence.Migrations
                     b.ToTable("content_reports", (string)null);
                 });
 
+            modelBuilder.Entity("BookSpace.Domain.Entities.ExternalBookLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("BookId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("DeletedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ExternalId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BookId");
+
+                    b.HasIndex("Provider", "ExternalId")
+                        .IsUnique();
+
+                    b.ToTable("external_book_links", (string)null);
+                });
+
             modelBuilder.Entity("BookSpace.Domain.Entities.Follow", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1427,6 +1465,16 @@ namespace BookSpace.Infrastructure.Persistence.Migrations
                         .HasColumnType("INTEGER")
                         .HasDefaultValue(true);
 
+                    b.Property<long?>("OnboardingFinishedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("OnboardingStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("PENDING");
+
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -1508,6 +1556,68 @@ namespace BookSpace.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("user_mutes", (string)null);
+                });
+
+            modelBuilder.Entity("BookSpace.Domain.Entities.UserPreferredCategory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("DeletedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("UserId", "CategoryId")
+                        .IsUnique();
+
+                    b.ToTable("user_preferred_categories", (string)null);
+                });
+
+            modelBuilder.Entity("BookSpace.Domain.Entities.UserReferenceBook", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("BookId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("DeletedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BookId");
+
+                    b.HasIndex("UserId", "BookId")
+                        .IsUnique();
+
+                    b.ToTable("user_reference_books", (string)null);
                 });
 
             modelBuilder.Entity("BookSpace.Domain.Entities.ActiveReadingSession", b =>
@@ -1855,6 +1965,17 @@ namespace BookSpace.Infrastructure.Persistence.Migrations
                     b.Navigation("TargetOwner");
                 });
 
+            modelBuilder.Entity("BookSpace.Domain.Entities.ExternalBookLink", b =>
+                {
+                    b.HasOne("BookSpace.Domain.Entities.Book", "Book")
+                        .WithMany()
+                        .HasForeignKey("BookId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Book");
+                });
+
             modelBuilder.Entity("BookSpace.Domain.Entities.Follow", b =>
                 {
                     b.HasOne("BookSpace.Domain.Entities.User", "Follower")
@@ -2070,6 +2191,44 @@ namespace BookSpace.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("BookSpace.Domain.Entities.UserPreferredCategory", b =>
+                {
+                    b.HasOne("BookSpace.Domain.Entities.Category", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BookSpace.Domain.Entities.User", "User")
+                        .WithMany("PreferredCategories")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Category");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("BookSpace.Domain.Entities.UserReferenceBook", b =>
+                {
+                    b.HasOne("BookSpace.Domain.Entities.Book", "Book")
+                        .WithMany()
+                        .HasForeignKey("BookId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BookSpace.Domain.Entities.User", "User")
+                        .WithMany("ReferenceBooks")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Book");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("BookSpace.Domain.Entities.Author", b =>
                 {
                     b.Navigation("Books");
@@ -2132,6 +2291,10 @@ namespace BookSpace.Infrastructure.Persistence.Migrations
                     b.Navigation("Followers");
 
                     b.Navigation("Following");
+
+                    b.Navigation("PreferredCategories");
+
+                    b.Navigation("ReferenceBooks");
                 });
 #pragma warning restore 612, 618
         }

@@ -271,6 +271,33 @@ public sealed class RecommendationServiceTests
         Assert.DoesNotContain(afterLibraryMutation.Items, item => item.Book.Id == book.Id);
     }
 
+    [Fact]
+    public void Onboarding_preferences_exclude_reference_books_and_seed_existing_reasons()
+    {
+        var fixture = RecommendationFixture.Create();
+        var referenceAuthor = fixture.AddAuthor("Tác giả từ sách tham chiếu");
+        var referenceCategory = fixture.AddCategory("Thể loại từ sách tham chiếu");
+        var explicitCategory = fixture.AddCategory("Thể loại được chọn trực tiếp");
+        var referenceBook = fixture.AddBook("Sách tham chiếu đã biết");
+        var authorMatch = fixture.AddBook("Sách cùng tác giả tham chiếu");
+        var categoryMatch = fixture.AddBook("Sách cùng thể loại đã chọn");
+        fixture.Link(referenceBook, referenceAuthor, referenceCategory);
+        fixture.Link(authorMatch, referenceAuthor);
+        fixture.Db.Add(new BookCategory(categoryMatch.Id, explicitCategory.Id));
+        fixture.Db.Add(new UserReferenceBook(fixture.Viewer.Id, referenceBook.Id));
+        fixture.Db.Add(new UserPreferredCategory(fixture.Viewer.Id, explicitCategory.Id));
+
+        var result = fixture.Service.GetRecommendations(fixture.Viewer.Id, 1, 12);
+
+        Assert.DoesNotContain(result.Items, item => item.Book.Id == referenceBook.Id);
+        Assert.Equal(
+            "MATCHED_AUTHOR",
+            Assert.Single(result.Items, item => item.Book.Id == authorMatch.Id).ReasonCode);
+        Assert.Equal(
+            "MATCHED_CATEGORY",
+            Assert.Single(result.Items, item => item.Book.Id == categoryMatch.Id).ReasonCode);
+    }
+
     private sealed record RecommendationFixture(
         FakeBookSpaceDbContext Db,
         CatalogService Service,
@@ -335,6 +362,9 @@ public sealed class RecommendationServiceTests
         private readonly Dictionary<Type, object> _sets = [];
 
         public IQueryable<User> Users => Query<User>();
+        public IQueryable<UserPreferredCategory> UserPreferredCategories =>
+            Query<UserPreferredCategory>();
+        public IQueryable<UserReferenceBook> UserReferenceBooks => Query<UserReferenceBook>();
         public IQueryable<RefreshToken> RefreshTokens => Query<RefreshToken>();
         public IQueryable<Follow> Follows => Query<Follow>();
         public IQueryable<Author> Authors => Query<Author>();

@@ -161,6 +161,19 @@ DTO này không có email, password hash, token, role hoặc chi tiết library.
 
 `AuthTokensResponse`: `accessToken`, `refreshToken`, `expiresAt`.
 
+`OnboardingStateResponse`:
+
+| Field | Kiểu |
+|---|---|
+| `status` | `PENDING`, `COMPLETED` hoặc `SKIPPED` |
+| `finishedAt` | datetime UTC hoặc null; null chỉ khi `PENDING` |
+| `preferredCategoryIds` | `UUID[]`; tối đa 5 ID category active của principal |
+| `referenceBookIds` | `UUID[]`; tối đa 5 ID book active của principal |
+
+Hai mảng luôn tồn tại, có thể rỗng và chỉ chứa ID duy nhất. DTO không trả join-row
+ID. Đây là dữ liệu owner-private, không được nhúng vào `UserResponse`, public profile,
+directory, feed hoặc response của user khác.
+
 ### 2.2 Catalog
 
 `AuthorResponse`: `id`, `name`, `biography`, `avatarUrl`, `bookCount`.
@@ -557,6 +570,68 @@ Response `200`: `ApiResponse<UserResponse>`.
 
 ## 4. User API
 
+### `GET /api/users/me/onboarding` — Authenticated
+
+Response `200`: `ApiResponse<OnboardingStateResponse>`. Tài khoản vừa đăng ký trả
+`status=PENDING`, `finishedAt=null` và hai mảng rỗng. Endpoint luôn lấy principal từ
+access token; không có biến thể nhận `userId` và không cho admin đọc preference của
+người khác.
+
+### `PUT /api/users/me/onboarding` — Authenticated
+
+Request full-replace:
+
+```json
+{
+  "preferredCategoryIds": [
+    "22222222-2222-2222-2222-222222222222",
+    "33333333-3333-3333-3333-333333333333",
+    "44444444-4444-4444-4444-444444444444"
+  ],
+  "referenceBookIds": [
+    "55555555-5555-5555-5555-555555555555",
+    "66666666-6666-6666-6666-666666666666",
+    "77777777-7777-7777-7777-777777777777"
+  ]
+}
+```
+
+Mỗi mảng được coi là một tập ID duy nhất và có từ 0 đến 5 phần tử sau distinct.
+Khi state là `PENDING` hoặc `SKIPPED`, giá trị 0–2 hợp lệ để lưu draft/resume. Khi
+state đã `COMPLETED`, mỗi tập bắt buộc giữ 3–5 ID để terminal state luôn nhất quán.
+Mọi ID phải trỏ tới category/book BookSpace đang hoạt động. Hai tập được thay thế
+atomically. PUT không tự hoàn tất và không tự đổi `status`/`finishedAt`; response `200` là
+`ApiResponse<OnboardingStateResponse>` authoritative sau khi lưu.
+
+Errors: `ONBOARDING_PREFERRED_CATEGORY_LIMIT_EXCEEDED` 400,
+`ONBOARDING_REFERENCE_BOOK_LIMIT_EXCEEDED` 400,
+`ONBOARDING_PREFERRED_CATEGORY_NOT_FOUND` 404,
+`ONBOARDING_REFERENCE_BOOK_NOT_FOUND` 404. Bỏ field hoặc gửi `null` trả 400
+`VALIDATION_ERROR`; mảng rỗng chỉ là draft hợp lệ khi state chưa `COMPLETED`.
+
+### `POST /api/users/me/onboarding/complete` — Authenticated
+
+Body rỗng. Khi state chưa complete, server revalidate cả hai tập đang lưu: mỗi tập
+phải có 3–5 ID duy nhất và mọi target còn active. `PENDING` hoặc `SKIPPED` chuyển
+thành `COMPLETED` và đặt `finishedAt` theo UTC. Retry khi đã `COMPLETED` trả state
+hiện tại, không re-run transition và giữ timestamp.
+Response `200`: `ApiResponse<OnboardingStateResponse>`.
+
+Thiếu 3–5 target active ở bất kỳ tập nào, kể cả do target đã soft-delete sau lần
+lưu draft, đều trả 400 `ONBOARDING_INCOMPLETE`. Hai error `...NOT_FOUND` chỉ dùng
+khi PUT nhận ID không active.
+
+### `POST /api/users/me/onboarding/skip` — Authenticated
+
+Body rỗng. `PENDING` chuyển thành `SKIPPED` và đặt `finishedAt`; retry giữ nguyên
+timestamp. Nếu đã `COMPLETED`, endpoint không downgrade trạng thái. Preference draft
+đã lưu không bị xóa. Response `200`: `ApiResponse<OnboardingStateResponse>`.
+
+Ba mutation PUT/complete/skip chạy trong một write boundary tuần tự bao trọn
+read-check-write. Request đồng thời không thể hạ `COMPLETED` về `SKIPPED` hoặc commit
+preference dưới 3 phần tử vào một state đã `COMPLETED`; thứ tự lấy boundary quyết
+định command nào quan sát state trước.
+
 ### `GET /api/users?search=&page=1&pageSize=20` — Public
 
 Search rỗng trả danh bạ mặc định. Search khác rỗng được trim, dài 2-100 ký tự và
@@ -733,12 +808,13 @@ Response `200`: `ApiResponse<PageResult<BookResponse>>`.
 `ApiResponse<PageResult<BookRecommendationResponse>>`.
 
 Candidate chỉ gồm sách active chưa có trong library active của principal ở bất kỳ
-shelf nào và chưa từng được principal review. Ranking áp dụng trước count/phân
-trang, theo vector xác định:
+shelf nào, chưa từng được principal review và không nằm trong `referenceBookIds`
+active của principal. Ranking áp dụng trước count/phân trang, theo vector xác định:
 
 1. Số review 4–5 sao còn hoạt động từ user active principal đang follow, giảm dần.
-2. Có author trùng author trong library/review 4–5 sao của principal.
-3. Số category trùng category trong library/review 4–5 sao của principal, giảm dần.
+2. Có author trùng author trong library/review 4–5 sao/reference book của principal.
+3. Số category trùng category trong preferred-category onboarding, library,
+   review 4–5 sao hoặc reference book của principal, giảm dần.
 4. Average rating từ review công khai còn hoạt động, giảm dần.
 5. Review count công khai, giảm dần.
 6. `book.id asc`.
@@ -748,11 +824,14 @@ author, category, fallback. Tài khoản chưa có library/review/follow vẫn n
 `POPULAR_FALLBACK` từ aggregate review công khai; book chưa có review vẫn là
 candidate hợp lệ sau các book được cộng đồng đánh giá.
 
-Nguồn riêng tư duy nhất là library/review của chính principal. Với user khác,
+Nguồn riêng tư chỉ gồm onboarding preference, library và review của chính principal. Với user khác,
 service chỉ đọc review công khai còn hoạt động của tài khoản principal đang
 follow; không đọc library, session hoặc note của họ. Review của user locked hoặc
 soft delete không tham gia social/global signal. Đây là read model rule-based,
-không có entity/migration và không phụ thuộc Bookstore hoặc machine learning.
+không có entity/migration riêng cho recommendation và không phụ thuộc Bookstore
+hoặc machine learning. `UserReferenceBook` chỉ seed author/category signal và luôn
+bị loại khỏi candidate; `UserPreferredCategory` chỉ seed category signal, không thêm
+reason code mới.
 
 Không có access token hợp lệ: `401 UNAUTHORIZED` với message
 `Bạn cần đăng nhập để tiếp tục.`.
@@ -795,6 +874,43 @@ Request:
 `language` mặc định là `vi` trong Goal 1.
 
 Response `201`: `ApiResponse<BookResponse>`.
+
+### `POST /api/admin/books/import`
+
+Server tải lại chi tiết từ provider trước khi mở transaction ghi. Request:
+
+```json
+{
+  "provider": "bookstore",
+  "externalId": "bookstore-book-id",
+  "authorId": null,
+  "authorName": "Robert C. Martin",
+  "categoryIds": [],
+  "categoryNames": ["Software Engineering"],
+  "description": "Metadata đã được admin kiểm tra.",
+  "pageCount": 464,
+  "publishedYear": 2008,
+  "language": "en"
+}
+```
+
+`authorId` có quyền ưu tiên; nếu bỏ trống, `authorName` hoặc tên tác giả đầu tiên từ
+provider được ghép không phân biệt hoa thường hay tạo mới. `categoryIds` được ghép
+với catalog active; `categoryNames` được ghép/tạo mới và tối đa 10 tên. Import mới
+bắt buộc có tác giả, ít nhất một category và `pageCount > 0`.
+
+Response `200`: `ApiResponse<ExternalBookImportResult>` gồm `status`, `provider`,
+`externalId`, `book`. `status` là:
+
+| Giá trị | Ý nghĩa |
+|---|---|
+| `IMPORTED` | tạo Book/relations/link mới atomically |
+| `LINKED_EXISTING` | ISBN chuẩn hóa trùng Book active; chỉ tạo link nguồn |
+| `ALREADY_IMPORTED` | cùng provider/external ID đã có; trả Book hiện hữu mà không gọi provider |
+
+Import mới khi provider tắt/lỗi trả `503 EXTERNAL_CATALOG_UNAVAILABLE`. Metadata thiếu
+trả `EXTERNAL_BOOK_AUTHOR_REQUIRED`, `EXTERNAL_BOOK_CATEGORY_REQUIRED` hoặc
+`EXTERNAL_BOOK_PAGE_COUNT_REQUIRED`; không tạo dữ liệu dở dang.
 
 ### `PATCH /api/admin/books/{bookId}`
 
@@ -1841,6 +1957,11 @@ Response data:
       ],
       "coverImageUrl": "https://provider.example.com/clean-code.jpg",
       "isbn": "9780132350884",
+      "description": "A handbook of agile software craftsmanship.",
+      "pageCount": 464,
+      "publishedYear": 2008,
+      "language": "en",
+      "categories": ["Software Engineering"],
       "price": 180000,
       "purchaseUrl": "https://provider.example.com/books/bookstore-book-id"
     }
@@ -1848,7 +1969,8 @@ Response data:
 }
 ```
 
-Endpoint không tạo BookSpace `Book` và không thay đổi catalog nội bộ.
+Endpoint search chỉ tạo preview, không tạo BookSpace `Book` và không thay đổi catalog
+nội bộ. Mutation duy nhất là endpoint admin import ở phần 6.
 
 Khi Bookstore tắt hoặc upstream không phản hồi, response vẫn có envelope thành
 công với `available: false`, `items: []` và message có thể hiển thị cho người
@@ -1869,6 +1991,11 @@ thành lỗi của core API.
 | `FORBIDDEN` | 403 | không đủ quyền |
 | `USER_NOT_FOUND` | 404 | user không tồn tại |
 | `INVALID_USER_SEARCH` | 400 | search độc giả khác rỗng ngoài 2-100 ký tự |
+| `ONBOARDING_PREFERRED_CATEGORY_LIMIT_EXCEEDED` | 400 | preferred category có hơn 5 ID duy nhất |
+| `ONBOARDING_REFERENCE_BOOK_LIMIT_EXCEEDED` | 400 | reference book có hơn 5 ID duy nhất |
+| `ONBOARDING_PREFERRED_CATEGORY_NOT_FOUND` | 404 | một category preference không tồn tại hoặc đã soft-delete |
+| `ONBOARDING_REFERENCE_BOOK_NOT_FOUND` | 404 | một reference book không tồn tại hoặc đã soft-delete |
+| `ONBOARDING_INCOMPLETE` | 400 | complete hoặc sửa state `COMPLETED` khi một trong hai tập không có đủ 3–5 target active |
 | `INVALID_FEED_TYPE` | 400 | `type` feed không thuộc `REVIEW`, `READING`, `CLUB`, `CHALLENGE` |
 | `CANNOT_FOLLOW_SELF` | 400 | tự follow |
 | `ALREADY_FOLLOWING` | 409 | follow trùng |
@@ -1881,6 +2008,13 @@ thành lỗi của core API.
 | `CATEGORY_ALREADY_EXISTS` | 409 | tên category trùng |
 | `AUTHOR_IN_USE` | 409 | tác giả đang được gắn với book |
 | `CATEGORY_IN_USE` | 409 | category đang được gắn với book |
+| `EXTERNAL_CATALOG_UNAVAILABLE` | 503 | provider tắt, timeout hoặc không phản hồi cho import mới |
+| `EXTERNAL_PROVIDER_MISMATCH` | 400 | provider detail không khớp request import |
+| `EXTERNAL_BOOK_NOT_FOUND` | 404 | external ID không còn tồn tại ở provider |
+| `EXTERNAL_BOOK_ARCHIVED` | 409 | source link đã có nhưng Book nội bộ bị soft-delete |
+| `EXTERNAL_BOOK_AUTHOR_REQUIRED` | 400 | import mới chưa có author hợp lệ |
+| `EXTERNAL_BOOK_CATEGORY_REQUIRED` | 400 | import mới chưa có category hợp lệ |
+| `EXTERNAL_BOOK_PAGE_COUNT_REQUIRED` | 400 | import mới chưa có số trang dương |
 | `LIBRARY_ITEM_NOT_FOUND` | 404 | item không thuộc principal |
 | `BOOK_ALREADY_IN_LIBRARY` | 409 | sách đã ở library |
 | `INVALID_READING_PROGRESS` | 400 | trang ngoài giới hạn |

@@ -11,6 +11,7 @@ namespace BookSpace.Api.Controllers;
 [Route("api/users")]
 public sealed class UsersController(
     IUserService userService,
+    IOnboardingService onboardingService,
     IUserSafetyService userSafetyService,
     IReadingService readingService,
     ICommunityService communityService) : ApiControllerBase
@@ -42,6 +43,39 @@ public sealed class UsersController(
                 page,
                 pageSize,
                 cancellationToken));
+
+    [Authorize]
+    [HttpGet("me/onboarding")]
+    public ActionResult<ApiResponse<OnboardingStateDto>> GetOnboarding() =>
+        OkData(onboardingService.Get(CurrentUserId));
+
+    [Authorize]
+    [HttpPut("me/onboarding")]
+    public async Task<ActionResult<ApiResponse<OnboardingStateDto>>> UpdateOnboardingPreferences(
+        UpdateOnboardingPreferencesRequest request,
+        CancellationToken cancellationToken) =>
+        OkData(
+            await onboardingService.UpdatePreferencesAsync(
+                CurrentUserId,
+                request,
+                cancellationToken),
+            "Đã lưu sở thích đọc của bạn.");
+
+    [Authorize]
+    [HttpPost("me/onboarding/complete")]
+    public async Task<ActionResult<ApiResponse<OnboardingStateDto>>> CompleteOnboarding(
+        CancellationToken cancellationToken) =>
+        OkData(
+            await onboardingService.CompleteAsync(CurrentUserId, cancellationToken),
+            "Đã hoàn tất thiết lập trải nghiệm đọc.");
+
+    [Authorize]
+    [HttpPost("me/onboarding/skip")]
+    public async Task<ActionResult<ApiResponse<OnboardingStateDto>>> SkipOnboarding(
+        CancellationToken cancellationToken) =>
+        OkData(
+            await onboardingService.SkipAsync(CurrentUserId, cancellationToken),
+            "Đã bỏ qua thiết lập trải nghiệm đọc.");
 
     [Authorize]
     [HttpGet("me/safety")]

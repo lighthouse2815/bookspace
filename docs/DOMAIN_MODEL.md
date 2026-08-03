@@ -43,6 +43,8 @@ Aggregate root của tài khoản và hồ sơ.
 | `Bio` | `string?` | không | tối đa 500 ký tự |
 | `AvatarUrl` | `string?` | không | URL hợp lệ, tối đa 1.000 |
 | `Role` | `UserRole` | có | `USER` hoặc `ADMIN`; đăng ký công khai luôn là `USER` |
+| `OnboardingStatus` | `OnboardingStatus` | có | `PENDING`, `COMPLETED`, `SKIPPED`; mặc định `PENDING` |
+| `OnboardingFinishedAt` | `DateTimeOffset?` | không | null khi `PENDING`; UTC của lần chuyển terminal gần nhất |
 | `IsLocked` | `bool` | có | khóa đăng nhập nhưng không xóa dữ liệu |
 | `IsReadingShelfPublic` | `bool` | có | mặc định `false`; cho phép người khác xem kệ sách chi tiết |
 | `IsReadingActivityPublic` | `bool` | có | mặc định `false`; cho phép người khác xem timeline trên hồ sơ và hoạt động đọc trong feed |
@@ -59,6 +61,9 @@ Invariant:
 - Email đang hoạt động là duy nhất.
 - Không cho đăng nhập khi `DeletedAt` khác `null` hoặc `IsLocked=true`.
 - Không cho client tự đặt `Role`.
+- `OnboardingFinishedAt=null` khi `OnboardingStatus=PENDING`; complete/skip lặp lại
+  không đổi timestamp. `SKIPPED` có thể chuyển sang `COMPLETED`, nhưng skip không
+  hạ `COMPLETED` về `SKIPPED`.
 - Xóa tài khoản thu hồi toàn bộ refresh token còn hiệu lực.
 - Hồ sơ công khai không bao giờ lộ `PasswordHash`, token hoặc email nếu chính sách response không cho phép.
 - Chủ hồ sơ luôn xem được kệ sách và activity của mình; viewer khác chỉ xem khi flag tương ứng là `true`.
@@ -155,6 +160,45 @@ Review vẫn công khai độc lập với hai flag vì đã được người d
 community. Mọi danh sách đều phân trang và dùng thứ tự thời gian rồi `Id` để
 tie-break ổn định.
 
+### 2.6 Onboarding preference
+
+Onboarding state nằm trên aggregate `User`; hai tập lựa chọn được lưu bằng join
+entity riêng để chỉ tham chiếu catalog BookSpace đang hoạt động.
+
+`UserPreferredCategory`:
+
+| Trường | Kiểu | Quy tắc |
+|---|---|---|
+| `Id` | `Guid` | server tạo |
+| `UserId` | `Guid` | FK `User`, cascade khi user bị xóa vật lý |
+| `CategoryId` | `Guid` | FK `Category`, restrict delete |
+| `CreatedAt`, `UpdatedAt` | thời gian | UTC; audit của association hiện hành |
+
+`UserReferenceBook` có cùng lifecycle với các field `Id`, `UserId`, `BookId`,
+`CreatedAt`, `UpdatedAt`; FK book dùng restrict delete. Hai association là preference
+disposable, không cần restoration/moderation: full replace được phép hard-delete
+row cũ rồi insert tập mới. Unique trên tập hiện hành lần lượt là
+`(UserId, CategoryId)` và `(UserId, BookId)`.
+
+Invariant:
+
+- Mỗi tập chứa tối đa 5 ID duy nhất; `PUT` full-replace cho phép 0–5 để lưu draft
+  khi state là `PENDING`/`SKIPPED`, còn state `COMPLETED` phải tiếp tục giữ 3–5.
+- `COMPLETED` chỉ được đặt khi có 3–5 category active và 3–5 book active; service
+  revalidate catalog trong cùng command complete.
+- `PENDING -> SKIPPED`, `PENDING|SKIPPED -> COMPLETED`; complete/skip idempotent và
+  `COMPLETED` không chuyển ngược thành `SKIPPED`.
+- PUT/complete/skip được tuần tự hóa trong cùng write boundary bao trọn
+  read-check-write; mọi interleaving phải giữ terminal state và số lượng preference
+  nhất quán.
+- Full replace phải đọc cả association đang bị query filter che bởi target
+  soft-delete, hard-delete row cũ, rồi mới insert tập mới; restore target không làm
+  lựa chọn cũ sống lại.
+- Chỉ owner đọc/ghi hai tập này. Public profile, discovery, feed, notification và
+  API của user khác không được trả hoặc suy ra preference cụ thể.
+- Preference chỉ là tín hiệu cho recommendation rule-based. Reference book bị loại
+  khỏi candidate nhưng author/category của nó vẫn tham gia tập sở thích.
+
 ## 3. Bounded context Catalog
 
 ### 3.1 `Author`
@@ -221,14 +265,16 @@ Khóa duy nhất `(BookId, CategoryId)`. Một sách có thể chưa có categor
 ### 3.6 `BookRecommendation`
 
 `BookRecommendation` là read model theo principal, không phải domain entity và
-không có table/migration riêng. Projection loại mọi sách đang có `LibraryItem`
-active hoặc review còn hoạt động của principal, bất kể shelf/rating, rồi loại sách
-soft delete trước khi count hoặc phân trang.
+không có table/migration riêng cho recommendation. Projection loại mọi sách đang
+có `LibraryItem` active, review còn hoạt động hoặc `UserReferenceBook` active của
+principal, bất kể shelf/rating, rồi loại sách soft delete trước khi count hoặc phân trang.
 
 Nguồn tín hiệu hợp lệ:
 
-- Thư viện active của principal và review 4–5 sao còn hoạt động do chính
-  principal viết cung cấp tập author/category sở thích.
+- Thư viện active, review 4–5 sao còn hoạt động và reference book active của chính
+  principal cung cấp tập author/category sở thích.
+- `UserPreferredCategory` active của principal được hợp nhất trực tiếp vào tập
+  category sở thích.
 - Review 4–5 sao còn hoạt động của user active mà principal đang follow cung cấp
   social signal; tuyệt đối không đọc library của những user này.
 - Rating trung bình và review count từ toàn bộ review công khai còn hoạt động cung
@@ -238,8 +284,8 @@ Nguồn tín hiệu hợp lệ:
 Vector xếp hạng xác định, theo thứ tự giảm dần trừ tie-break cuối:
 
 1. Số review 4–5 sao của các user principal đang follow cho book.
-2. Có author trùng tập sở thích của principal.
-3. Số category trùng tập sở thích của principal.
+2. Có author trùng tập sở thích từ own library/review/reference book của principal.
+3. Số category trùng tập sở thích từ onboarding, own library/review/reference book.
 4. Rating trung bình từ review công khai.
 5. Số review công khai.
 6. `Book.Id asc`.
@@ -253,8 +299,9 @@ Reason code lấy tín hiệu ưu tiên đầu tiên có giá trị:
 | `MATCHED_CATEGORY` | có category trùng sở thích principal |
 | `POPULAR_FALLBACK` | không có tín hiệu cá nhân/social phía trên |
 
-Read model không đọc `ReadingSession`, `ReadingNote`, library của user khác hoặc
-provider Bookstore; không dùng machine learning. Mọi filter và ranking được áp
+Read model chỉ đọc onboarding preference của principal; không đọc preference,
+`ReadingSession`, `ReadingNote` hay library của user khác và không gọi provider
+Bookstore; không dùng machine learning. Mọi filter và ranking được áp
 dụng trước count/phân trang để không tạo trang rỗng giả hoặc làm lộ candidate đã
 bị loại.
 
@@ -810,7 +857,7 @@ public API. Report là bản ghi audit và không bị xóa khi target bị xử
 
 ## 9. Integration model
 
-Goal 1 không persist entity bên ngoài. `ExternalBookResult` là DTO tạm thời:
+`ExternalBookResult` là DTO tạm thời từ provider:
 
 | Trường | Kiểu | Ý nghĩa |
 |---|---|---|
@@ -819,10 +866,32 @@ Goal 1 không persist entity bên ngoài. `ExternalBookResult` là DTO tạm th�
 | `Authors` | `string[]` | tên tác giả |
 | `Isbn` | `string?` | dùng đối sánh |
 | `CoverImageUrl` | `string?` | ảnh ngoài |
+| `Description` | `string?` | mô tả tham khảo |
+| `PageCount` | `int?` | số trang tham khảo |
+| `PublishedYear` | `int?` | năm xuất bản tham khảo |
+| `Language` | `string?` | ngôn ngữ tham khảo |
+| `Categories` | `string[]` | tên thể loại tham khảo |
 | `Price` | `decimal?` | giá tham khảo từ provider |
 | `PurchaseUrl` | `string?` | trang nguồn/mua |
 
-`Provider` và `Available` nằm ở `ExternalBookSearchResult`, không lặp trong từng item. DTO item không tự tạo `Book`, không được dùng làm FK và không thay thế catalog nội bộ.
+`Provider` và `Available` nằm ở `ExternalBookSearchResult`, không lặp trong từng item.
+DTO chỉ là preview và không được dùng làm FK.
+
+### 9.1 `ExternalBookLink`
+
+| Trường | Kiểu | Quy tắc |
+|---|---|---|
+| `Id` | `Guid` | server tạo |
+| `Provider` | `string` | trim, lowercase, tối đa 50 |
+| `ExternalId` | `string` | trim, tối đa 200; chỉ có nghĩa trong provider |
+| `BookId` | `Guid` | FK tới `Book` nội bộ, delete restrict |
+| `CreatedAt` | thời gian UTC | audit lần liên kết đầu tiên |
+
+Unique `(Provider, ExternalId)` làm retry import idempotent. Khi ISBN sau chuẩn hóa đã
+khớp một sách active, link trỏ vào sách đó và không sửa metadata. Nếu chưa khớp,
+Application tạo author/category cần thiết, `Book`, các relation và link trong một
+transaction. Link không biến external ID thành catalog identity; mọi consumer tiếp
+tục dùng `Book.Id`.
 
 ## 10. Quan hệ tổng thể
 
@@ -831,6 +900,10 @@ erDiagram
     USER ||--o{ REFRESH_TOKEN : owns
     USER ||--o{ FOLLOW : follower
     USER ||--o{ FOLLOW : following
+    USER ||--o{ USER_PREFERRED_CATEGORY : chooses
+    CATEGORY ||--o{ USER_PREFERRED_CATEGORY : preferred_by
+    USER ||--o{ USER_REFERENCE_BOOK : references
+    BOOK ||--o{ USER_REFERENCE_BOOK : referenced_by
     USER ||--o{ LIBRARY_ITEM : owns
     USER ||--o{ READING_SESSION : logs
     USER ||--o{ READING_GOAL : owns
@@ -876,7 +949,11 @@ erDiagram
 
 Các thao tác sau phải atomic:
 
-- Register: tạo `User` và hồ sơ tích hợp trong cùng entity.
+- Register: tạo `User` với onboarding `PENDING` và hồ sơ tích hợp trong cùng entity.
+- Replace onboarding preferences: validate catalog active rồi hard-replace hai tập
+  association disposable trong một transaction; không để một tập được cập nhật dở dang.
+- Complete/skip onboarding: revalidate selection khi complete và lưu status cùng
+  `OnboardingFinishedAt` atomically; retry idempotent không đổi timestamp.
 - Refresh: thu hồi token cũ và tạo token mới.
 - Create club: tạo `BookClub` và `BookClubMember(OWNER)`.
 - Club leave/kick: soft-delete membership và đặt `LeftAt` cho participant active của sprint chưa explicit terminal.
