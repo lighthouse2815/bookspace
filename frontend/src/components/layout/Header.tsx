@@ -20,6 +20,7 @@ import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { useUnreadNotificationCount } from '../../hooks/useNotifications'
+import { useUnreadDirectMessageCount } from '../../hooks/useDirectMessages'
 import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
 import { Logo } from './Logo'
@@ -82,11 +83,19 @@ export function Header() {
           {isAuthenticated && user ? (
             <>
               {queryClient ? (
-                <NotificationBell />
+                <>
+                  <DirectMessageBell />
+                  <NotificationBell />
+                </>
               ) : (
-                <Link to="/notifications" className="icon-button" aria-label="Thông báo">
-                  <Bell size={19} />
-                </Link>
+                <>
+                  <Link to="/messages" className="icon-button" aria-label="Tin nhắn">
+                    <EnvelopeSimple size={19} />
+                  </Link>
+                  <Link to="/notifications" className="icon-button" aria-label="Thông báo">
+                    <Bell size={19} />
+                  </Link>
+                </>
               )}
               <div className="relative hidden sm:block">
                 <button
@@ -111,6 +120,9 @@ export function Header() {
                     </Link>
                     <Link to="/journal" onClick={() => setAccountOpen(false)}>
                       Nhật ký đọc
+                    </Link>
+                    <Link to="/messages" onClick={() => setAccountOpen(false)}>
+                      Tin nhắn
                     </Link>
                     <Link to="/goals" onClick={() => setAccountOpen(false)}>
                       Mục tiêu đọc
@@ -186,6 +198,10 @@ export function Header() {
               <NavLink to="/journal" onClick={() => setMobileOpen(false)}>
                 Nhật ký đọc
               </NavLink>
+              <NavLink to="/messages" onClick={() => setMobileOpen(false)}>
+                <EnvelopeSimple size={19} />
+                Tin nhắn
+              </NavLink>
               <NavLink to="/goals" onClick={() => setMobileOpen(false)}>
                 Mục tiêu đọc
               </NavLink>
@@ -245,6 +261,26 @@ function NotificationBell() {
       <Bell size={19} />
       {count ? (
         <span className="absolute -right-1 -top-1 grid min-h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white">
+          {count > 99 ? '99+' : count}
+        </span>
+      ) : null}
+    </Link>
+  )
+}
+
+function DirectMessageBell() {
+  const unreadMessages = useUnreadDirectMessageCount()
+  const count = unreadMessages.data?.count ?? 0
+
+  return (
+    <Link
+      to="/messages"
+      className="icon-button relative"
+      aria-label={count ? `Tin nhắn, ${count} chưa đọc` : 'Tin nhắn'}
+    >
+      <EnvelopeSimple size={19} />
+      {count ? (
+        <span className="absolute -right-1 -top-1 grid min-h-4 min-w-4 place-items-center rounded-full bg-accent px-1 text-[10px] font-bold leading-none text-white">
           {count > 99 ? '99+' : count}
         </span>
       ) : null}

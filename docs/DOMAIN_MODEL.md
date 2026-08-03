@@ -1,6 +1,6 @@
 # BookSpace — Mô hình miền
 
-> Đây là inventory entity và luật nghiệp vụ chuẩn cho Goal 1.<br>
+> Đây là inventory entity và luật nghiệp vụ chuẩn cho Goal 1 cùng Direct Messages v1.<br>
 > Tên C# dùng PascalCase; JSON dùng camelCase.
 
 ## 1. Quy ước chung
@@ -749,6 +749,51 @@ Các invariant bắt buộc:
 - Mỗi sprint có tối đa một lần gửi reminder trong một ngày UTC. Dấu reminder và các notification tương ứng được lưu atomic để retry không tạo notification trùng.
 - Private club áp dụng cùng visibility boundary cho list, detail, history, leaderboard, timeline, milestone và response; biết UUID không làm tăng quyền.
 
+## 6A. Bounded context Direct Messaging
+
+### 6A.1 `Conversation`
+
+| Trường | Kiểu | Quy tắc |
+|---|---|---|
+| `Id` | `Guid` | server tạo |
+| `UserOneId` | `Guid` | participant có UUID nhỏ hơn theo `Guid.CompareTo` |
+| `UserTwoId` | `Guid` | participant còn lại; khác `UserOneId` |
+| `LastActivityAt` | `DateTimeOffset` | UTC, chỉ tiến khi gửi tin |
+| `CreatedAt`, `UpdatedAt`, `DeletedAt?` | thời gian | audit/soft delete |
+
+Unique `(UserOneId, UserTwoId)` bảo đảm một cặp user chỉ có một hội thoại, kể cả hai
+request mở hội thoại chạy đồng thời hoặc gửi participant theo thứ tự ngược nhau. Chỉ
+mutual followers chưa block nhau được tạo hội thoại; tạo lại trả aggregate hiện hữu.
+
+### 6A.2 `DirectMessage`
+
+| Trường | Kiểu | Quy tắc |
+|---|---|---|
+| `Id` | `Guid` | server tạo |
+| `ConversationId` | `Guid` | conversation mà sender là participant |
+| `SenderId` | `Guid` | user active, còn mutual follow với participant kia |
+| `Content` | `string` | trim, 1–2.000 ký tự, text-only |
+| `CreatedAt`, `DeletedAt?` | thời gian | UTC; soft-delete dành cho moderation |
+
+History sắp `CreatedAt desc, Id desc` và dùng cursor opaque. Tin phải commit cùng
+`Conversation.LastActivityAt` và notification tùy preference trước khi application
+phát `DirectMessageCreated`. Không có attachment, edit, typing hoặc presence trong v1.
+
+### 6A.3 `DirectMessageReadState`
+
+| Trường | Kiểu | Quy tắc |
+|---|---|---|
+| `Id` | `Guid` | server tạo |
+| `ConversationId`, `UserId` | `Guid` | unique theo principal trong conversation |
+| `LastReadMessageId` | `Guid?` | message nhìn thấy được trong conversation |
+| `LastReadAt` | `DateTimeOffset?` | UTC, high-water chỉ tiến |
+
+Unread chỉ tính message của participant kia sau marker, không tính message do principal
+gửi hoặc message của actor principal đã mute. Mark-read retry/request cũ là idempotent.
+
+Block cloak toàn bộ conversation hai chiều. Mute chỉ lọc message của actor khỏi read
+model của principal; dữ liệu vẫn được giữ để hiện lại sau unmute.
+
 ## 7. Bounded context Challenges
 
 ### 7.1 `ReadingChallenge`
@@ -940,6 +985,12 @@ erDiagram
     CLUB_READING_SPRINT ||--o{ CLUB_READING_SPRINT_MILESTONE : defines
     CLUB_READING_SPRINT_MILESTONE ||--o{ CLUB_READING_SPRINT_MILESTONE_RESPONSE : discusses
     USER ||--o{ CLUB_READING_SPRINT_MILESTONE_RESPONSE : writes
+    USER ||--o{ CONVERSATION : participant_one
+    USER ||--o{ CONVERSATION : participant_two
+    CONVERSATION ||--o{ DIRECT_MESSAGE : contains
+    USER ||--o{ DIRECT_MESSAGE : sends
+    CONVERSATION ||--o{ DIRECT_MESSAGE_READ_STATE : tracks
+    USER ||--o{ DIRECT_MESSAGE_READ_STATE : owns
     READING_CHALLENGE ||--o{ CHALLENGE_PARTICIPATION : has
     USER ||--o{ CHALLENGE_PARTICIPATION : joins
     USER ||--o{ NOTIFICATION : receives
@@ -956,6 +1007,13 @@ Các thao tác sau phải atomic:
   `OnboardingFinishedAt` atomically; retry idempotent không đổi timestamp.
 - Refresh: thu hồi token cũ và tạo token mới.
 - Create club: tạo `BookClub` và `BookClubMember(OWNER)`.
+- Start direct conversation: chuẩn hóa cặp participant, recheck mutual follow/block và
+  tạo tối đa một `Conversation` trong SQLite immediate transaction.
+- Send direct message: recheck participant/mutual follow, lưu message, advance
+  `LastActivityAt` và tạo notification nếu được phép trong một transaction; SignalR
+  chỉ chạy sau commit và lỗi broadcast không rollback dữ liệu.
+- Mark direct message read: tạo tối đa một read-state/principal/conversation và chỉ
+  advance high-water marker trong serialized transaction.
 - Club leave/kick: soft-delete membership và đặt `LeftAt` cho participant active của sprint chưa explicit terminal.
 - Join/rejoin reading sprint: tạo mới hoặc tái kích hoạt đúng một participant.
 - Update sprint progress: cập nhật progress và chỉ tạo timeline activity khi giá trị thực sự tăng.

@@ -2,6 +2,7 @@ import {
   BookOpenText,
   Books,
   CalendarBlank,
+  ChatCircleDots,
   ClockCounterClockwise,
   GearSix,
   LockKey,
@@ -25,6 +26,7 @@ import { Pagination } from '../../components/ui/Pagination'
 import { EmptyState, ErrorState, LoadingGrid, LoadingRows } from '../../components/ui/States'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
+import { useStartConversation } from '../../hooks/useDirectMessages'
 import {
   useFollowUser,
   useUser,
@@ -69,6 +71,7 @@ export function ProfilePage() {
   const { showToast } = useToast()
   const ownProfile = currentUser?.id === id
   const follow = useFollowUser(id ?? '', Boolean(profile.data?.isFollowing))
+  const startConversation = useStartConversation()
 
   const requestedTab = searchParams.get('tab')
   const activeTab: ProfileTab = tabs.some((tab) => tab.id === requestedTab)
@@ -184,6 +187,22 @@ export function ProfilePage() {
               </Link>
             ) : isAuthenticated ? (
               <div className="flex flex-wrap gap-2">
+                {person.isFollowing && person.followsYou ? (
+                  <Button
+                    variant="primary"
+                    loading={startConversation.isPending}
+                    disabled={startConversation.isPending}
+                    icon={<ChatCircleDots size={18} />}
+                    onClick={() =>
+                      startConversation.mutate(person.id, {
+                        onSuccess: (conversation) => navigate(`/messages/${conversation.id}`),
+                        onError: (error) => showToast(errorMessage(error), 'error'),
+                      })
+                    }
+                  >
+                    Nhắn tin
+                  </Button>
+                ) : null}
                 <Button
                   variant={person.isFollowing ? 'secondary' : 'primary'}
                   loading={follow.isPending}

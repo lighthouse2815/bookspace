@@ -4,6 +4,7 @@ import { communityService, type FeedQuery } from '../services/community.service'
 import type { PageResult } from '../types/api'
 import type { FeedFilter, Shelf, User, UserDiscoveryItem } from '../types/domain'
 import { clubChatKeys } from './clubChatKeys'
+import { directMessageKeys } from './directMessageKeys'
 import { recommendationKeys } from './recommendationKeys'
 
 export const viewerScope = (userId?: string | null) => userId ?? 'guest'
@@ -373,6 +374,7 @@ async function invalidateSafetyViews(
     queryClient.invalidateQueries({ queryKey: feedKeys.scoped(scope) }),
     queryClient.invalidateQueries({ queryKey: ['reviews'] }),
     queryClient.invalidateQueries({ queryKey: clubChatKeys.scope(scope) }),
+    queryClient.invalidateQueries({ queryKey: directMessageKeys.scope(scope) }),
     queryClient.invalidateQueries({ queryKey: ['notifications', scope] }),
     queryClient.invalidateQueries({ queryKey: recommendationKeys.scoped(scope) }),
     queryClient.invalidateQueries({ queryKey: ['dashboard'] }),

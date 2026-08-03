@@ -143,6 +143,7 @@ Mỗi use case được tiếp cận qua interface:
 | `ICommunityService` | review, like, comment, feed |
 | `IClubService` | club settings, invitations, membership roles, shared current book, post/comment |
 | `IClubChatService` | member-only history, send, unread high-water và read marker |
+| `IDirectMessageService` | mutual-follow conversation, private history, send, unread/read marker |
 | `IClubReadingSprintService` | sprint lifecycle, participant state, progress, leaderboard, timeline, milestone/response và reminder |
 | `IChallengeService` | challenge, join, progress, publish |
 | `INotificationService` | list, unread count, mark read |
@@ -216,6 +217,9 @@ Các unique index bắt buộc:
 | `BookClubMember` | unique active `(ClubId, UserId)` |
 | `ClubChatMessage` | history `(ClubId, CreatedAt, Id)` |
 | `ClubChatReadState` | unique `MembershipId` |
+| `Conversation` | unique normalized `(UserOneId, UserTwoId)`; inbox `(LastActivityAt, Id)` |
+| `DirectMessage` | history `(ConversationId, CreatedAt, Id)` |
+| `DirectMessageReadState` | unique `(ConversationId, UserId)` |
 | `ClubInvitation` | unique pending `(ClubId, InvitedUserId)`; inbox index `(InvitedUserId, Status, ExpiresAt)` |
 | `ClubReadingSprint` | `(ClubId, CreatedAt)`; status-filter support `(ClubId, StartsAt, EndsAt, CompletedAt, CancelledAt)` |
 | `ClubReadingSprintParticipant` | unique `(SprintId, UserId)`; leaderboard `(SprintId, LeftAt, ProgressValue)` |
@@ -247,8 +251,9 @@ API có:
 - `/health` không cần auth, chỉ trả trạng thái tối thiểu.
 - CORS theo allowlist.
 - JSON enum dạng string.
-- SignalR hub authenticated ở `/hubs/club-chat`; query token chỉ được chấp nhận
-  cho đúng hub path. Hub outbound-only, còn persistence/validation đi qua REST.
+- SignalR hub authenticated ở `/hubs/club-chat` và `/hubs/direct-messages`; query token
+  chỉ được chấp nhận cho đúng hai hub path. Hub outbound-only, còn persistence/validation
+  đi qua REST.
 
 ## 5. Frontend design
 
@@ -260,7 +265,8 @@ API có:
 - React Router 7.
 - TanStack Query 5.
 - Axios.
-- SignalR client cho event chat outbound, tự reconnect và refetch REST sau reconnect.
+- SignalR client dùng một connection toàn app cho Direct Messages và connection theo
+  panel cho club chat; cả hai tự reconnect và refetch REST sau reconnect.
 - Tailwind CSS 4.
 - Oxlint.
 
@@ -328,6 +334,10 @@ Query key tối thiểu:
 ["club-posts", clubId, paging]
 ["club-chat", principalScope, clubId, cursor]
 ["club-chat-unread", principalScope, clubId]
+["direct-messages", principalScope, "inbox"]
+["direct-messages", principalScope, "conversation", conversationId]
+["direct-messages", principalScope, "conversation", conversationId, "messages"]
+["direct-messages", principalScope, "unread"]
 ["challenges", paging]
 ["my-challenges", paging]
 ["notifications", filters]
@@ -351,10 +361,13 @@ Mutation phải invalidate đúng consumer:
   dùng shared pending key.
 - Block/mute: principal-scoped `user-safety`, `people`, `users`, `feed`,
   `book-recommendations`, `book-reviews`, club post/comment/chat/unread,
-  `notifications` và `dashboard`. Block còn loại cache profile target ngay sau success.
+  Direct Messages inbox/thread/unread, `notifications` và `dashboard`. Block còn loại
+  cache profile target ngay sau success.
 - Club/member/post/comment: `clubs`, `club`, `club-posts`, `club-comments`, `feed`.
 - Club chat send/read/realtime: merge theo `message.id`, invalidate history/unread
   của đúng principal; reconnect refetch trang mới nhất thay vì tin hoàn toàn vào event stream.
+- Direct message send/read/realtime: merge theo `message.id`, invalidate inbox/detail/
+  unread và notification scope; REST là nguồn sự thật và reconnect refetch toàn scope.
 - Reading sprint: list/detail/history, participant state, leaderboard, timeline và milestone; mutation đồng thời invalidate club detail và notification khi có recipient.
 - Challenge: `challenges`, `my-challenges`, `feed`, `dashboard`, `notifications`.
 - Mark notification: `notifications`, `notification-unread-count`.
@@ -433,6 +446,7 @@ sequenceDiagram
 | đọc sprint private, leaderboard và timeline | active member của đúng club |
 | xóa phản hồi milestone | response author hoặc `OWNER`/`MODERATOR` của club |
 | notification/dashboard | principal only |
+| mở/gửi direct message | hai active user mutual-follow, không block nhau; chỉ participant đọc lịch sử |
 | block/mute/list safety | authenticated principal; không tự chặn hoặc tự ẩn |
 | tạo report | authenticated principal; target phải đang nhìn thấy được và không thuộc chính principal |
 | đọc/xử lý report | `ADMIN`; không tự xử lý report nhắm đến nội dung của mình, không khóa admin |
@@ -508,6 +522,9 @@ localhost:5080 ──> ASP.NET container:8080 ──> /app/data/bookspace.db
 | onboarding preference replace | validate toàn bộ target + hard-replace cả hai association |
 | onboarding complete/skip | state + finished timestamp; retry không phát side effect |
 | create club | club + owner membership |
+| start direct conversation | normalized pair + unique conversation trong SQLite immediate transaction |
+| send direct message | message + conversation activity + notification preference check; realtime sau commit |
+| mark direct message read | unique state + monotonic high-water marker |
 | join/rejoin sprint | tái kích hoạt hoặc tạo đúng một participant |
 | sprint progress | participant progress + một timeline activity khi giá trị thực sự tăng |
 | sprint milestone response | tạo thread item mới; soft-delete bởi author hoặc club manager |

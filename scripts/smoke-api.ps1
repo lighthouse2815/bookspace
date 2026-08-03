@@ -344,6 +344,38 @@ $profileAfterUnblock = Invoke-BookSpaceRequest `
     -Method Get `
     -Path "/api/users/$($moderationTarget.data.user.id)" `
     -AccessToken $token
+$directMessageReaderFollow = Invoke-BookSpaceRequest `
+    -Method Post `
+    -Path "/api/users/$($moderationTarget.data.user.id)/follow" `
+    -AccessToken $token
+$directMessageTargetFollow = Invoke-BookSpaceRequest `
+    -Method Post `
+    -Path "/api/users/$($login.data.user.id)/follow" `
+    -AccessToken $moderationTarget.data.accessToken
+$directConversation = Invoke-BookSpaceRequest `
+    -Method Post `
+    -Path '/api/conversations' `
+    -Body @{ targetUserId = $moderationTarget.data.user.id } `
+    -AccessToken $token
+$directMessageContent = "Direct Message smoke $([Guid]::NewGuid().ToString('N'))"
+$directMessage = Invoke-BookSpaceRequest `
+    -Method Post `
+    -Path "/api/conversations/$($directConversation.data.id)/messages" `
+    -Body @{ content = $directMessageContent } `
+    -AccessToken $token
+$directMessageHistory = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path "/api/conversations/$($directConversation.data.id)/messages?pageSize=30" `
+    -AccessToken $moderationTarget.data.accessToken
+$directMessageUnread = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/conversations/unread-count' `
+    -AccessToken $moderationTarget.data.accessToken
+$directMessageReadState = Invoke-BookSpaceRequest `
+    -Method Post `
+    -Path "/api/conversations/$($directConversation.data.id)/read" `
+    -Body @{ lastReadMessageId = $directMessage.data.id } `
+    -AccessToken $moderationTarget.data.accessToken
 $adminLibrary = Invoke-BookSpaceRequest `
     -Method Get `
     -Path '/api/library?page=1&pageSize=20' `
@@ -937,6 +969,24 @@ if (
 }
 
 if (
+    -not $directMessageReaderFollow.success -or
+    -not $directMessageTargetFollow.success -or
+    -not $directConversation.success -or
+    -not $directMessage.success -or
+    $directMessage.data.content -ne $directMessageContent -or
+    ($directMessage.data.sender.PSObject.Properties.Name -contains 'email') -or
+    -not $directMessageHistory.success -or
+    @($directMessageHistory.data.items | Where-Object { $_.id -eq $directMessage.data.id }).Count -ne 1 -or
+    -not $directMessageUnread.success -or
+    $directMessageUnread.data.count -lt 1 -or
+    -not $directMessageReadState.success -or
+    $directMessageReadState.data.lastReadMessageId -ne $directMessage.data.id -or
+    $directMessageReadState.data.count -ne 0
+) {
+    throw 'Direct Messages persistence, mutual follow, public DTO, unread hoặc read-state contract không hợp lệ.'
+}
+
+if (
     $insightsCalendar.data.daysData.Count -ne 365 -or
     $insightsWeekly.data.items.Count -ne 12 -or
     $insightsMonthly.data.items.Count -ne 12
@@ -971,6 +1021,7 @@ if (
     FirstSprintParticipants = if ($null -ne $sprintLeaderboard) { $sprintLeaderboard.data.totalItems } else { 0 }
     FirstSprintTimelineItems = if ($null -ne $sprintTimeline) { $sprintTimeline.data.totalItems } else { 0 }
     ClubChatMessages = if ($null -ne $clubChatHistory) { $clubChatHistory.data.items.Count } else { 0 }
+    DirectMessages = if ($null -ne $directMessageHistory) { $directMessageHistory.data.items.Count } else { 0 }
     ModerationReports = $moderationQueue.data.totalItems
     SafetyControls = 'PASS'
     CurrentStreak = $insightsOverview.data.currentStreak

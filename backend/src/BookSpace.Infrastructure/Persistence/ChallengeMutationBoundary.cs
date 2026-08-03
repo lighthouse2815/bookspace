@@ -11,8 +11,9 @@ namespace BookSpace.Infrastructure.Persistence;
 public sealed class ChallengeMutationBoundary(BookSpaceDbContext db)
     : IChallengeMutationBoundary,
       IReadingMutationBoundary,
-      IClubChatMutationBoundary,
-      IOnboardingMutationBoundary,
+       IClubChatMutationBoundary,
+       IDirectMessageMutationBoundary,
+       IOnboardingMutationBoundary,
       IExternalCatalogMutationBoundary
 {
     public async Task<TResult> ExecuteAsync<TResult>(

@@ -68,6 +68,7 @@ vi.mock('../../hooks/useNotifications', () => ({
       isReviewNotificationEnabled: true,
       isClubNotificationEnabled: false,
       isChallengeNotificationEnabled: true,
+      isDirectMessageNotificationEnabled: true,
     },
     isLoading: false,
     isError: false,
@@ -167,6 +168,7 @@ describe('profile privacy settings', () => {
       isReviewNotificationEnabled: true,
       isClubNotificationEnabled: false,
       isChallengeNotificationEnabled: true,
+      isDirectMessageNotificationEnabled: true,
     })
     expect(mocks.toast).toHaveBeenCalledWith(
       'Tùy chọn thông báo đã được cập nhật',

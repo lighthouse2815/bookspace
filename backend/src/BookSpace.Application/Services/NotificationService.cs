@@ -62,7 +62,8 @@ public sealed class NotificationService(IBookSpaceDbContext db) : INotificationS
             request.IsFollowNotificationEnabled,
             request.IsReviewNotificationEnabled,
             request.IsClubNotificationEnabled,
-            request.IsChallengeNotificationEnabled);
+            request.IsChallengeNotificationEnabled,
+            request.IsDirectMessageNotificationEnabled);
         await db.SaveChangesAsync(cancellationToken);
         return MapPreferences(user);
     }
@@ -95,7 +96,8 @@ public sealed class NotificationService(IBookSpaceDbContext db) : INotificationS
             user.IsFollowNotificationEnabled,
             user.IsReviewNotificationEnabled,
             user.IsClubNotificationEnabled,
-            user.IsChallengeNotificationEnabled);
+            user.IsChallengeNotificationEnabled,
+            user.IsDirectMessageNotificationEnabled);
 
     private static IQueryable<Notification> Filter(
         IQueryable<Notification> query,
@@ -116,6 +118,8 @@ public sealed class NotificationService(IBookSpaceDbContext db) : INotificationS
                 x.Type == NotificationType.COMMENT),
             NotificationCategory.CLUB => query.Where(x => x.Type == NotificationType.CLUB),
             NotificationCategory.CHALLENGE => query.Where(x => x.Type == NotificationType.CHALLENGE),
+            NotificationCategory.DIRECT_MESSAGE => query.Where(x =>
+                x.Type == NotificationType.DIRECT_MESSAGE),
             NotificationCategory.SYSTEM => query.Where(x => x.Type == NotificationType.SYSTEM),
             _ => query
         };

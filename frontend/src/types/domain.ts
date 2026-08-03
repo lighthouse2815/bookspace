@@ -438,6 +438,43 @@ export interface ClubChatReadState {
   lastReadAt: string | null
 }
 
+export interface DirectMessage {
+  id: string
+  conversationId: string
+  sender: User
+  content: string
+  createdAt: string
+}
+
+export interface DirectMessagePage {
+  items: DirectMessage[]
+  nextCursor: string | null
+  hasMore: boolean
+}
+
+export interface Conversation {
+  id: string
+  otherParticipant: User
+  lastMessage: DirectMessage | null
+  unreadCount: number
+  canSend: boolean
+  lastActivityAt: string
+  createdAt: string
+}
+
+export interface ConversationPage {
+  items: Conversation[]
+  nextCursor: string | null
+  hasMore: boolean
+}
+
+export interface DirectMessageReadState {
+  conversationId: string
+  count: number
+  lastReadMessageId: string | null
+  lastReadAt: string | null
+}
+
 export type ClubMemberRole = 'OWNER' | 'MODERATOR' | 'MEMBER'
 export type ClubInvitationStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'REVOKED' | 'EXPIRED'
 
@@ -585,7 +622,7 @@ export interface Challenge {
 
 export interface Notification {
   id: string
-  type: 'FOLLOW' | 'REVIEW_LIKE' | 'COMMENT' | 'CLUB' | 'CHALLENGE' | 'SYSTEM'
+  type: 'FOLLOW' | 'REVIEW_LIKE' | 'COMMENT' | 'CLUB' | 'CHALLENGE' | 'DIRECT_MESSAGE' | 'SYSTEM'
   title: string
   message: string
   link?: string
@@ -594,13 +631,20 @@ export interface Notification {
   actor?: User
 }
 
-export type NotificationCategory = 'FOLLOW' | 'REVIEW' | 'CLUB' | 'CHALLENGE' | 'SYSTEM'
+export type NotificationCategory =
+  | 'FOLLOW'
+  | 'REVIEW'
+  | 'CLUB'
+  | 'CHALLENGE'
+  | 'DIRECT_MESSAGE'
+  | 'SYSTEM'
 
 export interface NotificationPreferences {
   isFollowNotificationEnabled: boolean
   isReviewNotificationEnabled: boolean
   isClubNotificationEnabled: boolean
   isChallengeNotificationEnabled: boolean
+  isDirectMessageNotificationEnabled: boolean
 }
 
 export type ContentReportTargetType =
@@ -610,6 +654,7 @@ export type ContentReportTargetType =
   | 'CLUB_POST'
   | 'CLUB_POST_COMMENT'
   | 'CLUB_CHAT_MESSAGE'
+  | 'DIRECT_MESSAGE'
 
 export type ContentReportReason =
   | 'SPAM'

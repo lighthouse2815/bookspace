@@ -31,6 +31,7 @@ public sealed class User : Entity
     public bool IsReviewNotificationEnabled { get; private set; } = true;
     public bool IsClubNotificationEnabled { get; private set; } = true;
     public bool IsChallengeNotificationEnabled { get; private set; } = true;
+    public bool IsDirectMessageNotificationEnabled { get; private set; } = true;
 
     public ICollection<Follow> Followers { get; } = new List<Follow>();
     public ICollection<Follow> Following { get; } = new List<Follow>();
@@ -68,6 +69,7 @@ public sealed class User : Entity
         NotificationType.REVIEW_LIKE or NotificationType.COMMENT => IsReviewNotificationEnabled,
         NotificationType.CLUB => IsClubNotificationEnabled,
         NotificationType.CHALLENGE => IsChallengeNotificationEnabled,
+        NotificationType.DIRECT_MESSAGE => IsDirectMessageNotificationEnabled,
         NotificationType.SYSTEM => true,
         _ => true
     };
@@ -76,12 +78,14 @@ public sealed class User : Entity
         bool isFollowNotificationEnabled,
         bool isReviewNotificationEnabled,
         bool isClubNotificationEnabled,
-        bool isChallengeNotificationEnabled)
+        bool isChallengeNotificationEnabled,
+        bool isDirectMessageNotificationEnabled)
     {
         if (IsFollowNotificationEnabled == isFollowNotificationEnabled &&
             IsReviewNotificationEnabled == isReviewNotificationEnabled &&
             IsClubNotificationEnabled == isClubNotificationEnabled &&
-            IsChallengeNotificationEnabled == isChallengeNotificationEnabled)
+            IsChallengeNotificationEnabled == isChallengeNotificationEnabled &&
+            IsDirectMessageNotificationEnabled == isDirectMessageNotificationEnabled)
         {
             return;
         }
@@ -90,6 +94,7 @@ public sealed class User : Entity
         IsReviewNotificationEnabled = isReviewNotificationEnabled;
         IsClubNotificationEnabled = isClubNotificationEnabled;
         IsChallengeNotificationEnabled = isChallengeNotificationEnabled;
+        IsDirectMessageNotificationEnabled = isDirectMessageNotificationEnabled;
         Touch();
     }
 

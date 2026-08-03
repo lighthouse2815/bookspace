@@ -43,6 +43,11 @@ public interface IBookSpaceDbContext
     IQueryable<ClubChatMessage> ClubChatMessages { get; }
     IQueryable<ClubChatMessage> ClubChatMessagesIncludingDeleted => ClubChatMessages;
     IQueryable<ClubChatReadState> ClubChatReadStates { get; }
+    IQueryable<Conversation> Conversations => Array.Empty<Conversation>().AsQueryable();
+    IQueryable<DirectMessage> DirectMessages => Array.Empty<DirectMessage>().AsQueryable();
+    IQueryable<DirectMessage> DirectMessagesIncludingDeleted => DirectMessages;
+    IQueryable<DirectMessageReadState> DirectMessageReadStates =>
+        Array.Empty<DirectMessageReadState>().AsQueryable();
     IQueryable<ClubReadingSprint> ClubReadingSprints { get; }
     IQueryable<ClubReadingSprintParticipant> ClubReadingSprintParticipants { get; }
     IQueryable<ClubReadingSprintCheckIn> ClubReadingSprintCheckIns { get; }

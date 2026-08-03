@@ -1720,6 +1720,76 @@ sách nhưng không tham gia xác thực, membership hoặc quyền quản trị
 Reading sprint chỉ dùng `Book.Id` nội bộ và vẫn hoạt động đầy đủ khi Bookstore
 integration tắt hoặc lỗi.
 
+## 14A. Direct Messages API
+
+Mọi endpoint yêu cầu authentication. Principal chỉ truy cập conversation mà mình là
+participant và không có block theo bất kỳ chiều nào với participant còn lại.
+
+`ConversationResponse`: `id`, `otherParticipant`, `lastMessage`, `unreadCount`,
+`canSend`, `lastActivityAt`, `createdAt`. `otherParticipant` và sender đều dùng
+`UserSummary` public, không có email.
+
+`DirectMessageResponse`: `id`, `conversationId`, `sender`, `content`, `createdAt`.
+
+### `GET /api/conversations?cursor=&pageSize=20`
+
+Response `200`: `ApiResponse<ConversationPageResponse>` gồm `items`, `nextCursor`,
+`hasMore`. Sắp `lastActivityAt desc, id desc`; `pageSize` clamp `1..100`. Last message
+và unread loại message của actor principal đã mute.
+
+### `POST /api/conversations`
+
+```json
+{ "targetUserId": "11111111-1111-1111-1111-111111111111" }
+```
+
+Response `200`: `ApiResponse<ConversationResponse>`. Hai user phải active, khác nhau,
+không block nhau và đang follow lẫn nhau. Pair được chuẩn hóa; gọi lại hoặc hai request
+ngược chiều đồng thời trả cùng một conversation.
+
+### `GET /api/conversations/unread-count`
+
+Response data: `{ "count": 3 }`, tính trên toàn bộ conversation principal nhìn thấy.
+
+### `GET /api/conversations/{conversationId}`
+
+Response `200`: `ApiResponse<ConversationResponse>`. Sau khi một bên unfollow,
+`canSend=false` nhưng lịch sử còn đọc được. Block trả `404 CONVERSATION_NOT_FOUND`.
+
+### `GET /api/conversations/{conversationId}/messages?cursor=&pageSize=30`
+
+Response `200`: `ApiResponse<DirectMessagePageResponse>`; mới nhất trước, cursor opaque
+theo `(createdAt, id)`, `pageSize` clamp `1..100`. Mute lọc message của actor khỏi read
+model principal nhưng không xóa dữ liệu.
+
+### `POST /api/conversations/{conversationId}/messages`
+
+```json
+{ "content": "Bạn đang đọc cuốn nào?" }
+```
+
+Response `201`: `ApiResponse<DirectMessageResponse>`. Content trim, 1–2.000 ký tự.
+Server recheck participant, block và mutual follow trong transaction, lưu message,
+advance `lastActivityAt`, tạo notification `DIRECT_MESSAGE` nếu preference cho phép,
+rồi mới phát realtime.
+
+### `POST /api/conversations/{conversationId}/read`
+
+```json
+{ "lastReadMessageId": "22222222-2222-2222-2222-222222222222" }
+```
+
+Response `200`: `ApiResponse<DirectMessageReadStateResponse>` gồm `conversationId`,
+`count`, `lastReadMessageId`, `lastReadAt`. Message phải đang nhìn thấy trong đúng
+conversation; high-water marker chỉ tiến và retry idempotent.
+
+### SignalR `/hubs/direct-messages`
+
+Hub yêu cầu JWT; browser có thể truyền `access_token` chỉ trên path này. Server phát
+`DirectMessageCreated(DirectMessageResponse)` tới sender và recipient được phép nhìn
+actor. Client merge theo `message.id`; reconnect phải refetch inbox/detail/history/unread
+từ REST. Lỗi broadcast sau commit không đổi response persistence.
+
 ## 15. Challenge API
 
 ### `GET /api/challenges?page=1&pageSize=20` — Public
@@ -1846,7 +1916,7 @@ Tất cả endpoint chỉ truy cập notification của principal.
 
 ### `GET /api/notifications?unreadOnly=false&category=&page=1&pageSize=20`
 
-`category` tùy chọn: `FOLLOW`, `REVIEW`, `CLUB`, `CHALLENGE`, `SYSTEM`. `REVIEW` gồm cả type `REVIEW_LIKE` và `COMMENT`. Kết quả sắp `createdAt desc`, sau đó `id desc` để phân trang ổn định.
+`category` tùy chọn: `FOLLOW`, `REVIEW`, `CLUB`, `CHALLENGE`, `DIRECT_MESSAGE`, `SYSTEM`. `REVIEW` gồm cả type `REVIEW_LIKE` và `COMMENT`. Kết quả sắp `createdAt desc`, sau đó `id desc` để phân trang ổn định.
 
 Response `200`: `ApiResponse<PageResult<NotificationResponse>>`.
 
@@ -1863,13 +1933,14 @@ Response `200`:
   "isFollowNotificationEnabled": true,
   "isReviewNotificationEnabled": true,
   "isClubNotificationEnabled": true,
-  "isChallengeNotificationEnabled": true
+  "isChallengeNotificationEnabled": true,
+  "isDirectMessageNotificationEnabled": true
 }
 ```
 
 ### `PATCH /api/notifications/preferences`
 
-Request và response dùng đủ bốn boolean như GET. Preference áp dụng cho sự kiện mới; notification `SYSTEM` luôn được tạo và lịch sử cũ không bị xóa.
+Request và response dùng đủ năm boolean như GET. Preference áp dụng cho sự kiện mới; notification `SYSTEM` luôn được tạo và lịch sử cũ không bị xóa.
 
 ### `PATCH /api/notifications/{notificationId}/read`
 
@@ -1895,7 +1966,7 @@ Request:
 ```
 
 `targetType` nhận `USER`, `REVIEW`, `REVIEW_COMMENT`, `CLUB_POST`,
-`CLUB_POST_COMMENT`, `CLUB_CHAT_MESSAGE`. `reason` nhận `SPAM`, `HARASSMENT`,
+`CLUB_POST_COMMENT`, `CLUB_CHAT_MESSAGE`, `DIRECT_MESSAGE`. `reason` nhận `SPAM`, `HARASSMENT`,
 `HATEFUL_CONTENT`, `INAPPROPRIATE_CONTENT`, `MISINFORMATION`, `OTHER`.
 Target phải đang active và principal phải có quyền nhìn thấy; private club/chat
 không được tiết lộ qua mã lỗi. Response `201`: `ApiResponse<ContentReportDto>`.
@@ -2062,6 +2133,13 @@ thành lỗi của core API.
 | `INVALID_CHAT_CURSOR` | 400 | cursor phân trang lịch sử chat không hợp lệ |
 | `INVALID_CHAT_MESSAGE_ID` | 400 | UUID message dùng làm read marker rỗng/không hợp lệ |
 | `CLUB_CHAT_MESSAGE_NOT_FOUND` | 404 | message dùng làm read marker không thuộc club |
+| `INVALID_CONVERSATION_PARTICIPANT` | 400 | target mở conversation rỗng hoặc là principal |
+| `DIRECT_MESSAGE_MUTUAL_FOLLOW_REQUIRED` | 403 | mở/gửi khi hai user không follow lẫn nhau |
+| `CONVERSATION_NOT_FOUND` | 404 | conversation không thuộc principal, bị block cloak hoặc không tồn tại |
+| `INVALID_CONVERSATION_CURSOR` | 400 | cursor inbox không hợp lệ |
+| `INVALID_DIRECT_MESSAGE_CURSOR` | 400 | cursor lịch sử private message không hợp lệ |
+| `INVALID_DIRECT_MESSAGE_ID` | 400 | UUID read marker rỗng/không hợp lệ |
+| `DIRECT_MESSAGE_NOT_FOUND` | 404 | read marker không thuộc conversation hoặc bị mute/filter |
 | `OWNER_CANNOT_LEAVE` | 409 | owner cố leave |
 | `CLUB_POST_NOT_FOUND` | 404 | post không tồn tại |
 | `READING_SPRINT_NOT_FOUND` | 404 | sprint không thuộc club hoặc không tồn tại |

@@ -388,6 +388,24 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-CHAT-009 | P0 | UI chỉ kết nối/mount chat cho authenticated member, merge POST và event theo ID không trùng, reconnect refetch để lấp event bị mất. |
 | AC-CHAT-010 | P0 | UI tải tin cũ bằng cursor, giữ vị trí khi đang đọc phía trên, hiện badge tin mới và mark-read khi người dùng thực sự ở cuối transcript. |
 
+## 14A. Direct Messages v1
+
+| ID | P | Given/When/Then |
+|---|---|---|
+| AC-DM-001 | P0 | Hai active user chỉ có thể mở cuộc trò chuyện khi đang theo dõi lẫn nhau; tự nhắn, follow một chiều hoặc user đã khóa trả lỗi tiếng Việt phù hợp. |
+| AC-DM-002 | P0 | Cùng một cặp user luôn nhận đúng một conversation chuẩn hóa dù hai phía gửi request mở hội thoại đồng thời hoặc đảo thứ tự target. |
+| AC-DM-003 | P0 | Chỉ participant đọc được detail/history; đổi UUID sang conversation khác trả 404 và không làm lộ participant hoặc message. |
+| AC-DM-004 | P0 | Message v1 chỉ có text không rỗng, tối đa 2.000 ký tự; sender lấy từ principal, không nhận user ID từ client. |
+| AC-DM-005 | P0 | Gửi message persist message, cập nhật `lastActivityAt`, sắp inbox mới nhất trước và tạo notification `DIRECT_MESSAGE` cho recipient khi preference bật. |
+| AC-DM-006 | P0 | History dùng cursor theo `createdAt desc, id desc`, không trùng/bỏ item giữa các trang; inbox và DTO công khai không lộ email hoặc dữ liệu riêng tư. |
+| AC-DM-007 | P0 | Unread chỉ đếm message của người còn lại sau read marker; mark-read idempotent, high-water không lùi và message phải thuộc đúng conversation. |
+| AC-DM-008 | P0 | SignalR `/hubs/direct-messages` yêu cầu JWT, chỉ phát `DirectMessageCreated` sau commit tới participant được phép; reconnect refetch REST để bù event bị mất. |
+| AC-DM-009 | P0 | Sau khi một bên unfollow, cả hai vẫn đọc được lịch sử nhưng `canSend=false` và send mới trả `DIRECT_MESSAGE_MUTUAL_FOLLOW_REQUIRED`. |
+| AC-DM-010 | P0 | Block theo một trong hai chiều làm cả hai phía không còn thấy/mở conversation; unblock không tự khôi phục follow. |
+| AC-DM-011 | P0 | Mute actor một chiều lọc message, unread, notification mới và realtime của actor khỏi principal nhưng không cấm actor thực hiện mutation hợp lệ. |
+| AC-DM-012 | P0 | Participant có thể report `DIRECT_MESSAGE`; admin chọn `CONTENT_REMOVED` soft-delete message khỏi history và giữ audit/report snapshot. |
+| AC-DM-013 | P0 | UI `/messages` và `/messages/:conversationId` có inbox, badge unread, loading/error/empty state, cursor history, gửi text, mark-read và cập nhật realtime không trùng message. |
+
 ### 14.2 Đợt đọc chung
 
 | ID | P | Given/When/Then |
@@ -442,15 +460,15 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-NOTI-006 | P0 | Mark all read đặt toàn bộ notification principal thành đã đọc, unread count bằng 0. |
 | AC-NOTI-007 | P0 | UI badge và `/notifications` cập nhật sau mark read/mark all không reload trang. |
 | AC-NOTI-008 | P0 | List và unread-count lọc đúng category; `REVIEW` gồm cả `REVIEW_LIKE` và `COMMENT`, pagination có tie-break `id desc`; enum số không xác định trả `INVALID_NOTIFICATION_CATEGORY`. |
-| AC-NOTI-009 | P0 | Preference mặc định bật cho follow/review/club/challenge; PATCH lưu đủ bốn flag và chỉ principal đọc/sửa được. |
+| AC-NOTI-009 | P0 | Preference mặc định bật cho follow/review/club/challenge/direct message; PATCH lưu đủ năm flag và chỉ principal đọc/sửa được. |
 | AC-NOTI-010 | P0 | Khi một preference tắt, sự kiện mới tương ứng không insert notification nhưng nghiệp vụ gốc vẫn commit; bật lại cho phép sự kiện sau tạo notification. |
-| AC-NOTI-011 | P0 | `SYSTEM` luôn được tạo dù bốn preference đang tắt; đổi preference không xóa hoặc ẩn notification lịch sử. |
+| AC-NOTI-011 | P0 | `SYSTEM` luôn được tạo dù năm preference đang tắt; đổi preference không xóa hoặc ẩn notification lịch sử. |
 
 ## 17. Community Safety
 
 | ID | P | Given/When/Then |
 |---|---|---|
-| AC-SAFE-001 | P0 | Authenticated user report được `USER`, review/comment, club post/comment và club chat message đang nhìn thấy; guest nhận 401. |
+| AC-SAFE-001 | P0 | Authenticated user report được `USER`, review/comment, club post/comment, club chat message và direct message đang nhìn thấy; guest nhận 401. |
 | AC-SAFE-002 | P0 | User không thể report target của chính mình; một report pending trùng principal/target trả 409. |
 | AC-SAFE-003 | P0 | Outsider report nội dung private club hoặc chat nhận 404 và không suy ra target tồn tại. |
 | AC-SAFE-004 | P0 | Snapshot tối đa 500 ký tự được lưu cùng target owner/link; public response không lộ email hoặc dữ liệu riêng tư. |
@@ -460,9 +478,9 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-SAFE-008 | P0 | `DISMISSED` chỉ đi với `NONE`; `RESOLVED` phải có action; exact retry cùng quyết định idempotent. |
 | AC-SAFE-009 | P0 | Block user khác trả safety entry, tự gỡ follow hai chiều; block lặp lại idempotent, tự block trả 400 `CANNOT_BLOCK_SELF`. |
 | AC-SAFE-010 | P0 | Khi có block theo một trong hai chiều, cả hai bên nhận 404 khi xem profile/nội dung của nhau và 403 `USER_RELATION_BLOCKED` khi follow/like/comment. |
-| AC-SAFE-011 | P0 | Block loại hai user khỏi search, suggestions, followers/following, feed, review tổng hợp, club post/comment, club chat/unread và notification mới có actor. |
+| AC-SAFE-011 | P0 | Block loại hai user khỏi search, suggestions, followers/following, feed, review tổng hợp, club post/comment, club chat/unread, direct message inbox/history/unread và notification mới có actor. |
 | AC-SAFE-012 | P0 | Unblock lặp lại idempotent, khôi phục visibility nhưng không tự khôi phục follow cũ. |
-| AC-SAFE-013 | P0 | Mute một chiều vẫn cho xem profile/follow nhưng loại actor khỏi feed, review tổng hợp, club post/comment, chat/unread, recommendation social signal và notification mới. |
+| AC-SAFE-013 | P0 | Mute một chiều vẫn cho xem profile/follow nhưng loại actor khỏi feed, review tổng hợp, club post/comment, chat/unread, direct message history/unread/realtime, recommendation social signal và notification mới. |
 | AC-SAFE-014 | P0 | Unmute khôi phục read model; mute/unmute lặp lại idempotent, tự mute trả 400 và mute khi đang block trả 409 `USER_RELATION_BLOCKED`. |
 | AC-SAFE-015 | P0 | `GET /api/users/me/safety` chỉ trả block/mute do principal tạo, phân trang mới nhất trước và không lộ user đã chặn principal. |
 
@@ -508,14 +526,16 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-WEB-013 | P0 | `/journal` | focus timer server-backed có start/pause/resume/finish/cancel, recovery sau reload, list/create/correction completed session |
 | AC-WEB-014 | P0 | `/feed` | feed 10 item/trang từ network, bộ lọc, phân trang, gợi ý follow và empty CTA tới `/people` |
 | AC-WEB-015 | P0 | `/notifications` | server unread count, tab all/unread, category filter, URL pagination, deep-link và optimistic read/read-all |
-| AC-WEB-016 | P0 | `/settings` | update display name, bio, avatar, hai quyền riêng tư đọc, bốn notification preferences, quản lý bỏ ẩn/bỏ chặn và liên kết “Sở thích đọc” tới `/onboarding?mode=edit` |
+| AC-WEB-016 | P0 | `/settings` | update display name, bio, avatar, hai quyền riêng tư đọc, năm notification preferences, quản lý bỏ ẩn/bỏ chặn và liên kết “Sở thích đọc” tới `/onboarding?mode=edit` |
 | AC-WEB-017 | P0 | `/profile` | hiển thị current user hoặc redirect đúng `/users/:id` |
 | AC-WEB-018 | P0 | `/goals` | list/filter, create/update/delete goal; progress/status hiển thị từ API, không có UI ghi progress tay |
 | AC-WEB-019 | P0 | `/notes` | list/filter/search, create/update/delete note; edit không đổi book và PATCH không gửi `bookId` |
 | AC-WEB-020 | P0 | `/insights` | overview, rolling heatmap, streak, weekly/monthly, comparison và forecast từ API theo offset trình duyệt |
 | AC-WEB-020A | P0 | `/onboarding` | protected, khôi phục state server, lưu draft 3–5 thể loại/sách tham chiếu, complete/skip và các quick action tùy chọn |
+| AC-WEB-020B | P0 | `/messages` | inbox principal, badge unread, loading/error/empty state và cập nhật realtime |
+| AC-WEB-020C | P0 | `/messages/:conversationId` | lịch sử cursor, gửi text, mark-read và trạng thái không thể gửi sau unfollow |
 
-Khách vào từng route AC-WEB-011 đến AC-WEB-020 và AC-WEB-020A phải chuyển `/login`
+Khách vào từng route AC-WEB-011 đến AC-WEB-020C phải chuyển `/login`
 sau khi auth bootstrap kết thúc.
 
 ### 19.3 Route admin
@@ -578,6 +598,7 @@ sau khi auth bootstrap kết thúc.
 | AC-SEC-009 | P1 | Login/refresh có rate limit độc lập, cấu hình được và partition theo IP sau trusted-proxy processing; vượt ngưỡng trả 429 `RATE_LIMITED`, message tiếng Việt và `Retry-After` mà không gọi nghiệp vụ auth. |
 | AC-SEC-010 | P1 | Nội dung người dùng nhập bị giới hạn độ dài ở API, không chỉ ở UI. |
 | AC-SEC-011 | P0 | Recommendation không trả hay suy luận từ library, reading session, reading note hoặc visibility flag của user khác; chỉ review công khai hợp lệ tham gia social/global signal. |
+| AC-SEC-012 | P0 | REST và SignalR direct message không cho nonparticipant đọc nội dung, suy ra participant hoặc nhận event; block/mute được áp dụng ở server, không dựa vào UI. |
 
 ## 21. Tính độc lập và integration
 
@@ -613,6 +634,7 @@ sau khi auth bootstrap kết thúc.
 - Challenge period, derived high-water progress và completion idempotency.
 - Refresh token revoke/rotation.
 - Notification mark read idempotent.
+- Conversation chuẩn hóa participant, direct message content bound và read marker high-water.
 
 ### Integration tests
 
@@ -636,6 +658,8 @@ sau khi auth bootstrap kết thúc.
 - Reading sprint lifecycle, permission, participant idempotency, progress, leaderboard, timeline, milestone/response, reminder deduplication và private-club isolation.
 - Challenge detail published/draft, atomic join/rollback, concurrent duplicate join 409, serialized join-vs-unpublish/delete, physical-participation guard, cancellable lock acquisition, leave không post-read và nonparticipant leave, progress từ sách hoàn tất trước/sau join, deterministic stale-low high-water, repair `CompletedAt`, mutation-time completion và notification dedupe/unique constraint.
 - Notification ownership, category filters, preferences và delivery policy.
+- Direct message mutual-follow, normalized conversation concurrency, ownership, cursor history,
+  unread/read marker, notification preference, unfollow history, block/mute, SignalR auth và moderation.
 - Global error envelope.
 - Database unique constraints.
 - Integration disabled behavior.
@@ -659,6 +683,8 @@ sau khi auth bootstrap kết thúc.
   reason rendering, quick-add `WANT_TO_READ` và mutation invalidation.
 - Onboarding register redirect, protected/resumable draft, selection bounds,
   complete/skip/intended redirect, optional quick actions, Dashboard CTA và Settings edit mode.
+- Direct message service contract, mutual-follow profile entry point, inbox/thread states,
+  send/read invalidation, unread badge và realtime merge không trùng ID.
 
 Không đặt ngưỡng coverage phần trăm giả tạo cho Goal 1. Mọi invariant và authorization branch liệt kê trên phải có test trực tiếp.
 

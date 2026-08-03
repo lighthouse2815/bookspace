@@ -2,6 +2,7 @@ import {
   Bell,
   ChatCircle,
   Check,
+  EnvelopeSimple,
   Heart,
   Info,
   UserPlus,
@@ -29,6 +30,7 @@ const notificationIcons = {
   COMMENT: ChatCircle,
   CLUB: UsersThree,
   CHALLENGE: Check,
+  DIRECT_MESSAGE: EnvelopeSimple,
   SYSTEM: Info,
 }
 
@@ -38,6 +40,7 @@ const categoryOptions: Array<{ value?: NotificationCategory; label: string }> = 
   { value: 'REVIEW', label: 'Đánh giá' },
   { value: 'CLUB', label: 'Câu lạc bộ' },
   { value: 'CHALLENGE', label: 'Thử thách' },
+  { value: 'DIRECT_MESSAGE', label: 'Tin nhắn' },
   { value: 'SYSTEM', label: 'Hệ thống' },
 ]
 

@@ -34,6 +34,7 @@ const targetLabels: Record<ContentReportTargetType, string> = {
   CLUB_POST: 'Bài viết câu lạc bộ',
   CLUB_POST_COMMENT: 'Bình luận câu lạc bộ',
   CLUB_CHAT_MESSAGE: 'Tin nhắn câu lạc bộ',
+  DIRECT_MESSAGE: 'Tin nhắn riêng',
 }
 
 const reasonLabels: Record<ContentReportReason, string> = {

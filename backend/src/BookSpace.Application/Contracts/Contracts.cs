@@ -433,7 +433,8 @@ public sealed record NotificationPreferencesDto(
     bool IsFollowNotificationEnabled,
     bool IsReviewNotificationEnabled,
     bool IsClubNotificationEnabled,
-    bool IsChallengeNotificationEnabled);
+    bool IsChallengeNotificationEnabled,
+    bool IsDirectMessageNotificationEnabled);
 
 public sealed record CreateContentReportRequest(
     ContentReportTargetType TargetType,
@@ -469,7 +470,8 @@ public sealed record UpdateNotificationPreferencesRequest(
     bool IsFollowNotificationEnabled,
     bool IsReviewNotificationEnabled,
     bool IsClubNotificationEnabled,
-    bool IsChallengeNotificationEnabled);
+    bool IsChallengeNotificationEnabled,
+    bool IsDirectMessageNotificationEnabled);
 
 public sealed record DashboardDto(
     int BooksRead,

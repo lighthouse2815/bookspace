@@ -50,6 +50,7 @@ builder.Services.AddBookSpaceTrustedForwarding(builder.Configuration);
 builder.Services.AddBookSpaceInfrastructure(builder.Configuration);
 builder.Services.AddSignalR();
 builder.Services.AddScoped<IClubChatRealtimePublisher, SignalRClubChatRealtimePublisher>();
+builder.Services.AddScoped<IDirectMessageRealtimePublisher, SignalRDirectMessageRealtimePublisher>();
 
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:AllowedOrigins")
@@ -117,7 +118,8 @@ builder.Services
         {
             var accessToken = context.Request.Query["access_token"];
             if (!string.IsNullOrWhiteSpace(accessToken) &&
-                context.HttpContext.Request.Path.StartsWithSegments("/hubs/club-chat"))
+                (context.HttpContext.Request.Path.StartsWithSegments("/hubs/club-chat") ||
+                 context.HttpContext.Request.Path.StartsWithSegments("/hubs/direct-messages")))
             {
                 context.Token = accessToken;
             }
@@ -164,6 +166,7 @@ app.MapGet("/", () => ApiResponse<object>.Ok(
     "BookSpace đang hoạt động."));
 app.MapControllers();
 app.MapHub<ClubChatHub>("/hubs/club-chat");
+app.MapHub<DirectMessageHub>("/hubs/direct-messages");
 
 await using (var scope = app.Services.CreateAsyncScope())
 {

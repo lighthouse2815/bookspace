@@ -6,6 +6,7 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import { queryClient } from './app/queryClient'
 import { AuthProvider } from './contexts/AuthContext'
+import { DirectMessageRealtimeProvider } from './contexts/DirectMessageRealtimeContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { ToastProvider } from './contexts/ToastContext'
 import './index.css'
@@ -17,7 +18,9 @@ createRoot(document.getElementById('root')!).render(
         <ThemeProvider>
           <ToastProvider>
             <AuthProvider>
-              <App />
+              <DirectMessageRealtimeProvider>
+                <App />
+              </DirectMessageRealtimeProvider>
             </AuthProvider>
           </ToastProvider>
         </ThemeProvider>

@@ -87,7 +87,8 @@ public sealed class ClubChatFlowTests(BookSpaceApiFactory factory)
                 isFollowNotificationEnabled = true,
                 isReviewNotificationEnabled = true,
                 isClubNotificationEnabled = false,
-                isChallengeNotificationEnabled = true
+                isChallengeNotificationEnabled = true,
+                isDirectMessageNotificationEnabled = true
             });
         Assert.Equal(HttpStatusCode.OK, preferenceResponse.StatusCode);
         _ = await SendMessageAsync(owner.Client, clubId, "Vẫn tăng unread khi tắt notification");

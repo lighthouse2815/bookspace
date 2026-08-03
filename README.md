@@ -3,7 +3,8 @@
 BookSpace là nền tảng đọc sách cộng đồng độc lập, được xây dựng bằng ASP.NET Core
 và React. Sản phẩm giúp độc giả khám phá sách, quản lý thư viện cá nhân, ghi nhận
 tiến độ đọc, đặt mục tiêu đọc có thể đo lường, lưu ghi chú đọc sách riêng tư,
-đăng bài đánh giá, tham gia câu lạc bộ và hoàn thành các thử thách đọc sách.
+đăng bài đánh giá, nhắn tin riêng với bạn đọc theo dõi lẫn nhau, tham gia câu lạc bộ
+và hoàn thành các thử thách đọc sách.
 
 BookSpace không cần Bookstore để hoạt động. Một bộ điều hợp nhà cung cấp được
 tắt mặc định có thể kết nối hai sản phẩm trong tương lai mà không dùng chung
@@ -26,6 +27,8 @@ cơ sở dữ liệu.
 - Khám phá độc giả công khai, nhận gợi ý dựa trên mối quan hệ, xem hồ sơ đọc theo quyền riêng tư, theo dõi người dùng và sử dụng bảng tin xã hội hỗ trợ lọc, phân trang
 - Tham gia câu lạc bộ sách với lời mời riêng tư, vai trò thành viên, sách đang đọc chung, thảo luận và các đợt đọc chung
 - Trò chuyện theo thời gian thực trong câu lạc bộ, với lịch sử chỉ dành cho thành viên, trạng thái chưa đọc và thông báo trong ứng dụng
+- Nhắn tin riêng 1:1 dạng text giữa hai người theo dõi lẫn nhau, có inbox, lịch sử cursor,
+  trạng thái chưa đọc, thông báo tùy chọn, SignalR sau commit và tích hợp block/mute/report
 - Tham gia thử thách đọc sách với tiến độ do máy chủ tính từ các sách đã hoàn thành trong thư viện
 - Trung tâm thông báo trong ứng dụng với số mục chưa đọc do máy chủ quản lý, bộ lọc theo nhóm, phân trang và tùy chọn nhận thông báo
 - Bảng điều khiển thành viên, bản đồ nhiệt hoạt động theo thời gian, chuỗi ngày đọc, báo cáo theo kỳ và dự báo thời điểm đọc xong

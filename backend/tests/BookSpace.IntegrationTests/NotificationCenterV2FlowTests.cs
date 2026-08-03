@@ -24,6 +24,7 @@ public sealed class NotificationCenterV2FlowTests
         Assert.True(defaults.GetProperty("isReviewNotificationEnabled").GetBoolean());
         Assert.True(defaults.GetProperty("isClubNotificationEnabled").GetBoolean());
         Assert.True(defaults.GetProperty("isChallengeNotificationEnabled").GetBoolean());
+        Assert.True(defaults.GetProperty("isDirectMessageNotificationEnabled").GetBoolean());
 
         var disabled = await target.PatchAsJsonAsync(
             "/api/notifications/preferences",
@@ -32,7 +33,8 @@ public sealed class NotificationCenterV2FlowTests
                 isFollowNotificationEnabled = false,
                 isReviewNotificationEnabled = true,
                 isClubNotificationEnabled = true,
-                isChallengeNotificationEnabled = true
+                isChallengeNotificationEnabled = true,
+                isDirectMessageNotificationEnabled = true
             });
         Assert.Equal(HttpStatusCode.OK, disabled.StatusCode);
         Assert.False((await ReadDataAsync(disabled))
@@ -73,7 +75,8 @@ public sealed class NotificationCenterV2FlowTests
                 isFollowNotificationEnabled = true,
                 isReviewNotificationEnabled = true,
                 isClubNotificationEnabled = true,
-                isChallengeNotificationEnabled = true
+                isChallengeNotificationEnabled = true,
+                isDirectMessageNotificationEnabled = true
             });
         Assert.Equal(HttpStatusCode.OK, enabled.StatusCode);
         Assert.Equal(

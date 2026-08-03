@@ -1,12 +1,12 @@
 # BookSpace — Đặc tả sản phẩm
 
-> Phiên bản: 1.0<br>
-> Phạm vi: Goal 1 — sản phẩm web độc lập, chạy được end-to-end<br>
+> Phiên bản: 1.1<br>
+> Phạm vi: Goal 1 và Direct Messages v1 — sản phẩm web độc lập, chạy được end-to-end<br>
 > Trạng thái: Hợp đồng nguồn sự thật cho backend, frontend và kiểm thử
 
 ## 1. Tuyên bố sản phẩm
 
-BookSpace là nền tảng quản lý hành trình đọc và cộng đồng dành cho người đọc sách. Người dùng có thể khám phá sách, xây dựng thư viện cá nhân, ghi nhận tiến độ đọc, đặt mục tiêu đọc đo được, lưu ghi chú riêng tư, viết đánh giá, theo dõi người đọc khác, tham gia câu lạc bộ và thử thách đọc.
+BookSpace là nền tảng quản lý hành trình đọc và cộng đồng dành cho người đọc sách. Người dùng có thể khám phá sách, xây dựng thư viện cá nhân, ghi nhận tiến độ đọc, đặt mục tiêu đọc đo được, lưu ghi chú riêng tư, viết đánh giá, theo dõi và nhắn tin với người đọc khác, tham gia câu lạc bộ và thử thách đọc.
 
 BookSpace phải có thể đăng ký, đăng nhập, sử dụng và vận hành đầy đủ khi toàn bộ hệ thống Bookstore không tồn tại hoặc đang ngừng hoạt động.
 
@@ -100,6 +100,7 @@ Goal 1 không thêm vai trò nhân viên, nhà cung cấp hoặc quản trị h�
 | Challenges | thử thách, tham gia, tiến độ | Identity, Reading |
 | Notifications | thông báo trong ứng dụng | các sự kiện nội bộ |
 | Community Safety | chặn, ẩn nội dung, báo cáo nội dung, hàng đợi kiểm duyệt, audit và khóa tài khoản | Identity, Community, Clubs, Notifications |
+| Direct Messaging | hội thoại riêng 1:1, lịch sử, unread/read marker và realtime | Identity, Notifications, Community Safety |
 | Integration | provider catalog/offer, webhook mua hàng | tùy chọn, bị cô lập |
 
 Chi tiết entity, invariant và quan hệ nằm trong [DOMAIN_MODEL.md](./DOMAIN_MODEL.md).
@@ -330,7 +331,7 @@ Các sự kiện follow, like, comment, club và challenge tạo thông báo cho
 
 Thông báo mới có tác nhân cụ thể không được tạo nếu người nhận đã ẩn tác nhân hoặc giữa hai tài khoản đang có quan hệ chặn. Thông báo lịch sử không bị xóa ngược.
 
-Tài khoản mặc định nhận follow, tương tác review, club và challenge. Thành viên có thể tắt độc lập bốn nhóm này; preference được kiểm tra tại nguồn tạo sự kiện mới. `SYSTEM` luôn bật để giữ thông báo vận hành quan trọng. Thay đổi preference không xóa hoặc ẩn lịch sử đã tạo.
+Tài khoản mặc định nhận follow, tương tác review, club, challenge và tin nhắn riêng. Thành viên có thể tắt độc lập năm nhóm này; preference được kiểm tra tại nguồn tạo sự kiện mới. `SYSTEM` luôn bật để giữ thông báo vận hành quan trọng. Thay đổi preference không xóa hoặc ẩn lịch sử đã tạo.
 
 ### UC-10A — An toàn cộng đồng
 
@@ -357,8 +358,25 @@ chiều và thao tác bỏ chặn không tự khôi phục follow cũ.
 
 Ẩn nội dung là quan hệ một chiều, không làm mất quyền xem hồ sơ hoặc follow. Nội dung
 của tài khoản bị ẩn được loại khỏi feed, review tổng hợp, bài viết/bình luận câu lạc bộ,
-chat, unread chat và thông báo mới của principal. Danh sách đã chặn/đã ẩn được phân
+chat, tin nhắn riêng, unread và thông báo mới của principal. Danh sách đã chặn/đã ẩn được phân
 trang tại `/settings`; chặn, bỏ chặn, ẩn và bỏ ẩn đều idempotent.
+
+### UC-10B — Nhắn tin riêng 1:1
+
+Hai thành viên chỉ có thể mở hoặc gửi tin trong một hội thoại riêng khi đang theo dõi
+lẫn nhau. Một cặp user chỉ có một `Conversation`; thao tác mở lại là idempotent. Nếu
+quan hệ mutual follow mất đi, hai bên vẫn đọc được lịch sử nhưng composer bị khóa cho
+đến khi mutual follow được khôi phục.
+
+Tin nhắn v1 chỉ chứa text đã trim, tối đa 2.000 ký tự. Lịch sử và inbox dùng cursor ổn
+định theo timestamp + `Guid`; unread không tính tin do principal gửi và read marker là
+high-water chỉ tiến. REST persistence là nguồn sự thật; event SignalR chỉ phát sau khi
+transaction đã commit, reconnect luôn refetch REST.
+
+Block làm hội thoại biến mất hai chiều và chặn mọi mutation. Mute một chiều không cấm
+gửi nhưng loại tin của actor khỏi history, last-message, unread, realtime và notification
+của principal. Tin nhắn người khác có thể được báo cáo bằng target `DIRECT_MESSAGE` và
+admin soft-delete qua moderation queue. Notification tin nhắn có preference độc lập.
 
 ### UC-11 — Quản trị catalog
 
@@ -412,6 +430,8 @@ Tên route là hợp đồng điều hướng Goal 1; thay đổi cần đồng 
 | `/profile` | My profile | hồ sơ hiện tại hoặc chuyển tới `/users/:id` |
 | `/settings` | Settings | chỉnh hồ sơ, liên kết chỉnh sở thích onboarding, quyền riêng tư hành trình đọc, danh sách chặn/ẩn nội dung, notification preferences và giao diện |
 | `/notifications` | Notifications | server unread count, lọc trạng thái/nhóm, phân trang và deep-link |
+| `/messages` | Direct message inbox | danh sách hội thoại theo hoạt động mới nhất, last message và tổng unread |
+| `/messages/:conversationId` | Direct message thread | lịch sử cursor, gửi text, read marker, realtime, report và mute |
 | `/clubs/new` | Create club | tạo câu lạc bộ công khai hoặc riêng tư |
 | `/clubs/invitations` | Club invitations | lời mời CLB đang chờ và thao tác chấp nhận/từ chối |
 
@@ -511,7 +531,7 @@ Mật khẩu seed là thông tin dev-only, không được dùng hoặc tự đ�
 
 - Thanh toán, giỏ hàng, vận chuyển và tồn kho.
 - Đọc ebook có DRM hoặc lưu file sách.
-- Nhắn tin riêng, gửi tệp và gọi âm thanh/video.
+- File đính kèm, group chat, typing indicator, presence và gọi âm thanh/video; Direct Messages v1 chỉ hỗ trợ text 1:1.
 - Recommendation bằng machine learning; recommendation rule-based trong UC-03A
   vẫn thuộc Goal 1.
 - Multi-tenant hoặc nhiều tổ chức.

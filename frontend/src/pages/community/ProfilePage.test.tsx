@@ -44,6 +44,7 @@ const mocks = vi.hoisted(() => ({
   block: vi.fn(),
   retry: vi.fn(),
   toast: vi.fn(),
+  startConversation: vi.fn(),
 }))
 
 vi.mock('../../contexts/AuthContext', () => ({
@@ -72,6 +73,13 @@ vi.mock('../../hooks/useCommunity', () => ({
   useUserConnections: (...args: unknown[]) => mocks.connections(...args),
   useMuteUser: (...args: unknown[]) => mocks.mute(...args),
   useBlockUser: (...args: unknown[]) => mocks.block(...args),
+}))
+
+vi.mock('../../hooks/useDirectMessages', () => ({
+  useStartConversation: () => ({
+    mutate: mocks.startConversation,
+    isPending: false,
+  }),
 }))
 
 function renderProfile() {
@@ -140,6 +148,7 @@ describe('production public profile route', () => {
     })
     mocks.user.mockReturnValue(userResult())
     mocks.follow.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    mocks.startConversation.mockReset()
     mocks.library.mockReturnValue(queryResult())
     mocks.reviews.mockReturnValue(queryResult())
     mocks.activity.mockReturnValue(queryResult())
@@ -217,6 +226,25 @@ describe('production public profile route', () => {
     renderProfile()
 
     expect(await screen.findByRole('button', { name: 'Theo dõi Hà Linh' })).toBeEnabled()
+  })
+
+  it('offers direct messaging only when both readers follow each other', async () => {
+    Object.assign(mocks.auth, {
+      user: { ...profile, id: 'reader-1' },
+      isAuthenticated: true,
+    })
+    mocks.user.mockReturnValue(
+      userResult({ data: { ...profile, isFollowing: true, followsYou: true } }),
+    )
+    const user = userEvent.setup()
+
+    renderProfile()
+    await user.click(await screen.findByRole('button', { name: 'Nhắn tin' }))
+
+    expect(mocks.startConversation).toHaveBeenCalledWith(
+      'person-1',
+      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
+    )
   })
 
   it('keeps long public profile text breakable inside the mobile surface', async () => {

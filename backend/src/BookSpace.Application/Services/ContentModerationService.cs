@@ -212,6 +212,7 @@ public sealed class ContentModerationService(
             ContentReportTargetType.CLUB_POST => ResolveClubPostTarget(reporterId, targetId),
             ContentReportTargetType.CLUB_POST_COMMENT => ResolveClubPostCommentTarget(reporterId, targetId),
             ContentReportTargetType.CLUB_CHAT_MESSAGE => ResolveClubChatMessageTarget(reporterId, targetId),
+            ContentReportTargetType.DIRECT_MESSAGE => ResolveDirectMessageTarget(reporterId, targetId),
             _ => throw ServiceErrors.BadRequest(
                 "INVALID_REPORT_TARGET_TYPE",
                 "Loại nội dung báo cáo không hợp lệ.")
@@ -284,6 +285,25 @@ public sealed class ContentModerationService(
             $"/clubs/{message.ClubId}?tab=chat");
     }
 
+    private ReportTarget ResolveDirectMessageTarget(Guid reporterId, Guid targetId)
+    {
+        var message = db.DirectMessages.FirstOrDefault(x => x.Id == targetId)
+                      ?? throw TargetNotFound();
+        var conversation = db.Conversations.FirstOrDefault(x =>
+                               x.Id == message.ConversationId &&
+                               (x.UserOneId == reporterId || x.UserTwoId == reporterId))
+                           ?? throw TargetNotFound();
+        if (UserSafetyPolicy.IsHiddenFrom(db, reporterId, message.SenderId))
+        {
+            throw TargetNotFound();
+        }
+
+        return new ReportTarget(
+            FindTargetOwner(message.SenderId),
+            Preview(message.Content),
+            $"/messages/{conversation.Id}");
+    }
+
     private void EnsureCanViewClub(Guid userId, Guid clubId, bool membershipRequired)
     {
         var club = db.BookClubs.FirstOrDefault(x => x.Id == clubId)
@@ -313,6 +333,8 @@ public sealed class ContentModerationService(
                 db.ClubPostCommentsIncludingDeleted.FirstOrDefault(x => x.Id == report.TargetId),
             ContentReportTargetType.CLUB_CHAT_MESSAGE =>
                 db.ClubChatMessagesIncludingDeleted.FirstOrDefault(x => x.Id == report.TargetId),
+            ContentReportTargetType.DIRECT_MESSAGE =>
+                db.DirectMessagesIncludingDeleted.FirstOrDefault(x => x.Id == report.TargetId),
             ContentReportTargetType.USER => throw ServiceErrors.BadRequest(
                 "PROFILE_CANNOT_BE_REMOVED_AS_CONTENT",
                 "Hồ sơ người dùng không thể bị xử lý như một nội dung riêng lẻ."),

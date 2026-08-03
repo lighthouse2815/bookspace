@@ -87,6 +87,11 @@ const NotificationsPage = lazy(() =>
     default: module.NotificationsPage,
   })),
 )
+const MessagesPage = lazy(() =>
+  import('./pages/messages/MessagesPage').then((module) => ({
+    default: module.MessagesPage,
+  })),
+)
 const SettingsPage = lazy(() =>
   import('./pages/account/SettingsPage').then((module) => ({ default: module.SettingsPage })),
 )
@@ -155,6 +160,8 @@ export default function App() {
             <Route path="feed" element={<FeedPage />} />
             <Route path="profile" element={<CurrentProfileRedirect />} />
             <Route path="notifications" element={<NotificationsPage />} />
+            <Route path="messages" element={<MessagesPage />} />
+            <Route path="messages/:conversationId" element={<MessagesPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route element={<AdminRoute />}>
               <Route path="admin" element={<Navigate to="/admin/books" replace />} />

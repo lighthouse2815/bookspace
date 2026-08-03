@@ -55,6 +55,7 @@ public enum NotificationType
     COMMENT,
     CLUB,
     CHALLENGE,
+    DIRECT_MESSAGE,
     SYSTEM
 }
 
@@ -64,6 +65,7 @@ public enum NotificationCategory
     REVIEW,
     CLUB,
     CHALLENGE,
+    DIRECT_MESSAGE,
     SYSTEM
 }
 
@@ -74,7 +76,8 @@ public enum ContentReportTargetType
     REVIEW_COMMENT,
     CLUB_POST,
     CLUB_POST_COMMENT,
-    CLUB_CHAT_MESSAGE
+    CLUB_CHAT_MESSAGE,
+    DIRECT_MESSAGE
 }
 
 public enum ContentReportReason

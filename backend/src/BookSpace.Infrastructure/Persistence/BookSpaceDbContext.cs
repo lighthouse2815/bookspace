@@ -35,6 +35,9 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
     public DbSet<ClubPostComment> ClubPostCommentSet => Set<ClubPostComment>();
     public DbSet<ClubChatMessage> ClubChatMessageSet => Set<ClubChatMessage>();
     public DbSet<ClubChatReadState> ClubChatReadStateSet => Set<ClubChatReadState>();
+    public DbSet<Conversation> ConversationSet => Set<Conversation>();
+    public DbSet<DirectMessage> DirectMessageSet => Set<DirectMessage>();
+    public DbSet<DirectMessageReadState> DirectMessageReadStateSet => Set<DirectMessageReadState>();
     public DbSet<ClubReadingSprint> ClubReadingSprintSet => Set<ClubReadingSprint>();
     public DbSet<ClubReadingSprintParticipant> ClubReadingSprintParticipantSet =>
         Set<ClubReadingSprintParticipant>();
@@ -94,6 +97,12 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
     IQueryable<ClubChatMessage> IBookSpaceDbContext.ClubChatMessagesIncludingDeleted =>
         ClubChatMessageSet.IgnoreQueryFilters();
     IQueryable<ClubChatReadState> IBookSpaceDbContext.ClubChatReadStates => ClubChatReadStateSet;
+    IQueryable<Conversation> IBookSpaceDbContext.Conversations => ConversationSet;
+    IQueryable<DirectMessage> IBookSpaceDbContext.DirectMessages => DirectMessageSet;
+    IQueryable<DirectMessage> IBookSpaceDbContext.DirectMessagesIncludingDeleted =>
+        DirectMessageSet.IgnoreQueryFilters();
+    IQueryable<DirectMessageReadState> IBookSpaceDbContext.DirectMessageReadStates =>
+        DirectMessageReadStateSet;
     IQueryable<ClubReadingSprint> IBookSpaceDbContext.ClubReadingSprints =>
         ClubReadingSprintSet;
     IQueryable<ClubReadingSprintParticipant> IBookSpaceDbContext.ClubReadingSprintParticipants =>
@@ -135,6 +144,7 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
         modelBuilder.ConfigureReadingNotes();
         ConfigureCommunity(modelBuilder);
         ConfigureClubs(modelBuilder);
+        ConfigureDirectMessages(modelBuilder);
         ConfigureReadingSprints(modelBuilder);
         ConfigureChallenges(modelBuilder);
         ConfigureNotifications(modelBuilder);
@@ -165,6 +175,7 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
             entity.Property(x => x.IsReviewNotificationEnabled).HasDefaultValue(true);
             entity.Property(x => x.IsClubNotificationEnabled).HasDefaultValue(true);
             entity.Property(x => x.IsChallengeNotificationEnabled).HasDefaultValue(true);
+            entity.Property(x => x.IsDirectMessageNotificationEnabled).HasDefaultValue(true);
             entity.Ignore(x => x.IsDeleted);
         });
 
@@ -506,6 +517,61 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
         });
     }
 
+    private static void ConfigureDirectMessages(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Conversation>(entity =>
+        {
+            entity.ToTable("conversations");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.UserOneId, x.UserTwoId }).IsUnique();
+            entity.HasIndex(x => new { x.LastActivityAt, x.Id });
+            entity.HasOne(x => x.UserOne)
+                .WithMany()
+                .HasForeignKey(x => x.UserOneId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.UserTwo)
+                .WithMany()
+                .HasForeignKey(x => x.UserTwoId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.Ignore(x => x.IsDeleted);
+        });
+
+        modelBuilder.Entity<DirectMessage>(entity =>
+        {
+            entity.ToTable("direct_messages");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.ConversationId, x.CreatedAt, x.Id });
+            entity.Property(x => x.Content).HasMaxLength(2000).IsRequired();
+            entity.HasOne(x => x.Conversation)
+                .WithMany()
+                .HasForeignKey(x => x.ConversationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Sender)
+                .WithMany()
+                .HasForeignKey(x => x.SenderId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.Ignore(x => x.IsDeleted);
+        });
+
+        modelBuilder.Entity<DirectMessageReadState>(entity =>
+        {
+            entity.ToTable("direct_message_read_states");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.ConversationId, x.UserId }).IsUnique();
+            entity.HasIndex(x => x.UserId);
+            entity.Property(x => x.UpdatedAt).IsConcurrencyToken();
+            entity.HasOne(x => x.Conversation)
+                .WithMany()
+                .HasForeignKey(x => x.ConversationId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.Ignore(x => x.IsDeleted);
+        });
+    }
+
     private static void ConfigureChallenges(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<ReadingChallenge>(entity =>
@@ -776,6 +842,21 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
             x.Membership.DeletedAt == null &&
             x.Membership.Club.DeletedAt == null &&
             x.Membership.User.DeletedAt == null);
+        modelBuilder.Entity<Conversation>().HasQueryFilter(x =>
+            x.DeletedAt == null &&
+            x.UserOne.DeletedAt == null &&
+            !x.UserOne.IsLocked &&
+            x.UserTwo.DeletedAt == null &&
+            !x.UserTwo.IsLocked);
+        modelBuilder.Entity<DirectMessage>().HasQueryFilter(x =>
+            x.DeletedAt == null &&
+            x.Conversation.DeletedAt == null &&
+            x.Sender.DeletedAt == null &&
+            !x.Sender.IsLocked);
+        modelBuilder.Entity<DirectMessageReadState>().HasQueryFilter(x =>
+            x.DeletedAt == null &&
+            x.Conversation.DeletedAt == null &&
+            x.User.DeletedAt == null);
         modelBuilder.Entity<ClubReadingSprint>().HasQueryFilter(x =>
             x.DeletedAt == null &&
             x.Club.DeletedAt == null &&

@@ -4,6 +4,7 @@ import {
   ClockCounterClockwise,
   Eye,
   EyeSlash,
+  EnvelopeSimple,
   Heart,
   LockKey,
   Prohibit,
@@ -65,11 +66,14 @@ export function SettingsPage() {
     isReviewNotificationEnabled: true,
     isClubNotificationEnabled: true,
     isChallengeNotificationEnabled: true,
+    isDirectMessageNotificationEnabled: true,
   })
   const followNotifications = notificationPreferences.data?.isFollowNotificationEnabled
   const reviewNotifications = notificationPreferences.data?.isReviewNotificationEnabled
   const clubNotifications = notificationPreferences.data?.isClubNotificationEnabled
   const challengeNotifications = notificationPreferences.data?.isChallengeNotificationEnabled
+  const directMessageNotifications =
+    notificationPreferences.data?.isDirectMessageNotificationEnabled
 
   useEffect(() => {
     if (isReadingShelfPublic !== undefined && isReadingActivityPublic !== undefined) {
@@ -91,7 +95,8 @@ export function SettingsPage() {
       followNotifications === undefined ||
       reviewNotifications === undefined ||
       clubNotifications === undefined ||
-      challengeNotifications === undefined
+      challengeNotifications === undefined ||
+      directMessageNotifications === undefined
     ) {
       return
     }
@@ -101,7 +106,8 @@ export function SettingsPage() {
         current.isFollowNotificationEnabled === followNotifications &&
         current.isReviewNotificationEnabled === reviewNotifications &&
         current.isClubNotificationEnabled === clubNotifications &&
-        current.isChallengeNotificationEnabled === challengeNotifications
+        current.isChallengeNotificationEnabled === challengeNotifications &&
+        current.isDirectMessageNotificationEnabled === directMessageNotifications
       ) {
         return current
       }
@@ -111,9 +117,16 @@ export function SettingsPage() {
         isReviewNotificationEnabled: reviewNotifications,
         isClubNotificationEnabled: clubNotifications,
         isChallengeNotificationEnabled: challengeNotifications,
+        isDirectMessageNotificationEnabled: directMessageNotifications,
       }
     })
-  }, [challengeNotifications, clubNotifications, followNotifications, reviewNotifications])
+  }, [
+    challengeNotifications,
+    clubNotifications,
+    directMessageNotifications,
+    followNotifications,
+    reviewNotifications,
+  ])
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -332,6 +345,18 @@ export function SettingsPage() {
                 setNotificationSettings((value) => ({
                   ...value,
                   isChallengeNotificationEnabled: checked,
+                }))
+              }
+            />
+            <PrivacyChoice
+              checked={notificationSettings.isDirectMessageNotificationEnabled}
+              icon={EnvelopeSimple}
+              title="Tin nhắn riêng"
+              description="Nhận thông báo khi một độc giả gửi tin nhắn mới cho bạn."
+              onChange={(checked) =>
+                setNotificationSettings((value) => ({
+                  ...value,
+                  isDirectMessageNotificationEnabled: checked,
                 }))
               }
             />

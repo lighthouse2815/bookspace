@@ -93,13 +93,15 @@ public sealed class DomainBehaviorTests
         Assert.True(user.AllowsNotification(NotificationType.COMMENT));
         Assert.True(user.AllowsNotification(NotificationType.CLUB));
         Assert.True(user.AllowsNotification(NotificationType.CHALLENGE));
-        user.UpdateNotificationPreferences(false, false, false, false);
+        Assert.True(user.AllowsNotification(NotificationType.DIRECT_MESSAGE));
+        user.UpdateNotificationPreferences(false, false, false, false, false);
 
         Assert.False(user.AllowsNotification(NotificationType.FOLLOW));
         Assert.False(user.AllowsNotification(NotificationType.REVIEW_LIKE));
         Assert.False(user.AllowsNotification(NotificationType.COMMENT));
         Assert.False(user.AllowsNotification(NotificationType.CLUB));
         Assert.False(user.AllowsNotification(NotificationType.CHALLENGE));
+        Assert.False(user.AllowsNotification(NotificationType.DIRECT_MESSAGE));
         Assert.True(user.AllowsNotification(NotificationType.SYSTEM));
     }
 
