@@ -21,10 +21,19 @@ public static class DependencyInjection
         services.AddDbContext<BookSpaceDbContext>(options => options.UseSqlite(connectionString));
         services.AddScoped<IBookSpaceDbContext>(provider => provider.GetRequiredService<BookSpaceDbContext>());
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
+        services
+            .AddOptions<PasswordRecoveryOptions>()
+            .Bind(configuration.GetSection(PasswordRecoveryOptions.SectionName))
+            .Validate(
+                options => options.IsValid(),
+                "Cấu hình khôi phục mật khẩu không hợp lệ.")
+            .ValidateOnStart();
         services.Configure<BookstoreIntegrationOptions>(
             configuration.GetSection(BookstoreIntegrationOptions.SectionName));
         services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
         services.AddSingleton<ITokenIssuer, JwtTokenIssuer>();
+        services.AddSingleton<IPasswordResetTokenIssuer, CryptographicPasswordResetTokenIssuer>();
+        services.AddSingleton<IPasswordResetEmailSender, ConfiguredPasswordResetEmailSender>();
         services.AddHttpClient<IExternalBookProvider, ExternalBookProvider>((provider, client) =>
         {
             var options = provider
@@ -51,6 +60,8 @@ public static class DependencyInjection
         services.AddScoped<IChallengeProgressSynchronizer, ChallengeProgressSynchronizer>();
         services.AddScoped<ChallengeMutationBoundary>();
         services.AddScoped<IChallengeMutationBoundary>(provider =>
+            provider.GetRequiredService<ChallengeMutationBoundary>());
+        services.AddScoped<IAuthMutationBoundary>(provider =>
             provider.GetRequiredService<ChallengeMutationBoundary>());
         services.AddScoped<IReadingMutationBoundary>(provider =>
             provider.GetRequiredService<ChallengeMutationBoundary>());

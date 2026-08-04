@@ -30,6 +30,29 @@ public sealed class AuthController(IAuthService authService) : ApiControllerBase
             "Đăng nhập thành công.");
 
     [AllowAnonymous]
+    [HttpPost("password-reset/request")]
+    [EnableRateLimiting(AuthRateLimitPolicies.PasswordResetRequest)]
+    public async Task<ActionResult<ApiResponse<object?>>> RequestPasswordReset(
+        RequestPasswordResetRequest request,
+        CancellationToken cancellationToken)
+    {
+        await authService.RequestPasswordResetAsync(request, cancellationToken);
+        return OkEmptyData(
+            "Nếu email thuộc tài khoản BookSpace, hướng dẫn đặt lại mật khẩu đã được gửi.");
+    }
+
+    [AllowAnonymous]
+    [HttpPost("password-reset/confirm")]
+    [EnableRateLimiting(AuthRateLimitPolicies.PasswordResetConfirm)]
+    public async Task<ActionResult<ApiResponse<object?>>> ResetPassword(
+        ResetPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        await authService.ResetPasswordAsync(request, cancellationToken);
+        return OkEmptyData("Mật khẩu đã được đặt lại. Vui lòng đăng nhập lại.");
+    }
+
+    [AllowAnonymous]
     [HttpPost("refresh")]
     [EnableRateLimiting(AuthRateLimitPolicies.Refresh)]
     public async Task<ActionResult<ApiResponse<AuthResponse>>> Refresh(

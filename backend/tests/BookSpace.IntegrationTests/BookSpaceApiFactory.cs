@@ -38,7 +38,9 @@ public sealed class BookSpaceApiFactory : WebApplicationFactory<Program>
             var testSettings = new Dictionary<string, string?>
             {
                 ["RateLimiting:Authentication:Login:PermitLimit"] = "10000",
-                ["RateLimiting:Authentication:Refresh:PermitLimit"] = "10000"
+                ["RateLimiting:Authentication:Refresh:PermitLimit"] = "10000",
+                ["RateLimiting:Authentication:PasswordResetRequest:PermitLimit"] = "10000",
+                ["RateLimiting:Authentication:PasswordResetConfirm:PermitLimit"] = "10000"
             };
             if (_configuration is not null)
             {

@@ -43,6 +43,7 @@ Aggregate root của tài khoản và hồ sơ.
 | `Bio` | `string?` | không | tối đa 500 ký tự |
 | `AvatarUrl` | `string?` | không | URL hợp lệ, tối đa 1.000 |
 | `Role` | `UserRole` | có | `USER` hoặc `ADMIN`; đăng ký công khai luôn là `USER` |
+| `AuthVersion` | `int` | có | mặc định `0`; tăng sau mỗi lần đổi mật khẩu để vô hiệu hóa access token cũ |
 | `OnboardingStatus` | `OnboardingStatus` | có | `PENDING`, `COMPLETED`, `SKIPPED`; mặc định `PENDING` |
 | `OnboardingFinishedAt` | `DateTimeOffset?` | không | null khi `PENDING`; UTC của lần chuyển terminal gần nhất |
 | `IsLocked` | `bool` | có | khóa đăng nhập nhưng không xóa dữ liệu |
@@ -84,6 +85,25 @@ Entity thuộc vòng đời xác thực của `User`.
 | `CreatedAt` | `DateTimeOffset` | UTC |
 
 Token hợp lệ khi chưa hết hạn, chưa thu hồi và user còn hoạt động. Refresh thành công phải thu hồi token cũ và tạo token mới.
+
+### 2.2A `PasswordResetToken`
+
+Entity một lần thuộc vòng đời xác thực của `User`.
+
+| Trường | Kiểu | Quy tắc |
+|---|---|---|
+| `Id` | `Guid` | server tạo |
+| `UserId` | `Guid` | FK tới `User`; cascade delete |
+| `TokenHash` | `string` | SHA-256 unique; không lưu token thô |
+| `ExpiresAt` | `DateTimeOffset` | mặc định 15 phút sau khi phát hành |
+| `UsedAt` | `DateTimeOffset?` | concurrency token; có giá trị sau lần dùng thành công |
+| `InvalidatedAt` | `DateTimeOffset?` | có giá trị khi token bị thay thế hoặc delivery thất bại |
+| `CreatedAt` | `DateTimeOffset` | UTC, dùng cho cooldown gửi lại |
+
+Token chỉ active khi chưa dùng, chưa vô hiệu hóa và chưa hết hạn. Đặt lại mật khẩu phải
+claim token, đổi `PasswordHash`, tăng `AuthVersion`, vô hiệu hóa token cùng user còn lại
+và revoke refresh token trong một transaction ghi tuần tự. Token thô chỉ tồn tại trong
+request email; response, database và log Production không được chứa token.
 
 ### 2.3 `Follow`
 

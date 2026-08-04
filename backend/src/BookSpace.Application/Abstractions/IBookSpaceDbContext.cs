@@ -14,6 +14,8 @@ public interface IBookSpaceDbContext
     IQueryable<UserReferenceBook> UserReferenceBooksIncludingDeleted =>
         UserReferenceBooks;
     IQueryable<RefreshToken> RefreshTokens { get; }
+    IQueryable<PasswordResetToken> PasswordResetTokens =>
+        Array.Empty<PasswordResetToken>().AsQueryable();
     IQueryable<Follow> Follows { get; }
     IQueryable<UserBlock> UserBlocks => Array.Empty<UserBlock>().AsQueryable();
     IQueryable<UserMute> UserMutes => Array.Empty<UserMute>().AsQueryable();
@@ -86,6 +88,31 @@ public interface ITokenIssuer
 {
     IssuedTokens Issue(BookSpace.Domain.Entities.User user);
     string HashRefreshToken(string refreshToken);
+}
+
+public sealed record IssuedPasswordResetToken(
+    string Token,
+    string TokenHash,
+    DateTimeOffset ExpiresAt);
+
+public interface IPasswordResetTokenIssuer
+{
+    TimeSpan RequestCooldown { get; }
+    IssuedPasswordResetToken Issue();
+    string Hash(string token);
+}
+
+public sealed record PasswordResetEmail(
+    string RecipientEmail,
+    string RecipientDisplayName,
+    string Token,
+    DateTimeOffset ExpiresAt);
+
+public interface IPasswordResetEmailSender
+{
+    Task<bool> SendAsync(
+        PasswordResetEmail email,
+        CancellationToken cancellationToken);
 }
 
 public sealed record ExternalBookResult(

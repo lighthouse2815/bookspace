@@ -21,6 +21,7 @@ cơ sở dữ liệu.
   ISBN và mã provider được chống trùng, còn provider vẫn có thể tắt hoàn toàn
 - Quản lý các kệ cá nhân: muốn đọc, đang đọc và đã đọc
 - Tạo bộ sưu tập sách công khai hoặc riêng tư, thêm/bỏ và sắp xếp sách, chia sẻ qua hồ sơ
+- Khôi phục mật khẩu bằng token một lần lưu dạng hash, link 15 phút và thu hồi toàn bộ phiên cũ
 - Ghi nhận tiến độ theo trang, hẹn giờ đọc tập trung do máy chủ quản lý và hiệu chỉnh lịch sử phiên đọc
 - Đặt mục tiêu đọc cá nhân với tiến độ được tính từ hoạt động đọc thực tế
 - Lưu ghi chú riêng tư, trích dẫn, số trang và thẻ có thể tìm kiếm
@@ -201,12 +202,18 @@ API trả `X-Correlation-ID` trên mọi response để đối chiếu log. `/he
 healthy khi process và database BookSpace đều truy cập được; response không chứa
 connection string hoặc chi tiết exception.
 
-Login và refresh có sliding-window rate limit theo địa chỉ client, lần lượt mặc
-định 5 và 20 request mỗi 60 giây. Có thể điều chỉnh bằng cấu hình
+Login, refresh và hai endpoint khôi phục mật khẩu có sliding-window rate limit theo địa
+chỉ client. Login/refresh mặc định là 5/20 request mỗi 60 giây; request/confirm reset là
+5/10 request mỗi 15 phút. Có thể điều chỉnh bằng cấu hình
 `RateLimiting:Authentication` hoặc biến môi trường prefix `BOOKSPACE_`. Khi đặt
 API sau reverse proxy/load balancer, khai báo IP/CIDR tin cậy tại
 `ForwardedHeaders:KnownProxies` hoặc `ForwardedHeaders:KnownNetworks`; header từ
 proxy không nằm trong allowlist sẽ bị bỏ qua.
+
+Khôi phục mật khẩu dùng `PasswordRecovery:DeliveryMode`. Giá trị mặc định `Disabled`
+không gửi mail; môi trường Development dùng `Log` để in link local; Production cấu hình
+`Smtp` cùng host, port, TLS, tài khoản và địa chỉ gửi. Token thô không được trả qua API
+và chế độ `Log` bị từ chối ngoài Development.
 
 Khi API đang chạy, kiểm tra luồng của độc giả được tạo sẵn và onboarding của tài
 khoản smoke được tạo riêng:

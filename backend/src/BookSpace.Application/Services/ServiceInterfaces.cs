@@ -9,6 +9,12 @@ public interface IAuthService
 {
     Task<AuthResponse> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken);
     Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken);
+    Task RequestPasswordResetAsync(
+        RequestPasswordResetRequest request,
+        CancellationToken cancellationToken);
+    Task ResetPasswordAsync(
+        ResetPasswordRequest request,
+        CancellationToken cancellationToken);
     Task<AuthResponse> RefreshAsync(RefreshRequest request, CancellationToken cancellationToken);
     Task LogoutAsync(LogoutRequest request, CancellationToken cancellationToken);
     UserSummary GetMe(Guid userId);

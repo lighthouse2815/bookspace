@@ -106,8 +106,20 @@ builder.Services
 
             using var scope = context.HttpContext.RequestServices.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<IBookSpaceDbContext>();
-            var accountAvailable = db.Users.Any(x => x.Id == userId && !x.IsLocked);
-            if (!accountAvailable)
+            var user = db.Users.FirstOrDefault(x => x.Id == userId && !x.IsLocked);
+            var authVersionClaim = context.Principal?
+                .FindFirst(JwtTokenIssuer.AuthVersionClaim)?
+                .Value;
+            var tokenAuthVersion = string.IsNullOrWhiteSpace(authVersionClaim)
+                ? 0
+                : int.TryParse(
+                    authVersionClaim,
+                    System.Globalization.NumberStyles.None,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var parsedAuthVersion)
+                    ? parsedAuthVersion
+                    : -1;
+            if (user is null || user.AuthVersion != tokenAuthVersion)
             {
                 context.Fail("Tài khoản hiện không thể sử dụng.");
             }

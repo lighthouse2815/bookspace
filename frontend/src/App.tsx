@@ -27,6 +27,16 @@ const LoginPage = lazy(() =>
 const RegisterPage = lazy(() =>
   import('./pages/auth/AuthPages').then((module) => ({ default: module.RegisterPage })),
 )
+const ForgotPasswordPage = lazy(() =>
+  import('./pages/auth/PasswordRecoveryPages').then((module) => ({
+    default: module.ForgotPasswordPage,
+  })),
+)
+const ResetPasswordPage = lazy(() =>
+  import('./pages/auth/PasswordRecoveryPages').then((module) => ({
+    default: module.ResetPasswordPage,
+  })),
+)
 const DashboardPage = lazy(() =>
   import('./pages/account/DashboardPage').then((module) => ({ default: module.DashboardPage })),
 )
@@ -146,6 +156,8 @@ export default function App() {
           <Route path="lists/:listId" element={<BookListDetailPage />} />
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />
+          <Route path="forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="reset-password" element={<ResetPasswordPage />} />
           <Route path="users/:id" element={<ProfilePage />} />
           <Route path="people" element={<PeoplePage />} />
           <Route path="clubs" element={<ClubsPage />} />

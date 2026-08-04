@@ -92,7 +92,7 @@ Goal 1 không thêm vai trò nhân viên, nhà cung cấp hoặc quản trị h�
 
 | Bounded context | Năng lực lõi | Phụ thuộc |
 |---|---|---|
-| Identity & Profile | tài khoản, phiên đăng nhập, hồ sơ, onboarding sở thích, tìm độc giả, gợi ý theo dõi | Catalog |
+| Identity & Profile | tài khoản, phiên đăng nhập, khôi phục mật khẩu, hồ sơ, onboarding sở thích, tìm độc giả, gợi ý theo dõi | Catalog |
 | Catalog | sách, tác giả, thể loại, tìm kiếm, import metadata có kiểm duyệt, recommendation rule-based | Identity, Reading, Community, Integration |
 | Reading | thư viện, trạng thái đọc, tiến độ, phiên đọc, mục tiêu đọc, ghi chú riêng tư | Identity, Catalog |
 | Community | review, like, comment, feed lọc theo nhóm hoạt động và gợi ý kết nối | Identity, Catalog, Reading |
@@ -114,6 +114,20 @@ Khách nhập tên hiển thị, email và mật khẩu. Hệ thống chuẩn h�
 ### UC-02 — Đăng nhập và duy trì phiên
 
 Thành viên đăng nhập bằng email/mật khẩu để nhận access token ngắn hạn và refresh token có thể thu hồi. Refresh token được xoay vòng; logout thu hồi token hiện tại.
+
+### UC-02R — Khôi phục mật khẩu
+
+Khách gửi email tại `/forgot-password` và luôn nhận cùng một thông báo, dù email có
+thuộc tài khoản BookSpace hay không. Với tài khoản đang hoạt động, server tạo token
+ngẫu nhiên một lần, chỉ lưu SHA-256, vô hiệu hóa token reset cũ và gửi liên kết hết hạn
+sau 15 phút qua email provider độc lập. Môi trường Development có thể ghi liên kết vào
+log; Production dùng SMTP hoặc tắt delivery mà không làm hỏng các luồng lõi.
+
+Khi xác nhận token hợp lệ với mật khẩu mạnh, server đổi password hash, tăng
+`AuthVersion`, đánh dấu token đã dùng, vô hiệu hóa các reset token còn lại và thu hồi
+toàn bộ refresh token trong cùng transaction. Access token mang auth version cũ bị từ
+chối ngay; token đã dùng, hết hạn, của tài khoản bị khóa hoặc không tồn tại đều trả cùng
+lỗi `PASSWORD_RESET_TOKEN_INVALID`.
 
 ### UC-02A — Khám phá độc giả
 
@@ -427,6 +441,8 @@ Tên route là hợp đồng điều hướng Goal 1; thay đổi cần đồng 
 | `/users/:id` | Public profile | tổng quan, kệ sách theo quyền riêng tư, review, activity và kết nối |
 | `/login` | Login | đăng nhập |
 | `/register` | Register | đăng ký |
+| `/forgot-password` | Forgot password | yêu cầu liên kết đặt lại mật khẩu với response chống dò email |
+| `/reset-password` | Reset password | xác nhận token một lần và đặt mật khẩu mạnh mới |
 
 ### Cần đăng nhập
 

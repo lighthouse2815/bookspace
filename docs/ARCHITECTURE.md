@@ -192,7 +192,7 @@ Chứa:
 - Global query filter cho `DeletedAt`.
 - Unique index theo invariant.
 - Triển khai service hoặc repository/adapter theo interface Application.
-- Password hasher và JWT issuer.
+- Password hasher, JWT issuer, password-reset token issuer và email delivery `Disabled/Log/SMTP`.
 - Refresh token hashing.
 - Development seeder.
 - `IExternalBookProvider` adapter và `HttpClient`.
@@ -204,6 +204,7 @@ Các unique index bắt buộc:
 |---|---|
 | `User` | unique normalized email khi active |
 | `RefreshToken` | unique token hash |
+| `PasswordResetToken` | unique token hash; index `(UserId, CreatedAt)`; `UsedAt` concurrency token |
 | `Follow` | unique `(FollowerId, FollowingId)` |
 | `UserBlock` | unique `(BlockerId, BlockedUserId)`; reverse lookup `(BlockedUserId, BlockerId)` |
 | `UserMute` | unique `(UserId, MutedUserId)`; reverse lookup `(MutedUserId, UserId)` |
@@ -422,6 +423,7 @@ sequenceDiagram
 - JWT issuer: `BookSpace`.
 - Audience: `BookSpace.Web`.
 - Claims bắt buộc: `sub`, `role`, `jti`, `iat`, `exp`; `role` chỉ là `USER` hoặc `ADMIN`.
+- Claim `bookspace_auth_version` được so với `User.AuthVersion`; token cũ bị từ chối ngay sau khi đổi mật khẩu.
 - TTL cấu hình, khuyến nghị 15 phút.
 - Signing key lấy từ secret/environment, không hard-code.
 
@@ -433,7 +435,19 @@ sequenceDiagram
 - Logout thu hồi token.
 - Token reuse sau rotate bị từ chối.
 
-### 7.4 RBAC và ownership
+### 7.4 Khôi phục mật khẩu
+
+- Request luôn trả cùng response để không dò được email đăng ký.
+- Token có 48 byte entropy, truyền dưới dạng base64url và database chỉ lưu SHA-256.
+- Token mặc định hết hạn sau 15 phút, chỉ dùng một lần và request cùng tài khoản có
+  cooldown 60 giây ngoài rate limit theo IP.
+- Xác nhận reset chạy trong `IAuthMutationBoundary`: đổi hash, tăng auth version, consume
+  token và revoke toàn bộ refresh token trong cùng transaction.
+- `PasswordRecovery:DeliveryMode=Disabled` là mặc định an toàn; `Log` chỉ phát link ở
+  Development; `Smtp` là adapter Production và không liên quan Bookstore.
+- Delivery thất bại không làm response tiết lộ tài khoản; token vừa tạo bị vô hiệu hóa.
+
+### 7.5 RBAC và ownership
 
 | Hành động | Policy |
 |---|---|

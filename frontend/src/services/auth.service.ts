@@ -9,6 +9,12 @@ export const authService = {
   register: async (input: { displayName: string; email: string; password: string }) =>
     unwrap(await api.post<ApiEnvelope<AuthSession>>('/auth/register', input)),
 
+  requestPasswordReset: async (email: string) =>
+    unwrap(await api.post<ApiEnvelope<null>>('/auth/password-reset/request', { email })),
+
+  resetPassword: async (input: { token: string; password: string }) =>
+    unwrap(await api.post<ApiEnvelope<null>>('/auth/password-reset/confirm', input)),
+
   me: async () => unwrap(await api.get<ApiEnvelope<User>>('/auth/me')),
 
   refresh: async (refreshToken: string) =>

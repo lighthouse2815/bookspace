@@ -55,6 +55,21 @@ public sealed record LoginRequest(
     [Required, EmailAddress] string Email,
     [Required] string Password);
 
+public sealed record RequestPasswordResetRequest(
+    [Required(ErrorMessage = "Email không được để trống.")]
+    [EmailAddress(ErrorMessage = "Email không đúng định dạng.")]
+    [MaxLength(254, ErrorMessage = "Email không được vượt quá 254 ký tự.")]
+    string Email);
+
+public sealed record ResetPasswordRequest(
+    [Required(ErrorMessage = "Mã đặt lại mật khẩu không được để trống.")]
+    [MaxLength(500, ErrorMessage = "Mã đặt lại mật khẩu không hợp lệ.")]
+    string Token,
+    [Required(ErrorMessage = "Mật khẩu mới không được để trống.")]
+    [MinLength(8, ErrorMessage = "Mật khẩu mới cần ít nhất 8 ký tự.")]
+    [MaxLength(100, ErrorMessage = "Mật khẩu mới không được vượt quá 100 ký tự.")]
+    string Password);
+
 public sealed record RefreshRequest([Required] string RefreshToken);
 public sealed record LogoutRequest(string? RefreshToken);
 

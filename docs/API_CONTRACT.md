@@ -538,6 +538,40 @@ Vượt sliding-window limit theo địa chỉ client trả 429 `RATE_LIMITED` k
 reverse proxy, địa chỉ client chỉ lấy từ forwarded header của proxy/network đã
 được cấu hình tin cậy.
 
+### `POST /api/auth/password-reset/request` — Public
+
+Request:
+
+```json
+{
+  "email": "reader@example.com"
+}
+```
+
+Response `200`: `ApiResponse<null>` với message cố định
+`Nếu email thuộc tài khoản BookSpace, hướng dẫn đặt lại mật khẩu đã được gửi.`
+Response không xác nhận tài khoản có tồn tại, bị khóa, delivery đang tắt hay email gửi
+thất bại. Với tài khoản khả dụng, token mới chỉ được tạo sau cooldown mặc định 60 giây;
+token thô chỉ đi qua email provider và database chỉ lưu SHA-256. Sliding-window limit
+mặc định là 5 request/15 phút theo địa chỉ client.
+
+### `POST /api/auth/password-reset/confirm` — Public
+
+Request:
+
+```json
+{
+  "token": "opaque-one-time-token",
+  "password": "Reader456!"
+}
+```
+
+Password dài 8–100 ký tự và phải có chữ hoa, chữ thường, số, ký tự đặc biệt. Response
+`200`: `ApiResponse<null>`. Thành công đánh dấu token đã dùng, thu hồi mọi refresh token,
+tăng auth version của user và làm access token cũ mất hiệu lực ngay. Token không tồn tại,
+đã dùng, bị vô hiệu hóa, hết hạn hoặc thuộc tài khoản không khả dụng đều trả 400
+`PASSWORD_RESET_TOKEN_INVALID`. Sliding-window limit mặc định là 10 request/15 phút.
+
 ### `POST /api/auth/refresh` — Public với refresh token
 
 Request:
@@ -2103,6 +2137,7 @@ thành lỗi của core API.
 | `EMAIL_ALREADY_EXISTS` | 409 | email trùng |
 | `INVALID_REFRESH_TOKEN` | 401 | refresh token không hợp lệ, hết hạn hoặc đã bị thu hồi |
 | `WEAK_PASSWORD` | 400 | password chưa đạt yêu cầu |
+| `PASSWORD_RESET_TOKEN_INVALID` | 400 | token đặt lại mật khẩu không tồn tại, đã dùng, bị vô hiệu hóa, hết hạn hoặc không còn gắn với tài khoản khả dụng |
 | `ACCOUNT_UNAVAILABLE` | 400 | tài khoản bị khóa hoặc không còn khả dụng |
 | `FORBIDDEN` | 403 | không đủ quyền |
 | `USER_NOT_FOUND` | 404 | user không tồn tại |
@@ -2243,7 +2278,7 @@ thành lỗi của core API.
 | `CANNOT_MODERATE_OWN_CONTENT` | 403 | admin tự xử lý report nhắm đến mình |
 | `CANNOT_LOCK_ADMIN_ACCOUNT` | 403 | khóa tài khoản admin qua moderation queue |
 | `ROUTE_NOT_FOUND` | 404 | route hoặc tài nguyên HTTP không tồn tại |
-| `RATE_LIMITED` | 429 | vượt giới hạn request login hoặc refresh; response kèm `Retry-After` |
+| `RATE_LIMITED` | 429 | vượt giới hạn request login, refresh hoặc khôi phục mật khẩu; response kèm `Retry-After` |
 | `INTERNAL_ERROR` | 500 | lỗi không dự kiến |
 
 ## 22. Token và CORS

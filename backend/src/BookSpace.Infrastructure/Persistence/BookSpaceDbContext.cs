@@ -13,6 +13,7 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
     public DbSet<UserPreferredCategory> UserPreferredCategorySet => Set<UserPreferredCategory>();
     public DbSet<UserReferenceBook> UserReferenceBookSet => Set<UserReferenceBook>();
     public DbSet<RefreshToken> RefreshTokenSet => Set<RefreshToken>();
+    public DbSet<PasswordResetToken> PasswordResetTokenSet => Set<PasswordResetToken>();
     public DbSet<Follow> FollowSet => Set<Follow>();
     public DbSet<UserBlock> UserBlockSet => Set<UserBlock>();
     public DbSet<UserMute> UserMuteSet => Set<UserMute>();
@@ -64,6 +65,7 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
     IQueryable<UserReferenceBook> IBookSpaceDbContext.UserReferenceBooksIncludingDeleted =>
         UserReferenceBookSet.IgnoreQueryFilters();
     IQueryable<RefreshToken> IBookSpaceDbContext.RefreshTokens => RefreshTokenSet;
+    IQueryable<PasswordResetToken> IBookSpaceDbContext.PasswordResetTokens => PasswordResetTokenSet;
     IQueryable<Follow> IBookSpaceDbContext.Follows => FollowSet;
     IQueryable<UserBlock> IBookSpaceDbContext.UserBlocks => UserBlockSet;
     IQueryable<UserMute> IBookSpaceDbContext.UserMutes => UserMuteSet;
@@ -265,6 +267,21 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
             entity.Property(x => x.TokenHash).HasMaxLength(200).IsRequired();
             entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
             entity.Ignore(x => x.IsActive);
+            entity.Ignore(x => x.IsDeleted);
+        });
+
+        modelBuilder.Entity<PasswordResetToken>(entity =>
+        {
+            entity.ToTable("password_reset_tokens");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.TokenHash).IsUnique();
+            entity.HasIndex(x => new { x.UserId, x.CreatedAt });
+            entity.Property(x => x.TokenHash).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.UsedAt).IsConcurrencyToken();
+            entity.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
             entity.Ignore(x => x.IsDeleted);
         });
 
@@ -818,6 +835,8 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
             x.User.DeletedAt == null &&
             x.Book.DeletedAt == null);
         modelBuilder.Entity<RefreshToken>().HasQueryFilter(x => x.DeletedAt == null && x.User.DeletedAt == null);
+        modelBuilder.Entity<PasswordResetToken>().HasQueryFilter(x =>
+            x.DeletedAt == null && x.User.DeletedAt == null);
         modelBuilder.Entity<Follow>().HasQueryFilter(x =>
             x.DeletedAt == null &&
             x.Follower.DeletedAt == null &&

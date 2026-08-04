@@ -10,6 +10,8 @@ public static class AuthRateLimitPolicies
 {
     public const string Login = "auth-login";
     public const string Refresh = "auth-refresh";
+    public const string PasswordResetRequest = "auth-password-reset-request";
+    public const string PasswordResetConfirm = "auth-password-reset-confirm";
 }
 
 public sealed class AuthRateLimitOptions
@@ -28,6 +30,20 @@ public sealed class AuthRateLimitOptions
         PermitLimit = 20,
         WindowSeconds = 60,
         SegmentsPerWindow = 6
+    };
+
+    public AuthEndpointRateLimitOptions PasswordResetRequest { get; init; } = new()
+    {
+        PermitLimit = 5,
+        WindowSeconds = 900,
+        SegmentsPerWindow = 15
+    };
+
+    public AuthEndpointRateLimitOptions PasswordResetConfirm { get; init; } = new()
+    {
+        PermitLimit = 10,
+        WindowSeconds = 900,
+        SegmentsPerWindow = 15
     };
 }
 
@@ -56,7 +72,11 @@ public static class AuthRateLimitingServiceCollectionExtensions
             .AddOptions<AuthRateLimitOptions>()
             .Bind(configuration.GetSection(AuthRateLimitOptions.SectionName))
             .Validate(
-                settings => settings.Login.IsValid() && settings.Refresh.IsValid(),
+                settings =>
+                    settings.Login.IsValid() &&
+                    settings.Refresh.IsValid() &&
+                    settings.PasswordResetRequest.IsValid() &&
+                    settings.PasswordResetConfirm.IsValid(),
                 "Cấu hình giới hạn tần suất xác thực phải sử dụng các giá trị nguyên dương.")
             .ValidateOnStart();
 
@@ -70,6 +90,16 @@ public static class AuthRateLimitingServiceCollectionExtensions
             options.AddPolicy(
                 AuthRateLimitPolicies.Refresh,
                 context => CreatePartition(context, static settings => settings.Refresh));
+            options.AddPolicy(
+                AuthRateLimitPolicies.PasswordResetRequest,
+                context => CreatePartition(
+                    context,
+                    static settings => settings.PasswordResetRequest));
+            options.AddPolicy(
+                AuthRateLimitPolicies.PasswordResetConfirm,
+                context => CreatePartition(
+                    context,
+                    static settings => settings.PasswordResetConfirm));
         });
 
         return services;
@@ -134,9 +164,13 @@ public static class AuthRateLimitingServiceCollectionExtensions
         var settings = context.RequestServices
             .GetRequiredService<IOptions<AuthRateLimitOptions>>()
             .Value;
-        var endpointSettings = policyName == AuthRateLimitPolicies.Login
-            ? settings.Login
-            : settings.Refresh;
+        var endpointSettings = policyName switch
+        {
+            AuthRateLimitPolicies.Login => settings.Login,
+            AuthRateLimitPolicies.PasswordResetRequest => settings.PasswordResetRequest,
+            AuthRateLimitPolicies.PasswordResetConfirm => settings.PasswordResetConfirm,
+            _ => settings.Refresh
+        };
         return TimeSpan.FromSeconds(endpointSettings.WindowSeconds);
     }
 }

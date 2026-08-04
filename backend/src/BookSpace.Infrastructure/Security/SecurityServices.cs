@@ -38,6 +38,8 @@ public sealed class BCryptPasswordHasher : IPasswordHasher
 
 public sealed class JwtTokenIssuer(IOptions<JwtOptions> options) : ITokenIssuer
 {
+    public const string AuthVersionClaim = "bookspace_auth_version";
+
     private readonly JwtOptions _options = options.Value;
 
     public IssuedTokens Issue(User user)
@@ -55,6 +57,7 @@ public sealed class JwtTokenIssuer(IOptions<JwtOptions> options) : ITokenIssuer
             new Claim(ClaimTypes.Email, user.Email),
             new Claim(ClaimTypes.Name, user.DisplayName),
             new Claim(ClaimTypes.Role, user.Role.ToString()),
+            new Claim(AuthVersionClaim, user.AuthVersion.ToString(System.Globalization.CultureInfo.InvariantCulture)),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
         var token = new JwtSecurityToken(

@@ -38,13 +38,16 @@ function Invoke-BookSpaceExpectedError {
     param(
         [Parameter(Mandatory)]
         [string]$Path,
-        [string]$AccessToken
+        [string]$AccessToken,
+        [string]$Method = 'Get',
+        [object]$Body
     )
 
     try {
         $payload = Invoke-BookSpaceRequest `
-            -Method Get `
+            -Method $Method `
             -Path $Path `
+            -Body $Body `
             -AccessToken $AccessToken
 
         return [pscustomobject]@{
@@ -119,6 +122,25 @@ $unauthorizedOnboarding = Invoke-BookSpaceExpectedError `
 $externalCatalog = Invoke-BookSpaceRequest `
     -Method Get `
     -Path '/api/external-books/search?query=clean%20code&limit=3'
+$passwordRecoveryEmail = "password-recovery-missing-$([Guid]::NewGuid().ToString('N'))@bookspace.local"
+$passwordRecoveryRequest = Invoke-BookSpaceRequest `
+    -Method Post `
+    -Path '/api/auth/password-reset/request' `
+    -Body @{ email = $passwordRecoveryEmail }
+$passwordRecoveryInvalid = Invoke-BookSpaceExpectedError `
+    -Method Post `
+    -Path '/api/auth/password-reset/confirm' `
+    -Body @{ token = 'invalid-smoke-reset-token'; password = 'Reader456!' }
+
+if (
+    -not $passwordRecoveryRequest.success -or
+    $null -ne $passwordRecoveryRequest.data -or
+    $passwordRecoveryRequest.message -ne 'Nếu email thuộc tài khoản BookSpace, hướng dẫn đặt lại mật khẩu đã được gửi.' -or
+    $passwordRecoveryInvalid.StatusCode -ne 400 -or
+    $passwordRecoveryInvalid.Payload.code -ne 'PASSWORD_RESET_TOKEN_INVALID'
+) {
+    throw 'Password Recovery enumeration-safe request hoặc invalid-token contract không hợp lệ.'
+}
 
 $login = Invoke-BookSpaceRequest `
     -Method Post `
@@ -1063,6 +1085,7 @@ if (
     Recommendations = $recommendations.data.totalItems
     ColdStartRecommendations = $adminRecommendations.data.totalItems
     ExternalCatalogAvailable = [bool]$externalCatalog.data.available
+    PasswordRecovery = 'PASS'
     ReadingFeedItems = $feed.data.totalItems
     Books = $books.data.totalItems
     LibraryItems = $library.data.totalItems

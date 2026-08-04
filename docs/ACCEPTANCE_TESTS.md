@@ -115,6 +115,12 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-AUTH-017 | P0 | Profile có avatar URL sai trả 400. |
 | AC-AUTH-018 | P0 | `GET /api/users/{id}` không lộ password hash, refresh token hoặc email private. |
 | AC-AUTH-019 | P0 | User bị lock/soft delete không login được và token cũ không truy cập core API. |
+| AC-AUTH-020 | P0 | Request reset cho email tồn tại và không tồn tại trả cùng status/message/data; chỉ tài khoản khả dụng mới phát email. |
+| AC-AUTH-021 | P0 | Database chỉ lưu SHA-256 của password-reset token; token thô không xuất hiện trong API response. |
+| AC-AUTH-022 | P0 | Token reset hợp lệ đổi được mật khẩu đúng một lần; token dùng lại/hết hạn/vô hiệu hóa trả 400 `PASSWORD_RESET_TOKEN_INVALID`. |
+| AC-AUTH-023 | P0 | Reset thành công thu hồi mọi refresh token và làm access token auth-version cũ trả 401 ngay. |
+| AC-AUTH-024 | P0 | Mật khẩu reset yếu trả 400 `WEAK_PASSWORD`; password hash và token thô không bị log ở Production. |
+| AC-AUTH-025 | P0 | Hai endpoint reset có sliding-window rate limit độc lập; vượt ngưỡng trả 429 envelope tiếng Việt kèm `Retry-After`. |
 
 ## 4A. Personalized onboarding v1
 

@@ -22,6 +22,7 @@ public sealed class User : Entity
     public string? Bio { get; private set; }
     public string? AvatarUrl { get; private set; }
     public UserRole Role { get; private set; } = UserRole.USER;
+    public int AuthVersion { get; private set; }
     public OnboardingStatus OnboardingStatus { get; private set; } = OnboardingStatus.PENDING;
     public DateTimeOffset? OnboardingFinishedAt { get; private set; }
     public bool IsLocked { get; private set; }
@@ -101,6 +102,7 @@ public sealed class User : Entity
     public void ChangePasswordHash(string passwordHash)
     {
         PasswordHash = Guard.Required(passwordHash, "Mật khẩu đã mã hóa", 500);
+        AuthVersion = checked(AuthVersion + 1);
         Touch();
     }
 
@@ -155,6 +157,62 @@ public sealed class User : Entity
         {
             throw new DomainException("ACCOUNT_UNAVAILABLE", "Tài khoản hiện không thể đăng nhập.");
         }
+    }
+}
+
+public sealed class PasswordResetToken : Entity
+{
+    private PasswordResetToken() { }
+
+    public PasswordResetToken(Guid userId, string tokenHash, DateTimeOffset expiresAt)
+    {
+        if (userId == Guid.Empty)
+        {
+            throw new DomainException("PASSWORD_RESET_USER_REQUIRED", "Người dùng đặt lại mật khẩu không hợp lệ.");
+        }
+
+        if (expiresAt <= DateTimeOffset.UtcNow)
+        {
+            throw new DomainException("PASSWORD_RESET_EXPIRY_INVALID", "Thời hạn đặt lại mật khẩu phải ở tương lai.");
+        }
+
+        UserId = userId;
+        TokenHash = Guard.Required(tokenHash, "Mã đặt lại mật khẩu", 200);
+        ExpiresAt = expiresAt;
+    }
+
+    public Guid UserId { get; private set; }
+    public User User { get; private set; } = null!;
+    public string TokenHash { get; private set; } = string.Empty;
+    public DateTimeOffset ExpiresAt { get; private set; }
+    public DateTimeOffset? UsedAt { get; private set; }
+    public DateTimeOffset? InvalidatedAt { get; private set; }
+
+    public bool IsActiveAt(DateTimeOffset now) =>
+        !UsedAt.HasValue && !InvalidatedAt.HasValue && ExpiresAt > now;
+
+    public void Use(DateTimeOffset now)
+    {
+        if (!IsActiveAt(now))
+        {
+            throw new DomainException(
+                "PASSWORD_RESET_TOKEN_INVALID",
+                "Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.");
+        }
+
+        UsedAt = now;
+        Touch();
+    }
+
+    public void Invalidate(DateTimeOffset now)
+    {
+        if (UsedAt.HasValue || InvalidatedAt.HasValue)
+        {
+            return;
+        }
+
+        InvalidatedAt = now;
+        Touch();
     }
 }
 

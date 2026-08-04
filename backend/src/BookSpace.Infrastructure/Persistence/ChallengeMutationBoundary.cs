@@ -9,7 +9,8 @@ using Microsoft.EntityFrameworkCore;
 namespace BookSpace.Infrastructure.Persistence;
 
 public sealed class ChallengeMutationBoundary(BookSpaceDbContext db)
-    : IChallengeMutationBoundary,
+    : IAuthMutationBoundary,
+      IChallengeMutationBoundary,
       IReadingMutationBoundary,
        IClubChatMutationBoundary,
       IDirectMessageMutationBoundary,
@@ -52,6 +53,14 @@ public sealed class ChallengeMutationBoundary(BookSpaceDbContext db)
                 "ACTIVE_READING_SESSION_CHANGED",
                 "Phiên đọc tập trung vừa thay đổi. Vui lòng thử lại.",
                 409);
+        }
+        catch (DbUpdateConcurrencyException exception) when (
+            exception.Entries.Any(entry => entry.Entity is PasswordResetToken))
+        {
+            throw new UseCaseException(
+                "PASSWORD_RESET_TOKEN_INVALID",
+                "Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.",
+                400);
         }
         catch (DbUpdateException exception) when (
             IsChallengeParticipationUniqueViolation(exception))

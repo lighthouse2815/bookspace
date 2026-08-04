@@ -15,7 +15,7 @@ interface FormErrors {
   confirmPassword?: string
 }
 
-function AuthShell({ children, title, copy }: { children: React.ReactNode; title: string; copy: string }) {
+export function AuthShell({ children, title, copy }: { children: React.ReactNode; title: string; copy: string }) {
   return (
     <div className="container-page grid min-h-[calc(100dvh-4rem)] items-center gap-10 py-10 lg:grid-cols-2">
       <div className="hidden rounded-2xl bg-slate-950 p-10 text-white dark:bg-surface-muted dark:text-heading lg:flex lg:min-h-[36rem] lg:flex-col lg:justify-between">
@@ -104,6 +104,14 @@ export function LoginPage() {
           >
             {showPassword ? <EyeSlash size={18} /> : <Eye size={18} />}
           </button>
+        </div>
+        <div className="-mt-2 text-right">
+          <Link
+            to="/forgot-password"
+            className="text-sm font-semibold text-accent-strong hover:underline"
+          >
+            Quên mật khẩu?
+          </Link>
         </div>
         <Button type="submit" size="lg" loading={submitting} className="w-full">
           Đăng nhập

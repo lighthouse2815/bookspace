@@ -57,6 +57,48 @@ public sealed class AuthRateLimitingTests
         await AssertRateLimitResponseAsync(rejected);
     }
 
+    [Fact]
+    public async Task Password_reset_request_is_rate_limited()
+    {
+        using var factory = CreateFactoryWithLimit("PasswordResetRequest", permitLimit: 2);
+        using var client = factory.CreateClient();
+
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var response = await client.PostAsJsonAsync(
+                "/api/auth/password-reset/request",
+                new { email = "missing-user@bookspace.local" });
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+
+        var rejected = await client.PostAsJsonAsync(
+            "/api/auth/password-reset/request",
+            new { email = "missing-user@bookspace.local" });
+
+        await AssertRateLimitResponseAsync(rejected);
+    }
+
+    [Fact]
+    public async Task Password_reset_confirm_is_rate_limited()
+    {
+        using var factory = CreateFactoryWithLimit("PasswordResetConfirm", permitLimit: 2);
+        using var client = factory.CreateClient();
+
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var response = await client.PostAsJsonAsync(
+                "/api/auth/password-reset/confirm",
+                new { token = "invalid-token", password = "Reader456!" });
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        var rejected = await client.PostAsJsonAsync(
+            "/api/auth/password-reset/confirm",
+            new { token = "invalid-token", password = "Reader456!" });
+
+        await AssertRateLimitResponseAsync(rejected);
+    }
+
     private static BookSpaceApiFactory CreateFactoryWithLimit(string endpoint, int permitLimit) =>
         new(new Dictionary<string, string?>
         {
