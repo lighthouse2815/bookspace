@@ -197,6 +197,16 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-CAT-019 | P0 | Tài khoản cold-start không library/review/follow vẫn nhận candidate `POPULAR_FALLBACK` theo rating/review count công khai và tie-break ổn định. |
 | AC-CAT-020 | P0 | Ranking không đọc library/session/note của user khác; global fallback không biến dữ liệu đọc riêng tư thành reason. |
 | AC-CAT-021 | P0 | Sau library, review hoặc follow mutation liên quan, request recommendation mới phản ánh source hiện tại; read model không giữ server cache stale. |
+| AC-CAT-022 | P0 | Guest gọi `GET /api/authors/{id}` nhận hồ sơ, avatar/bio tùy chọn và `bookCount`; ID không tồn tại hoặc đã xóa trả 404 `AUTHOR_NOT_FOUND`. |
+| AC-CAT-023 | P0 | Guest gọi `GET /api/categories/{id}` nhận mô tả và `bookCount`; ID không tồn tại hoặc đã xóa trả 404 `CATEGORY_NOT_FOUND`. |
+| AC-CAT-024 | P0 | Sách trên trang tác giả/thể loại dùng bộ lọc `authorId`/`categoryId`, phân trang ổn định và không lẫn quan hệ khác. |
+| AC-CAT-025 | P0 | Guest tìm author theo tên/tiểu sử và category theo tên/mô tả; từ khóa quá 200 ký tự trả `CATALOG_METADATA_SEARCH_TOO_LONG`. |
+| AC-CAT-026 | P0 | `sort=name` sắp metadata A–Z ổn định; `sort=bookCount` sắp số sách giảm dần rồi tên/ID, sau đó mới phân trang. |
+| AC-CAT-027 | P0 | `GET /api/books/{id}/related?limit=4` loại sách hiện tại, chỉ trả quan hệ cùng tác giả/thể loại theo ranking contract; book không tồn tại trả `BOOK_NOT_FOUND`. |
+| AC-CAT-028 | P0 | Guest gọi catalog-follow API nhận 401; member follow/unfollow author/category idempotent, unfollow soft-delete và follow lại restore đúng logical row. |
+| AC-CAT-029 | P0 | `GET /api/catalog-follows` chỉ trả author/category active của principal; không có endpoint đọc danh sách của user khác. |
+| AC-CAT-030 | P0 | Recommendation ưu tiên explicit author follow, rồi số explicit category match, trước followed-reader likes và preference suy luận; follow mutation được phản ánh ngay ở request kế tiếp. |
+| AC-CAT-031 | P0 | Tạo hoặc import book mới sinh tối đa một notification `CATALOG` cho mỗi principal khớp author/category, có link `/books/{bookId}`; tắt preference thì không tạo, update hoặc link/import book đã có cũng không tạo lại. |
 
 ## 7. Admin catalog
 
@@ -222,6 +232,9 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-ADM-018 | P0 | Import mới thiếu author, category hoặc page count trả lỗi tiếng Việt ổn định và không lưu row dở dang. |
 | AC-ADM-019 | P0 | Provider tắt/lỗi trả 503 `EXTERNAL_CATALOG_UNAVAILABLE` cho import mới; catalog và mọi core flow vẫn hoạt động. |
 | AC-ADM-020 | P0 | Unique `(Provider, ExternalId)` và FK `BookId` restrict được migration/model bảo vệ. |
+| AC-ADM-021 | P0 | Chỉ ADMIN gọi được `GET /api/admin/authors` và `GET /api/admin/categories`; anonymous nhận 401, USER nhận 403. |
+| AC-ADM-022 | P0 | Danh sách metadata quản trị tìm theo tên/nội dung, phân trang ổn định và trả `bookCount`; từ khóa trên 200 ký tự trả 400 `CATALOG_METADATA_SEARCH_TOO_LONG`. |
+| AC-ADM-023 | P0 | Sau create/patch/delete metadata chưa được dùng, danh sách tìm kiếm phản ánh dữ liệu mới; metadata đang gắn với sách vẫn trả conflict tương ứng. |
 
 ## 8. Library và state transition
 
@@ -464,6 +477,9 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-CHAL-014 | P0 | Route canonical `GET /api/challenges/my` chỉ trả challenge principal đã tham gia; alias tương thích `GET /api/challenges/mine` trả payload tương đương. |
 | AC-CHAL-015 | P0 | Join, unpublish và delete cùng dùng serialized, non-deferred SQLite challenge write boundary lấy lock trước khi đọc điều kiện: join thắng làm admin mutation trả 409; admin mutation thắng làm join trả conflict/not-found. Guard admin tính mọi row vật lý `ChallengeParticipation` của challenge, kể cả row đã soft-delete hoặc thuộc user đã soft-delete, nên các use case không thể tạo mới challenge draft/đã xóa kèm participation có thể xuất hiện lại khi restore; nếu dữ liệu cũ đã vi phạm thì admin mutation vẫn phải trả 409 và giữ nguyên trạng thái. Acquire/retry lock là ngắn và cancellable; hủy trước khi lấy lock không chạy callback hoặc commit mutation. |
 | AC-CHAL-016 | P0 | Leave load/remove/sync/map trong một transaction và controller không đọc lại: response có `isJoined=false`, `currentBooks=0`; leave lặp lại trả 404. Nếu response bị mất tại/sau commit, client dùng GET detail/`my` để đối soát. |
+| AC-CHAL-017 | P0 | Leaderboard yêu cầu auth, chỉ nhận challenge published và chỉ đọc high-water progress đã lưu; request không bulk-sync progress của participant khác. |
+| AC-CHAL-018 | P0 | Leaderboard sắp `currentBooks` giảm dần, completion/`completedAt` sớm hơn, `joinedAt` sớm hơn rồi `userId`; rank one-based không reset giữa các trang và pagination ổn định. |
+| AC-CHAL-019 | P0 | Principal luôn thấy mình; user khác phải active và công khai hoạt động đọc. Block hai chiều hoặc principal mute loại row trước count/rank/pagination nên không rò khoảng hạng hay tổng ẩn. |
 
 ## 16. Notifications
 
@@ -532,7 +548,7 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-WEB-009 | P0 | `/clubs/:id` | detail, join/leave, posts theo quyền |
 | AC-WEB-009A | P0 | `/clubs/:clubId/sprints/:sprintId` | join/leave, progress, leaderboard, timeline, manager controls và milestone thread theo permission DTO |
 | AC-WEB-010 | P0 | `/challenges` | list, join/leave, progress tự động và card link tới detail |
-| AC-WEB-010A | P0 | `/challenges/:id` | deep-link detail, loading/error/empty/unauthenticated CTA, join/leave không reload |
+| AC-WEB-010A | P0 | `/challenges/:id` | deep-link detail, loading/error/empty/unauthenticated CTA, join/leave không reload; member thấy leaderboard phân trang với current-user highlight và tiến độ server |
 
 ### 19.2 Route protected
 
@@ -543,7 +559,8 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-WEB-013 | P0 | `/journal` | focus timer server-backed có start/pause/resume/finish/cancel, recovery sau reload, list/create/correction completed session |
 | AC-WEB-014 | P0 | `/feed` | feed 10 item/trang từ network, bộ lọc, phân trang, gợi ý follow và empty CTA tới `/people` |
 | AC-WEB-015 | P0 | `/notifications` | server unread count, tab all/unread, category filter, URL pagination, deep-link và optimistic read/read-all |
-| AC-WEB-016 | P0 | `/settings` | update display name, bio, avatar, hai quyền riêng tư đọc, năm notification preferences, quản lý bỏ ẩn/bỏ chặn và liên kết “Sở thích đọc” tới `/onboarding?mode=edit` |
+| AC-WEB-016 | P0 | `/settings` | update display name, bio, avatar, hai quyền riêng tư đọc, sáu notification preferences, quản lý bỏ ẩn/bỏ chặn và liên kết “Sở thích đọc” tới `/onboarding?mode=edit` |
+| AC-WEB-016A | P0 | `/following-topics` | loading/error/empty state, hai nhóm author/category owner-private, link tới trang chi tiết và unfollow tại chỗ |
 | AC-WEB-017 | P0 | `/profile` | hiển thị current user hoặc redirect đúng `/users/:id` |
 | AC-WEB-018 | P0 | `/goals` | list/filter, create/update/delete goal; progress/status hiển thị từ API, không có UI ghi progress tay |
 | AC-WEB-019 | P0 | `/notes` | list/filter/search, create/update/delete note; edit không đổi book và PATCH không gửi `bookId` |
@@ -562,6 +579,14 @@ sau khi auth bootstrap kết thúc.
 | AC-WEB-021 | P0 | `/admin/books` | ADMIN create/patch/delete book bằng `/api/admin/books`; USER bị chặn |
 | AC-WEB-022 | P0 | `/admin/challenges` | ADMIN create/patch/publish/delete challenge; USER bị chặn |
 | AC-WEB-022A | P0 | `/admin/moderation` | ADMIN lọc queue, xem snapshot, ghi note, bác bỏ, ẩn nội dung hoặc khóa tài khoản; USER bị chặn |
+| AC-WEB-022B | P0 | `/admin/authors` | ADMIN tìm kiếm/phân trang, tạo/sửa/xóa tác giả; hiện `bookCount`, khóa xóa khi còn sách và làm mới lookup catalog |
+| AC-WEB-022C | P0 | `/admin/categories` | ADMIN tìm kiếm/phân trang, tạo/sửa/xóa thể loại; hiện `bookCount`, khóa xóa khi còn sách và làm mới lookup catalog |
+| AC-WEB-022D | P0 | `/authors/:id` | public, hiển thị avatar/tên/tiểu sử/số sách và grid sách phân trang theo `authorId`; missing có error state và đường về catalog |
+| AC-WEB-022E | P0 | `/categories/:id` | public, hiển thị tên/mô tả/số sách và grid sách phân trang theo `categoryId`; missing có error state và đường về catalog |
+| AC-WEB-022F | P0 | `/authors` | public, URL-backed search/sort/page, card dẫn tới hồ sơ tác giả và đủ loading/error/empty state |
+| AC-WEB-022G | P0 | `/categories` | public, URL-backed search/sort/page, card dẫn tới hồ sơ thể loại và đủ loading/error/empty state |
+| AC-WEB-022H | P0 | `/books/:id` | hiển thị loading/error/empty hoặc tối đa bốn BookCard liên quan; Explore dẫn đúng `/authors`, `/categories` và `/categories/:id` |
+| AC-WEB-022I | P0 | `/authors`, `/categories`, `/authors/:id`, `/categories/:id` | guest thấy CTA đăng nhập; member follow/unfollow tại chỗ và recommendation cache được làm mới |
 
 ### 19.4 Trạng thái chung
 
@@ -673,7 +698,7 @@ sau khi auth bootstrap kết thúc.
 - Feed filter validation, nguồn/timestamp sự kiện đọc, privacy activity, private-club isolation, paging/order ổn định và không lộ note.
 - Club membership/post permission.
 - Reading sprint lifecycle, permission, participant idempotency, progress, leaderboard, timeline, milestone/response, reminder deduplication và private-club isolation.
-- Challenge detail published/draft, atomic join/rollback, concurrent duplicate join 409, serialized join-vs-unpublish/delete, physical-participation guard, cancellable lock acquisition, leave không post-read và nonparticipant leave, progress từ sách hoàn tất trước/sau join, deterministic stale-low high-water, repair `CompletedAt`, mutation-time completion và notification dedupe/unique constraint.
+- Challenge detail published/draft, atomic join/rollback, concurrent duplicate join 409, serialized join-vs-unpublish/delete, physical-participation guard, cancellable lock acquisition, leave không post-read và nonparticipant leave, progress từ sách hoàn tất trước/sau join, deterministic stale-low high-water, repair `CompletedAt`, mutation-time completion, notification dedupe/unique constraint và leaderboard ranking/privacy/block/mute/pagination.
 - Notification ownership, category filters, preferences và delivery policy.
 - Direct message mutual-follow, normalized conversation concurrency, ownership, cursor history,
   unread/read marker, notification preference, unfollow history, block/mute, SignalR auth và moderation.
@@ -692,8 +717,10 @@ sau khi auth bootstrap kết thúc.
 - Reading Insights query key có timezone offset, route protected và session/goal mutation invalidate cache.
 - Focus timer recovery/ticking/pause-resume/finish-cancel, preselected book, double-submit guard và completed-session correction.
 - Review request top-level `/reviews`.
-- Admin request path `/admin/books` và `/admin/challenges`.
-- Production App deep-link challenge, loading/error/empty/guest CTA, intended login return, principal-scoped cache, join/leave invalidation, reading-mutation challenge invalidation và không có manual-progress request.
+- Admin request path `/admin/books`, `/admin/authors`, `/admin/categories` và `/admin/challenges`; metadata mutation làm mới cache catalog dùng ở form sách/import.
+- Public metadata detail dùng `/authors/{id}` và `/categories/{id}`; BookCard/Book Detail dẫn tới đúng route và không lồng liên kết tương tác sai HTML.
+- Catalog discovery dùng `/authors`, `/categories`, URL search/sort/page và `/books/{id}/related`; Explore link tới hồ sơ thay vì chỉ lọc catalog.
+- Production App deep-link challenge, loading/error/empty/guest CTA, intended login return, principal-scoped cache, join/leave invalidation, reading-mutation challenge invalidation, leaderboard states/pagination/current-user highlight và không có manual-progress request.
 - Loading/error/empty, filter URL, pagination và optimistic read/read-all cho notifications.
 - Feed URL filter/pagination, page size 10, suggestion follow, privacy-aware rendering và empty CTA `/people`.
 - Explore recommendation guest/member states, principal-scoped pagination,

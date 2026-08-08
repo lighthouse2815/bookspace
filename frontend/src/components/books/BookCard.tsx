@@ -27,7 +27,16 @@ export function BookCard({ book }: { book: Book }) {
           {book.title}
         </h3>
       </Link>
-      <p className="mt-1 truncate text-sm text-muted">{book.author?.name || 'Tác giả đang cập nhật'}</p>
+      {book.author ? (
+        <Link
+          to={`/authors/${book.author.id}`}
+          className="mt-1 block truncate text-sm text-muted transition-colors hover:text-accent-strong focus-visible:focus-ring"
+        >
+          {book.author.name}
+        </Link>
+      ) : (
+        <p className="mt-1 truncate text-sm text-muted">Tác giả đang cập nhật</p>
+      )}
       <div className="mt-2 flex items-center gap-1.5 text-xs text-muted">
         <Star size={15} weight="fill" className="text-amber-500" aria-hidden />
         <span className="font-semibold text-heading">{(book.averageRating ?? 0).toFixed(1)}</span>

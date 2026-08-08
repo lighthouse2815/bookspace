@@ -17,6 +17,8 @@ cơ sở dữ liệu.
   sách tham chiếu, thêm nhanh sách muốn đọc, khám phá độc giả và tùy chọn tạo mục tiêu đầu tiên
 - Tìm kiếm sách, tác giả, thể loại và nhận đề xuất cá nhân hóa rule-based từ
   sở thích đã chọn cùng hoạt động BookSpace; sách tham chiếu không được gợi ý lại
+- Danh bạ và hồ sơ public cho tác giả/thể loại, có tìm kiếm, sắp xếp, phân trang;
+  chi tiết sách gợi ý các tựa liên quan theo tác giả và chủ đề
 - Quản trị viên tìm metadata ngoài, xem trước rồi import vào catalog BookSpace;
   ISBN và mã provider được chống trùng, còn provider vẫn có thể tắt hoàn toàn
 - Quản lý các kệ cá nhân: muốn đọc, đang đọc và đã đọc
@@ -31,7 +33,8 @@ cơ sở dữ liệu.
 - Trò chuyện theo thời gian thực trong câu lạc bộ, với lịch sử chỉ dành cho thành viên, trạng thái chưa đọc và thông báo trong ứng dụng
 - Nhắn tin riêng 1:1 dạng text giữa hai người theo dõi lẫn nhau, có inbox, lịch sử cursor,
   trạng thái chưa đọc, thông báo tùy chọn, SignalR sau commit và tích hợp block/mute/report
-- Tham gia thử thách đọc sách với tiến độ do máy chủ tính từ các sách đã hoàn thành trong thư viện
+- Tham gia thử thách đọc sách với tiến độ do máy chủ tính từ các sách đã hoàn thành
+  trong thư viện và bảng xếp hạng phân trang tôn trọng quyền riêng tư/chặn/ẩn
 - Trung tâm thông báo trong ứng dụng với số mục chưa đọc do máy chủ quản lý, bộ lọc theo nhóm, phân trang và tùy chọn nhận thông báo
 - Bảng điều khiển thành viên, bản đồ nhiệt hoạt động theo thời gian, chuỗi ngày đọc, báo cáo theo kỳ và dự báo thời điểm đọc xong
 - Báo cáo hồ sơ, đánh giá, bình luận, bài viết và tin nhắn; hàng đợi quản trị có audit, soft-delete nội dung và khóa tài khoản
@@ -224,8 +227,9 @@ cd T:\bookspace
 ```
 
 Smoke test tự lấy ID thể loại/sách đang hoạt động từ catalog, lưu và hoàn tất một
-onboarding, xác minh luồng bỏ qua bằng tài khoản khác, rồi kiểm tra sách tham chiếu
-không xuất hiện lại trong recommendation. Script không phụ thuộc UUID seed cố định.
+onboarding, xác minh luồng bỏ qua bằng tài khoản khác, kiểm tra sách tham chiếu không
+xuất hiện lại trong recommendation, rồi tạo/tìm/sửa/xóa một tác giả và thể loại quản
+trị độc lập. Script không phụ thuộc UUID seed cố định.
 
 ## Tích hợp Bookstore tùy chọn
 

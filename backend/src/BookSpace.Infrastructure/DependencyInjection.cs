@@ -49,6 +49,7 @@ public static class DependencyInjection
         services.AddScoped<IOnboardingService, OnboardingService>();
         services.AddScoped<IUserSafetyService, UserSafetyService>();
         services.AddScoped<ICatalogService, CatalogService>();
+        services.AddScoped<ICatalogFollowingService, CatalogFollowingService>();
         services.AddScoped<IReadingService, ReadingService>();
         services.AddScoped<ICommunityService, CommunityService>();
         services.AddScoped<IClubService, ClubService>();

@@ -274,6 +274,17 @@ export function useChallenge(id: string) {
   })
 }
 
+export function useChallengeLeaderboard(id: string, page: number, pageSize: number) {
+  const { user, isAuthenticated, isLoading } = useAuth()
+  const scope = challengeViewerScope(user?.id)
+
+  return useQuery({
+    queryKey: challengeKeys.leaderboard(scope, id, page, pageSize),
+    queryFn: () => challengeService.leaderboard(id, page, pageSize),
+    enabled: Boolean(id) && isAuthenticated && !isLoading,
+  })
+}
+
 export function useAdminChallenges() {
   return useQuery({ queryKey: ['admin', 'challenges'], queryFn: adminService.challenges })
 }

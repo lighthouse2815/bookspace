@@ -478,6 +478,10 @@ shelf `READ` có `FinishedAt` trong khoảng UTC đóng `[startDate, endDate]`; 
 giới hạn bởi thời điểm join. Giá trị đã ghi nhận không giảm và bị chặn tại
 `goalBooks`.
 
+`ChallengeLeaderboardItemResponse`: `rank`, `user`, `currentBooks`, `targetBooks`,
+`progressPercent`, `completedAt`, `isCurrentUser`. `user` là `UserSummary` công
+khai và không chứa email.
+
 ### 2.7 Notification và dashboard
 
 `NotificationResponse`: `id`, `type`, `title`, `message`, `link`, `isRead`, `createdAt`.
@@ -845,16 +849,19 @@ Candidate chỉ gồm sách active chưa có trong library active của principa
 shelf nào, chưa từng được principal review và không nằm trong `referenceBookIds`
 active của principal. Ranking áp dụng trước count/phân trang, theo vector xác định:
 
-1. Số review 4–5 sao còn hoạt động từ user active principal đang follow, giảm dần.
-2. Có author trùng author trong library/review 4–5 sao/reference book của principal.
-3. Số category trùng category trong preferred-category onboarding, library,
+1. Có author principal explicit theo dõi.
+2. Số category principal explicit theo dõi, giảm dần.
+3. Số review 4–5 sao còn hoạt động từ user active principal đang follow, giảm dần.
+4. Có author trùng author trong library/review 4–5 sao/reference book của principal.
+5. Số category trùng category trong preferred-category onboarding, library,
    review 4–5 sao hoặc reference book của principal, giảm dần.
-4. Average rating từ review công khai còn hoạt động, giảm dần.
-5. Review count công khai, giảm dần.
-6. `book.id asc`.
+6. Average rating từ review công khai còn hoạt động, giảm dần.
+7. Review count công khai, giảm dần.
+8. `book.id asc`.
 
-`reasonCode` là tín hiệu ưu tiên đầu tiên có giá trị theo đúng thứ tự social,
-author, category, fallback. Tài khoản chưa có library/review/follow vẫn nhận
+`reasonCode` là tín hiệu ưu tiên đầu tiên có giá trị theo đúng thứ tự explicit
+author, explicit category, social, inferred author, inferred category, fallback.
+Tài khoản chưa có library/review/follow vẫn nhận
 `POPULAR_FALLBACK` từ aggregate review công khai; book chưa có review vẫn là
 candidate hợp lệ sau các book được cộng đồng đánh giá.
 
@@ -874,17 +881,71 @@ Không có access token hợp lệ: `401 UNAUTHORIZED` với message
 
 Response `200`: `ApiResponse<BookResponse>`.
 
-### `GET /api/authors?page=1&pageSize=100` — Public
+### `GET /api/books/{bookId}/related?limit=4` — Public
 
-Response `200`: `ApiResponse<PageResult<AuthorResponse>>`.
+Response `200`: `ApiResponse<BookResponse[]>`. Loại sách hiện tại và chỉ trả sách
+active có cùng tác giả hoặc ít nhất một thể loại. Ranking ổn định theo cùng tác giả,
+số thể loại chung, điểm trung bình, số review, tên rồi ID. `limit` được chuẩn hóa
+trong `1..100`; sách gốc không tồn tại trả `404 BOOK_NOT_FOUND`.
 
-### `GET /api/categories?page=1&pageSize=100` — Public
+### `GET /api/authors?search=&sort=name&page=1&pageSize=100` — Public
 
-Response `200`: `ApiResponse<PageResult<CategoryResponse>>`.
+Response `200`: `ApiResponse<PageResult<AuthorResponse>>`. `search` tùy chọn, tối đa
+200 ký tự, tìm không phân biệt hoa thường trong tên và tiểu sử. `sort=name` mặc định
+sắp A–Z; `sort=bookCount` sắp số sách giảm dần rồi tên và ID.
+
+### `GET /api/authors/{authorId}` — Public
+
+Response `200`: `ApiResponse<AuthorResponse>` gồm `id`, `name`, `biography`,
+`avatarUrl` và `bookCount`. Tác giả không tồn tại hoặc đã soft-delete trả
+`404 AUTHOR_NOT_FOUND`. Danh sách sách của tác giả dùng contract catalog hiện có:
+`GET /api/books?authorId={authorId}&page=1&pageSize=12`.
+
+### `GET /api/categories?search=&sort=name&page=1&pageSize=100` — Public
+
+Response `200`: `ApiResponse<PageResult<CategoryResponse>>`. `search` tìm trong tên
+và mô tả với cùng giới hạn 200 ký tự. `sort=name` mặc định sắp A–Z;
+`sort=bookCount` sắp số sách giảm dần rồi tên và ID.
+
+### `GET /api/categories/{categoryId}` — Public
+
+Response `200`: `ApiResponse<CategoryResponse>` gồm `id`, `name`, `description`
+và `bookCount`. Thể loại không tồn tại hoặc đã soft-delete trả
+`404 CATEGORY_NOT_FOUND`. Danh sách sách dùng contract catalog hiện có:
+`GET /api/books?categoryId={categoryId}&page=1&pageSize=12`.
+
+### Catalog following — Authenticated
+
+| Method | Route | Response |
+|---|---|---|
+| `GET` | `/api/catalog-follows` | `CatalogFollowingResponse` gồm hai mảng `authors`, `categories` của principal |
+| `PUT` | `/api/catalog-follows/authors/{authorId}` | idempotent; theo dõi mới hoặc khôi phục link soft-delete |
+| `DELETE` | `/api/catalog-follows/authors/{authorId}` | idempotent; soft-delete link đang hoạt động |
+| `PUT` | `/api/catalog-follows/categories/{categoryId}` | idempotent; theo dõi mới hoặc khôi phục link soft-delete |
+| `DELETE` | `/api/catalog-follows/categories/{categoryId}` | idempotent; soft-delete link đang hoạt động |
+
+Danh sách không có endpoint theo user ID khác. Metadata missing/đã xóa trả
+`AUTHOR_NOT_FOUND` hoặc `CATEGORY_NOT_FOUND`. Khi admin tạo/import một sách mới,
+mọi principal đang theo dõi author hoặc category tương ứng và còn bật preference
+catalog nhận đúng một notification `CATALOG`, deep-link `/books/{bookId}`. Khóa
+dedupe theo cặp user/sách ngăn trùng khi khớp nhiều nguồn hoặc retry transaction.
 
 ## 6. Admin catalog API
 
 Tất cả endpoint yêu cầu role `ADMIN`.
+
+### `GET /api/admin/authors?search=&page=1&pageSize=20`
+
+Response `200`: `ApiResponse<PageResult<AuthorResponse>>`. `search` tùy chọn, tối đa
+200 ký tự, tìm không phân biệt hoa thường trong `name` và `biography`. Kết quả sắp
+xếp ổn định theo tên rồi ID và bao gồm `bookCount` để giao diện biết metadata còn
+được sử dụng hay không.
+
+### `GET /api/admin/categories?search=&page=1&pageSize=20`
+
+Response `200`: `ApiResponse<PageResult<CategoryResponse>>`. `search` tùy chọn, tối đa
+200 ký tự, tìm không phân biệt hoa thường trong `name` và `description`. Kết quả sắp
+xếp ổn định theo tên rồi ID và bao gồm `bookCount`.
 
 ### `POST /api/admin/books`
 
@@ -988,7 +1049,7 @@ Response `200`: `ApiResponse<CategoryResponse>`.
 
 Chỉ soft-delete khi category chưa được gắn với book; nếu đang được dùng trả `409 CATEGORY_IN_USE`. Response `200`: `ApiResponse<null>`.
 
-Catalog errors: `BOOK_NOT_FOUND`, `ISBN_ALREADY_EXISTS`, `AUTHOR_NOT_FOUND`, `CATEGORY_NOT_FOUND`, `AUTHOR_ALREADY_EXISTS`, `CATEGORY_ALREADY_EXISTS`, `AUTHOR_IN_USE`, `CATEGORY_IN_USE`.
+Catalog errors: `BOOK_NOT_FOUND`, `ISBN_ALREADY_EXISTS`, `AUTHOR_NOT_FOUND`, `CATEGORY_NOT_FOUND`, `AUTHOR_ALREADY_EXISTS`, `CATEGORY_ALREADY_EXISTS`, `AUTHOR_IN_USE`, `CATEGORY_IN_USE`, `CATALOG_METADATA_SEARCH_TOO_LONG`.
 
 ## 7. Library API
 
@@ -1879,6 +1940,23 @@ Public chỉ nhận challenge đã xuất bản. Response `200`: `ApiResponse<Pa
 
 Chỉ trả challenge đã xuất bản. Bản nháp chỉ có mặt trong danh sách quản trị. Response `200`: `ApiResponse<ChallengeResponse>`.
 
+### `GET /api/challenges/{challengeId}/leaderboard?page=1&pageSize=20` — Authenticated
+
+Chỉ đọc leaderboard của challenge đã xuất bản; challenge không tồn tại, đã xóa
+hoặc còn là draft trả `404 CHALLENGE_NOT_FOUND`. Response `200`:
+`ApiResponse<PageResult<ChallengeLeaderboardItemResponse>>`.
+
+Server chỉ đọc high-water progress đã lưu, không đồng bộ progress của participant
+khác trong request. Tập visible loại user đã xóa/khóa; principal luôn thấy chính
+mình, còn user khác phải bật `isReadingActivityPublic`, không block hai chiều với
+principal và không bị principal mute. Visibility được áp dụng trước `totalItems`,
+rank và pagination.
+
+Thứ tự ổn định: `currentBooks` giảm dần; participant hoàn thành đứng trước; cùng
+hoàn thành thì `completedAt` sớm hơn đứng trước; sau đó `joinedAt` sớm hơn và
+`userId` tăng dần. `rank` là vị trí một-based trong đúng tập visible và không bị
+đặt lại ở đầu mỗi trang; `progressPercent` được chặn trong `0..100`.
+
 ### `POST /api/challenges/{challengeId}/join` — Authenticated
 
 Challenge phải đã publish và chưa kết thúc. Application tạo participation, suy ra
@@ -1995,7 +2073,7 @@ Tất cả endpoint chỉ truy cập notification của principal.
 
 ### `GET /api/notifications?unreadOnly=false&category=&page=1&pageSize=20`
 
-`category` tùy chọn: `FOLLOW`, `REVIEW`, `CLUB`, `CHALLENGE`, `DIRECT_MESSAGE`, `SYSTEM`. `REVIEW` gồm cả type `REVIEW_LIKE` và `COMMENT`. Kết quả sắp `createdAt desc`, sau đó `id desc` để phân trang ổn định.
+`category` tùy chọn: `FOLLOW`, `CATALOG`, `REVIEW`, `CLUB`, `CHALLENGE`, `DIRECT_MESSAGE`, `SYSTEM`. `REVIEW` gồm cả type `REVIEW_LIKE` và `COMMENT`. Kết quả sắp `createdAt desc`, sau đó `id desc` để phân trang ổn định.
 
 Response `200`: `ApiResponse<PageResult<NotificationResponse>>`.
 
@@ -2010,6 +2088,7 @@ Response `200`:
 ```json
 {
   "isFollowNotificationEnabled": true,
+  "isCatalogNotificationEnabled": true,
   "isReviewNotificationEnabled": true,
   "isClubNotificationEnabled": true,
   "isChallengeNotificationEnabled": true,
@@ -2019,7 +2098,7 @@ Response `200`:
 
 ### `PATCH /api/notifications/preferences`
 
-Request và response dùng đủ năm boolean như GET. Preference áp dụng cho sự kiện mới; notification `SYSTEM` luôn được tạo và lịch sử cũ không bị xóa.
+Request và response dùng đủ sáu boolean như GET. Preference áp dụng cho sự kiện mới; notification `SYSTEM` luôn được tạo và lịch sử cũ không bị xóa.
 
 ### `PATCH /api/notifications/{notificationId}/read`
 

@@ -1,11 +1,30 @@
 import { api, unwrap } from '../lib/api'
 import type { ApiEnvelope, PageResult } from '../types/api'
 import type {
+  Author,
   Book,
+  Category,
   Challenge,
   ExternalBookImportResult,
   ExternalBookSearchResult,
 } from '../types/domain'
+
+export interface AdminMetadataQuery {
+  search?: string
+  page?: number
+  pageSize?: number
+}
+
+export interface AuthorAdminInput {
+  name: string
+  biography?: string
+  avatarUrl?: string
+}
+
+export interface CategoryAdminInput {
+  name: string
+  description?: string
+}
 
 export interface BookAdminInput {
   title: string
@@ -41,6 +60,34 @@ export interface ExternalBookImportInput {
 }
 
 export const adminService = {
+  authors: async (params: AdminMetadataQuery = {}) =>
+    unwrap(
+      await api.get<ApiEnvelope<PageResult<Author>>>('/admin/authors', { params }),
+    ),
+
+  categories: async (params: AdminMetadataQuery = {}) =>
+    unwrap(
+      await api.get<ApiEnvelope<PageResult<Category>>>('/admin/categories', { params }),
+    ),
+
+  createAuthor: async (input: AuthorAdminInput) =>
+    unwrap(await api.post<ApiEnvelope<Author>>('/admin/authors', input)),
+
+  updateAuthor: async (id: string, input: AuthorAdminInput) =>
+    unwrap(await api.patch<ApiEnvelope<Author>>(`/admin/authors/${id}`, input)),
+
+  deleteAuthor: async (id: string) =>
+    unwrap(await api.delete<ApiEnvelope<null>>(`/admin/authors/${id}`)),
+
+  createCategory: async (input: CategoryAdminInput) =>
+    unwrap(await api.post<ApiEnvelope<Category>>('/admin/categories', input)),
+
+  updateCategory: async (id: string, input: CategoryAdminInput) =>
+    unwrap(await api.patch<ApiEnvelope<Category>>(`/admin/categories/${id}`, input)),
+
+  deleteCategory: async (id: string) =>
+    unwrap(await api.delete<ApiEnvelope<null>>(`/admin/categories/${id}`)),
+
   challenges: async () =>
     unwrap(
       await api.get<ApiEnvelope<PageResult<Challenge>>>('/admin/challenges', {

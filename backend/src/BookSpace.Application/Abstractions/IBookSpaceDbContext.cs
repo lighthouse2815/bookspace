@@ -13,6 +13,14 @@ public interface IBookSpaceDbContext
         Array.Empty<UserReferenceBook>().AsQueryable();
     IQueryable<UserReferenceBook> UserReferenceBooksIncludingDeleted =>
         UserReferenceBooks;
+    IQueryable<UserAuthorFollow> UserAuthorFollows =>
+        Array.Empty<UserAuthorFollow>().AsQueryable();
+    IQueryable<UserAuthorFollow> UserAuthorFollowsIncludingDeleted =>
+        UserAuthorFollows;
+    IQueryable<UserCategoryFollow> UserCategoryFollows =>
+        Array.Empty<UserCategoryFollow>().AsQueryable();
+    IQueryable<UserCategoryFollow> UserCategoryFollowsIncludingDeleted =>
+        UserCategoryFollows;
     IQueryable<RefreshToken> RefreshTokens { get; }
     IQueryable<PasswordResetToken> PasswordResetTokens =>
         Array.Empty<PasswordResetToken>().AsQueryable();

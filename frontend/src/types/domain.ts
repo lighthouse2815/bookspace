@@ -69,8 +69,14 @@ export interface Author {
 export interface Category {
   id: string
   name: string
+  description?: string
   slug?: string
   bookCount?: number
+}
+
+export interface CatalogFollowing {
+  authors: Author[]
+  categories: Category[]
 }
 
 export interface Book {
@@ -655,9 +661,19 @@ export interface Challenge {
   completedAt?: string
 }
 
+export interface ChallengeLeaderboardItem {
+  rank: number
+  user: User
+  currentBooks: number
+  targetBooks: number
+  progressPercent: number
+  completedAt: string | null
+  isCurrentUser: boolean
+}
+
 export interface Notification {
   id: string
-  type: 'FOLLOW' | 'REVIEW_LIKE' | 'COMMENT' | 'CLUB' | 'CHALLENGE' | 'DIRECT_MESSAGE' | 'SYSTEM'
+  type: 'FOLLOW' | 'CATALOG' | 'REVIEW_LIKE' | 'COMMENT' | 'CLUB' | 'CHALLENGE' | 'DIRECT_MESSAGE' | 'SYSTEM'
   title: string
   message: string
   link?: string
@@ -668,6 +684,7 @@ export interface Notification {
 
 export type NotificationCategory =
   | 'FOLLOW'
+  | 'CATALOG'
   | 'REVIEW'
   | 'CLUB'
   | 'CHALLENGE'
@@ -676,6 +693,7 @@ export type NotificationCategory =
 
 export interface NotificationPreferences {
   isFollowNotificationEnabled: boolean
+  isCatalogNotificationEnabled: boolean
   isReviewNotificationEnabled: boolean
   isClubNotificationEnabled: boolean
   isChallengeNotificationEnabled: boolean

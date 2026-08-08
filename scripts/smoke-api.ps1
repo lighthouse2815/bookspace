@@ -152,6 +152,31 @@ if (-not $login.success -or -not $login.data.accessToken) {
 }
 
 $token = $login.data.accessToken
+$publishedChallenges = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/challenges?page=1&pageSize=20' `
+    -AccessToken $token
+$publishedChallengeItems = @($publishedChallenges.data.items)
+if ($publishedChallengeItems.Count -lt 1) {
+    throw 'Seed không có challenge đã xuất bản để kiểm tra leaderboard.'
+}
+
+$joinedChallengeItems = @(
+    $publishedChallengeItems |
+        Where-Object { [bool]$_.isJoined } |
+        Select-Object -First 1
+)
+if ($joinedChallengeItems.Count -ne 1) {
+    throw 'Tài khoản smoke không tham gia challenge đã xuất bản để kiểm tra leaderboard.'
+}
+
+$leaderboardChallengeId = [string]$joinedChallengeItems[0].id
+$challengeLeaderboard = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path "/api/challenges/$leaderboardChallengeId/leaderboard?page=1&pageSize=100" `
+    -AccessToken $token
+$challengeLeaderboardUnauthorized = Invoke-BookSpaceExpectedError `
+    -Path "/api/challenges/$leaderboardChallengeId/leaderboard?page=1&pageSize=100"
 $onboardingCategories = Invoke-BookSpaceRequest `
     -Method Get `
     -Path '/api/categories?page=1&pageSize=100' `
@@ -285,6 +310,50 @@ $peopleSuggestions = Invoke-BookSpaceRequest `
     -Path '/api/users/suggestions?page=1&pageSize=20' `
     -AccessToken $token
 $books = Invoke-BookSpaceRequest -Method Get -Path '/api/books?page=1&pageSize=8' -AccessToken $token
+$publicMetadataBook = @(
+    $onboardingBookItems |
+        Where-Object {
+            $null -ne $_.author -and
+            -not [string]::IsNullOrWhiteSpace([string]$_.author.id) -and
+            @($_.categories).Count -gt 0
+        } |
+        Select-Object -First 1
+)
+if ($publicMetadataBook.Count -ne 1) {
+    throw 'Catalog active không có sách đủ author/category để smoke metadata public.'
+}
+$publicAuthorId = [string]$publicMetadataBook[0].author.id
+$publicCategoryId = [string]$publicMetadataBook[0].categories[0].id
+$publicMetadataBookId = [string]$publicMetadataBook[0].id
+$publicAuthor = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path "/api/authors/$publicAuthorId"
+$publicAuthorBooks = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path "/api/books?authorId=$publicAuthorId&page=1&pageSize=100&sort=title"
+$publicCategory = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path "/api/categories/$publicCategoryId"
+$publicCategoryBooks = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path "/api/books?categoryId=$publicCategoryId&page=1&pageSize=100&sort=title"
+$encodedPublicAuthorName = [Uri]::EscapeDataString([string]$publicAuthor.data.name)
+$encodedPublicCategoryName = [Uri]::EscapeDataString([string]$publicCategory.data.name)
+$publicAuthorDirectory = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path "/api/authors?search=$encodedPublicAuthorName&sort=name&page=1&pageSize=12"
+$publicCategoryDirectory = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path "/api/categories?search=$encodedPublicCategoryName&sort=name&page=1&pageSize=12"
+$popularAuthorDirectory = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/authors?sort=bookCount&page=1&pageSize=100'
+$popularCategoryDirectory = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/categories?sort=bookCount&page=1&pageSize=100'
+$relatedBooks = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path "/api/books/$publicMetadataBookId/related?limit=4"
 $dashboard = Invoke-BookSpaceRequest -Method Get -Path '/api/dashboard' -AccessToken $token
 $library = Invoke-BookSpaceRequest -Method Get -Path '/api/library?page=1&pageSize=20' -AccessToken $token
 $adminLogin = Invoke-BookSpaceRequest `
@@ -295,6 +364,161 @@ if (-not $adminLogin.success -or -not $adminLogin.data.accessToken) {
     throw 'Đăng nhập admin cho cold-start recommendation không thành công.'
 }
 $adminToken = $adminLogin.data.accessToken
+$catalogAuthorFollow = Invoke-BookSpaceRequest `
+    -Method Put `
+    -Path "/api/catalog-follows/authors/$publicAuthorId" `
+    -AccessToken $token
+$catalogCategoryFollow = Invoke-BookSpaceRequest `
+    -Method Put `
+    -Path "/api/catalog-follows/categories/$publicCategoryId" `
+    -AccessToken $token
+$catalogFollowingInitial = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/catalog-follows' `
+    -AccessToken $token
+$catalogAuthorUnfollow = Invoke-BookSpaceRequest `
+    -Method Delete `
+    -Path "/api/catalog-follows/authors/$publicAuthorId" `
+    -AccessToken $token
+$catalogCategoryUnfollow = Invoke-BookSpaceRequest `
+    -Method Delete `
+    -Path "/api/catalog-follows/categories/$publicCategoryId" `
+    -AccessToken $token
+$catalogFollowingAfterDelete = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/catalog-follows' `
+    -AccessToken $token
+$catalogAuthorRestore = Invoke-BookSpaceRequest `
+    -Method Put `
+    -Path "/api/catalog-follows/authors/$publicAuthorId" `
+    -AccessToken $token
+$catalogCategoryRestore = Invoke-BookSpaceRequest `
+    -Method Put `
+    -Path "/api/catalog-follows/categories/$publicCategoryId" `
+    -AccessToken $token
+$catalogFollowingRestored = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/catalog-follows' `
+    -AccessToken $token
+$catalogNotificationPreferencesInitial = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/notifications/preferences' `
+    -AccessToken $token
+$catalogNotificationPreferencesEnabled = Invoke-BookSpaceRequest `
+    -Method Patch `
+    -Path '/api/notifications/preferences' `
+    -Body @{
+        isFollowNotificationEnabled = [bool]$catalogNotificationPreferencesInitial.data.isFollowNotificationEnabled
+        isCatalogNotificationEnabled = $true
+        isReviewNotificationEnabled = [bool]$catalogNotificationPreferencesInitial.data.isReviewNotificationEnabled
+        isClubNotificationEnabled = [bool]$catalogNotificationPreferencesInitial.data.isClubNotificationEnabled
+        isChallengeNotificationEnabled = [bool]$catalogNotificationPreferencesInitial.data.isChallengeNotificationEnabled
+        isDirectMessageNotificationEnabled = [bool]$catalogNotificationPreferencesInitial.data.isDirectMessageNotificationEnabled
+    } `
+    -AccessToken $token
+$catalogFollowSuffix = [Guid]::NewGuid().ToString('N')
+$catalogFollowBook = Invoke-BookSpaceRequest `
+    -Method Post `
+    -Path '/api/admin/books' `
+    -Body @{
+        title = "Sách theo dõi smoke $catalogFollowSuffix"
+        description = 'Sách tạm dùng để xác minh catalog following và alert.'
+        pageCount = 123
+        publishedYear = 2026
+        language = 'vi'
+        authorId = $publicAuthorId
+        categoryIds = @($publicCategoryId)
+    } `
+    -AccessToken $adminToken
+$catalogFollowRecommendations = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/books/recommendations?page=1&pageSize=100' `
+    -AccessToken $token
+$catalogFollowNotifications = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/notifications?category=CATALOG&page=1&pageSize=100' `
+    -AccessToken $token
+$catalogFollowBookDelete = Invoke-BookSpaceRequest `
+    -Method Delete `
+    -Path "/api/admin/books/$($catalogFollowBook.data.id)" `
+    -AccessToken $adminToken
+$catalogAuthorCleanup = Invoke-BookSpaceRequest `
+    -Method Delete `
+    -Path "/api/catalog-follows/authors/$publicAuthorId" `
+    -AccessToken $token
+$catalogCategoryCleanup = Invoke-BookSpaceRequest `
+    -Method Delete `
+    -Path "/api/catalog-follows/categories/$publicCategoryId" `
+    -AccessToken $token
+$catalogNotificationPreferencesRestore = Invoke-BookSpaceRequest `
+    -Method Patch `
+    -Path '/api/notifications/preferences' `
+    -Body @{
+        isFollowNotificationEnabled = [bool]$catalogNotificationPreferencesInitial.data.isFollowNotificationEnabled
+        isCatalogNotificationEnabled = [bool]$catalogNotificationPreferencesInitial.data.isCatalogNotificationEnabled
+        isReviewNotificationEnabled = [bool]$catalogNotificationPreferencesInitial.data.isReviewNotificationEnabled
+        isClubNotificationEnabled = [bool]$catalogNotificationPreferencesInitial.data.isClubNotificationEnabled
+        isChallengeNotificationEnabled = [bool]$catalogNotificationPreferencesInitial.data.isChallengeNotificationEnabled
+        isDirectMessageNotificationEnabled = [bool]$catalogNotificationPreferencesInitial.data.isDirectMessageNotificationEnabled
+    } `
+    -AccessToken $token
+$catalogMetadataSuffix = [Guid]::NewGuid().ToString('N')
+$catalogMetadataAuthor = Invoke-BookSpaceRequest `
+    -Method Post `
+    -Path '/api/admin/authors' `
+    -Body @{
+        name = "Tác giả smoke $catalogMetadataSuffix"
+        biography = "Hồ sơ catalog metadata smoke $catalogMetadataSuffix"
+    } `
+    -AccessToken $adminToken
+$catalogMetadataCategory = Invoke-BookSpaceRequest `
+    -Method Post `
+    -Path '/api/admin/categories' `
+    -Body @{
+        name = "Thể loại smoke $catalogMetadataSuffix"
+        description = "Mô tả catalog metadata smoke $catalogMetadataSuffix"
+    } `
+    -AccessToken $adminToken
+$catalogMetadataAuthors = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path "/api/admin/authors?search=$catalogMetadataSuffix&page=1&pageSize=1" `
+    -AccessToken $adminToken
+$catalogMetadataCategories = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path "/api/admin/categories?search=$catalogMetadataSuffix&page=1&pageSize=1" `
+    -AccessToken $adminToken
+$catalogMetadataAuthorUpdate = Invoke-BookSpaceRequest `
+    -Method Patch `
+    -Path "/api/admin/authors/$($catalogMetadataAuthor.data.id)" `
+    -Body @{
+        name = "Tác giả smoke đã sửa $catalogMetadataSuffix"
+        biography = 'Hồ sơ đã được cập nhật.'
+    } `
+    -AccessToken $adminToken
+$catalogMetadataCategoryUpdate = Invoke-BookSpaceRequest `
+    -Method Patch `
+    -Path "/api/admin/categories/$($catalogMetadataCategory.data.id)" `
+    -Body @{
+        name = "Thể loại smoke đã sửa $catalogMetadataSuffix"
+        description = 'Mô tả đã được cập nhật.'
+    } `
+    -AccessToken $adminToken
+$catalogMetadataAuthorDelete = Invoke-BookSpaceRequest `
+    -Method Delete `
+    -Path "/api/admin/authors/$($catalogMetadataAuthor.data.id)" `
+    -AccessToken $adminToken
+$catalogMetadataCategoryDelete = Invoke-BookSpaceRequest `
+    -Method Delete `
+    -Path "/api/admin/categories/$($catalogMetadataCategory.data.id)" `
+    -AccessToken $adminToken
+$catalogMetadataAuthorsAfterDelete = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path "/api/admin/authors?search=$catalogMetadataSuffix&page=1&pageSize=20" `
+    -AccessToken $adminToken
+$catalogMetadataCategoriesAfterDelete = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path "/api/admin/categories?search=$catalogMetadataSuffix&page=1&pageSize=20" `
+    -AccessToken $adminToken
 $moderationSuffix = [Guid]::NewGuid().ToString('N')
 $moderationTarget = Invoke-BookSpaceRequest `
     -Method Post `
@@ -563,6 +787,24 @@ if (
     -not $peopleSuggestions.success -or
     -not $recommendations.success -or
     -not $recommendationsRepeat.success -or
+    -not $catalogAuthorFollow.success -or
+    -not $catalogCategoryFollow.success -or
+    -not $catalogFollowingInitial.success -or
+    -not $catalogAuthorUnfollow.success -or
+    -not $catalogCategoryUnfollow.success -or
+    -not $catalogFollowingAfterDelete.success -or
+    -not $catalogAuthorRestore.success -or
+    -not $catalogCategoryRestore.success -or
+    -not $catalogFollowingRestored.success -or
+    -not $catalogNotificationPreferencesInitial.success -or
+    -not $catalogNotificationPreferencesEnabled.success -or
+    -not $catalogFollowBook.success -or
+    -not $catalogFollowRecommendations.success -or
+    -not $catalogFollowNotifications.success -or
+    -not $catalogFollowBookDelete.success -or
+    -not $catalogAuthorCleanup.success -or
+    -not $catalogCategoryCleanup.success -or
+    -not $catalogNotificationPreferencesRestore.success -or
     -not $adminLibrary.success -or
     -not $adminRecommendations.success -or
     -not $adminRecommendationsRepeat.success -or
@@ -1013,6 +1255,157 @@ if (
     throw 'External catalog search không trả controlled provider contract.'
 }
 
+$invalidPublicAuthorBooks = @(
+    $publicAuthorBooks.data.items |
+        Where-Object { [string]$_.author.id -ne $publicAuthorId }
+)
+$invalidPublicCategoryBooks = @(
+    $publicCategoryBooks.data.items |
+        Where-Object {
+            @($_.categories | Where-Object { [string]$_.id -eq $publicCategoryId }).Count -eq 0
+        }
+)
+$publicAuthorDirectoryMatch = @(
+    $publicAuthorDirectory.data.items |
+        Where-Object { [string]$_.id -eq $publicAuthorId }
+)
+$publicCategoryDirectoryMatch = @(
+    $publicCategoryDirectory.data.items |
+        Where-Object { [string]$_.id -eq $publicCategoryId }
+)
+$authorDirectorySortInvalid = $false
+$authorDirectoryItems = @($popularAuthorDirectory.data.items)
+for ($index = 1; $index -lt $authorDirectoryItems.Count; $index++) {
+    if ([int]$authorDirectoryItems[$index - 1].bookCount -lt [int]$authorDirectoryItems[$index].bookCount) {
+        $authorDirectorySortInvalid = $true
+        break
+    }
+}
+$categoryDirectorySortInvalid = $false
+$categoryDirectoryItems = @($popularCategoryDirectory.data.items)
+for ($index = 1; $index -lt $categoryDirectoryItems.Count; $index++) {
+    if ([int]$categoryDirectoryItems[$index - 1].bookCount -lt [int]$categoryDirectoryItems[$index].bookCount) {
+        $categoryDirectorySortInvalid = $true
+        break
+    }
+}
+$publicMetadataCategoryIds = @($publicMetadataBook[0].categories | ForEach-Object { [string]$_.id })
+$relatedBookItems = @($relatedBooks.data)
+$invalidRelatedBooks = @(
+    $relatedBookItems |
+        Where-Object {
+            $relatedCategoryMatch = @(
+                $_.categories |
+                    Where-Object { $publicMetadataCategoryIds -contains [string]$_.id }
+            ).Count -gt 0
+            [string]$_.id -eq $publicMetadataBookId -or
+            ([string]$_.author.id -ne $publicAuthorId -and -not $relatedCategoryMatch)
+        }
+)
+if (
+    -not $publicAuthor.success -or
+    [string]$publicAuthor.data.id -ne $publicAuthorId -or
+    [string]::IsNullOrWhiteSpace([string]$publicAuthor.data.name) -or
+    -not $publicAuthorBooks.success -or
+    $publicAuthorBooks.data.totalItems -lt 1 -or
+    $invalidPublicAuthorBooks.Count -ne 0 -or
+    -not $publicCategory.success -or
+    [string]$publicCategory.data.id -ne $publicCategoryId -or
+    [string]::IsNullOrWhiteSpace([string]$publicCategory.data.name) -or
+    -not $publicCategoryBooks.success -or
+    $publicCategoryBooks.data.totalItems -lt 1 -or
+    $invalidPublicCategoryBooks.Count -ne 0 -or
+    -not $publicAuthorDirectory.success -or
+    $publicAuthorDirectoryMatch.Count -ne 1 -or
+    -not $publicCategoryDirectory.success -or
+    $publicCategoryDirectoryMatch.Count -ne 1 -or
+    -not $popularAuthorDirectory.success -or
+    $authorDirectorySortInvalid -or
+    -not $popularCategoryDirectory.success -or
+    $categoryDirectorySortInvalid -or
+    -not $relatedBooks.success -or
+    $relatedBookItems.Count -lt 1 -or
+    $relatedBookItems.Count -gt 4 -or
+    $invalidRelatedBooks.Count -ne 0
+) {
+    throw 'Public catalog discovery directory, detail, filtered-book hoặc related-book contract không hợp lệ.'
+}
+
+$catalogFollowingInitialAuthor = @(
+    $catalogFollowingInitial.data.authors |
+        Where-Object { [string]$_.id -eq $publicAuthorId }
+)
+$catalogFollowingInitialCategory = @(
+    $catalogFollowingInitial.data.categories |
+        Where-Object { [string]$_.id -eq $publicCategoryId }
+)
+$catalogFollowingDeletedAuthor = @(
+    $catalogFollowingAfterDelete.data.authors |
+        Where-Object { [string]$_.id -eq $publicAuthorId }
+)
+$catalogFollowingDeletedCategory = @(
+    $catalogFollowingAfterDelete.data.categories |
+        Where-Object { [string]$_.id -eq $publicCategoryId }
+)
+$catalogFollowingRestoredAuthor = @(
+    $catalogFollowingRestored.data.authors |
+        Where-Object { [string]$_.id -eq $publicAuthorId }
+)
+$catalogFollowingRestoredCategory = @(
+    $catalogFollowingRestored.data.categories |
+        Where-Object { [string]$_.id -eq $publicCategoryId }
+)
+$catalogFollowRecommendation = @(
+    $catalogFollowRecommendations.data.items |
+        Where-Object { [string]$_.book.id -eq [string]$catalogFollowBook.data.id }
+)
+$catalogFollowAlert = @(
+    $catalogFollowNotifications.data.items |
+        Where-Object { [string]$_.link -eq "/books/$($catalogFollowBook.data.id)" }
+)
+if (
+    $catalogFollowingInitialAuthor.Count -ne 1 -or
+    $catalogFollowingInitialCategory.Count -ne 1 -or
+    $catalogFollowingDeletedAuthor.Count -ne 0 -or
+    $catalogFollowingDeletedCategory.Count -ne 0 -or
+    $catalogFollowingRestoredAuthor.Count -ne 1 -or
+    $catalogFollowingRestoredCategory.Count -ne 1 -or
+    $catalogNotificationPreferencesEnabled.data.isCatalogNotificationEnabled -ne $true -or
+    $catalogFollowRecommendation.Count -ne 1 -or
+    $catalogFollowRecommendation[0].reasonCode -ne 'MATCHED_AUTHOR' -or
+    $catalogFollowAlert.Count -ne 1 -or
+    $catalogFollowAlert[0].type -ne 'CATALOG'
+) {
+    throw 'Catalog following, recommendation hoặc catalog alert contract không hợp lệ.'
+}
+
+$catalogMetadataAuthorItem = @(
+    $catalogMetadataAuthors.data.items |
+        Where-Object { $_.id -eq $catalogMetadataAuthor.data.id }
+)
+$catalogMetadataCategoryItem = @(
+    $catalogMetadataCategories.data.items |
+        Where-Object { $_.id -eq $catalogMetadataCategory.data.id }
+)
+if (
+    -not $catalogMetadataAuthor.success -or
+    -not $catalogMetadataCategory.success -or
+    $catalogMetadataAuthorItem.Count -ne 1 -or
+    $catalogMetadataAuthorItem[0].bookCount -ne 0 -or
+    $catalogMetadataCategoryItem.Count -ne 1 -or
+    $catalogMetadataCategoryItem[0].bookCount -ne 0 -or
+    -not $catalogMetadataAuthorUpdate.success -or
+    $catalogMetadataAuthorUpdate.data.name -ne "Tác giả smoke đã sửa $catalogMetadataSuffix" -or
+    -not $catalogMetadataCategoryUpdate.success -or
+    $catalogMetadataCategoryUpdate.data.name -ne "Thể loại smoke đã sửa $catalogMetadataSuffix" -or
+    -not $catalogMetadataAuthorDelete.success -or
+    -not $catalogMetadataCategoryDelete.success -or
+    $catalogMetadataAuthorsAfterDelete.data.totalItems -ne 0 -or
+    $catalogMetadataCategoriesAfterDelete.data.totalItems -ne 0
+) {
+    throw 'Admin catalog metadata create/search/update/delete contract không hợp lệ.'
+}
+
 if (
     $null -eq $clubChatMessage -or
     -not $clubChatMessage.success -or
@@ -1073,6 +1466,44 @@ if (
     throw "Reading Insights không trả đủ các bucket lịch, tuần hoặc tháng."
 }
 
+$challengeLeaderboardItems = @($challengeLeaderboard.data.items)
+$challengeLeaderboardLeaksEmail = @(
+    $challengeLeaderboardItems |
+        Where-Object { $_.user.PSObject.Properties.Name -contains 'email' }
+)
+$challengeLeaderboardInvalidRanks = @(
+    $challengeLeaderboardItems |
+        Where-Object { [int]$_.rank -lt 1 }
+)
+$challengeLeaderboardCurrentUser = @(
+    $challengeLeaderboardItems |
+        Where-Object { [bool]$_.isCurrentUser }
+)
+$challengeLeaderboardCurrentUserInvalid = @(
+    $challengeLeaderboardCurrentUser |
+        Where-Object {
+            [string]$_.user.id -ne [string]$login.data.user.id -or
+            [string]::IsNullOrWhiteSpace([string]$_.user.displayName) -or
+            [int]$_.currentBooks -lt 0 -or
+            [int]$_.targetBooks -lt 1 -or
+            [int]$_.progressPercent -lt 0 -or
+            [int]$_.progressPercent -gt 100
+        }
+)
+if (
+    -not $challengeLeaderboard.success -or
+    $challengeLeaderboardUnauthorized.StatusCode -ne 401 -or
+    $challengeLeaderboard.data.page -ne 1 -or
+    $challengeLeaderboard.data.pageSize -ne 100 -or
+    $challengeLeaderboardItems.Count -lt 1 -or
+    $challengeLeaderboardCurrentUser.Count -ne 1 -or
+    $challengeLeaderboardCurrentUserInvalid.Count -ne 0 -or
+    $challengeLeaderboardLeaksEmail.Count -ne 0 -or
+    $challengeLeaderboardInvalidRanks.Count -ne 0
+) {
+    throw 'Challenge Leaderboard auth, pagination, rank, current-user hoặc public-user contract không hợp lệ.'
+}
+
 [pscustomobject]@{
     Health = $health
     CorrelationId = $returnedHealthCorrelationId
@@ -1085,6 +1516,10 @@ if (
     Recommendations = $recommendations.data.totalItems
     ColdStartRecommendations = $adminRecommendations.data.totalItems
     ExternalCatalogAvailable = [bool]$externalCatalog.data.available
+    CatalogMetadata = 'PASS'
+    PublicCatalogMetadata = 'PASS'
+    CatalogDiscovery = 'PASS'
+    CatalogFollowing = 'PASS'
     PasswordRecovery = 'PASS'
     ReadingFeedItems = $feed.data.totalItems
     Books = $books.data.totalItems
@@ -1094,6 +1529,7 @@ if (
     BooksRead = $dashboard.data.booksRead
     ReadingGoals = $goals.data.totalItems
     ReadingNotes = $notes.data.totalItems
+    ChallengeLeaderboard = 'PASS'
     Clubs = $clubs.data.totalItems
     ClubInvitations = $clubInvitations.data.totalItems
     FirstClubMembers = if ($null -ne $clubMembers) { $clubMembers.data.totalItems } else { 0 }

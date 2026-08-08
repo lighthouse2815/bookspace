@@ -1,4 +1,4 @@
-import { Books, Flag, ShieldWarning } from '@phosphor-icons/react'
+import { Books, Flag, IdentificationCard, ShieldWarning, Tag } from '@phosphor-icons/react'
 import { NavLink } from 'react-router-dom'
 
 export function AdminNav() {
@@ -10,6 +10,20 @@ export function AdminNav() {
       >
         <Books size={17} />
         Catalog sách
+      </NavLink>
+      <NavLink
+        to="/admin/authors"
+        className={({ isActive }) => `filter-tab ${isActive ? 'filter-active' : ''}`}
+      >
+        <IdentificationCard size={17} />
+        Tác giả
+      </NavLink>
+      <NavLink
+        to="/admin/categories"
+        className={({ isActive }) => `filter-tab ${isActive ? 'filter-active' : ''}`}
+      >
+        <Tag size={17} />
+        Thể loại
       </NavLink>
       <NavLink
         to="/admin/challenges"

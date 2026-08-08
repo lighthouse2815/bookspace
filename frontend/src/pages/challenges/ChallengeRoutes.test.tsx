@@ -1,9 +1,9 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
-import type { Challenge, User } from '../../types/domain'
+import type { Challenge, ChallengeLeaderboardItem, User } from '../../types/domain'
 
 const reader: User = {
   id: 'reader-1',
@@ -27,6 +27,32 @@ const challenge: Challenge = {
   completedAt: undefined,
 }
 
+const leaderboardItems: ChallengeLeaderboardItem[] = [
+  {
+    rank: 1,
+    user: {
+      id: 'reader-2',
+      displayName: 'Hà Linh',
+      avatarUrl: undefined,
+      role: 'USER',
+    },
+    currentBooks: 3,
+    targetBooks: 3,
+    progressPercent: 100,
+    completedAt: '2026-07-15T09:00:00Z',
+    isCurrentUser: false,
+  },
+  {
+    rank: 2,
+    user: reader,
+    currentBooks: 2,
+    targetBooks: 3,
+    progressPercent: 67,
+    completedAt: null,
+    isCurrentUser: true,
+  },
+]
+
 const mocks = vi.hoisted(() => ({
   auth: {
     user: null as User | null,
@@ -38,10 +64,12 @@ const mocks = vi.hoisted(() => ({
     refreshUser: vi.fn(),
   },
   detail: vi.fn(),
+  leaderboard: vi.fn(),
   list: vi.fn(),
   membership: vi.fn(),
   mutateMembership: vi.fn(),
   retryDetail: vi.fn(),
+  retryLeaderboard: vi.fn(),
   toast: vi.fn(),
 }))
 
@@ -64,6 +92,8 @@ vi.mock('../../contexts/ToastContext', () => ({
 
 vi.mock('../../hooks/useSocialProduct', () => ({
   useChallenge: (id: string) => mocks.detail(id),
+  useChallengeLeaderboard: (id: string, page: number, pageSize: number) =>
+    mocks.leaderboard(id, page, pageSize),
   useChallenges: () => mocks.list(),
   useChallengeMembership: (id: string, joined: boolean) => mocks.membership(id, joined),
 }))
@@ -93,6 +123,25 @@ function detailResult(overrides: Record<string, unknown> = {}) {
   }
 }
 
+function leaderboardResult(overrides: Record<string, unknown> = {}) {
+  return {
+    data: {
+      items: leaderboardItems,
+      page: 1,
+      pageSize: 10,
+      totalItems: leaderboardItems.length,
+      totalPages: 1,
+    },
+    isPending: false,
+    isLoading: false,
+    isFetching: false,
+    isError: false,
+    error: null,
+    refetch: mocks.retryLeaderboard,
+    ...overrides,
+  }
+}
+
 describe('production challenge routes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -103,6 +152,7 @@ describe('production challenge routes', () => {
     })
     mocks.auth.login.mockResolvedValue(reader)
     mocks.detail.mockReturnValue(detailResult())
+    mocks.leaderboard.mockReturnValue(leaderboardResult())
     mocks.list.mockReturnValue({
       data: { items: [challenge], page: 1, pageSize: 20, totalItems: 1, totalPages: 1 },
       isLoading: false,
@@ -223,5 +273,104 @@ describe('production challenge routes', () => {
 
     expect(mocks.membership).toHaveBeenCalledWith('challenge-123', isJoined)
     expect(mocks.mutateMembership).toHaveBeenCalledOnce()
+  })
+
+  it('renders leaderboard rows in API order and highlights the current reader', async () => {
+    renderProductionApp('/challenges/challenge-123')
+
+    const list = await screen.findByRole('list', { name: 'Bảng xếp hạng thử thách' })
+    const rows = within(list).getAllByRole('listitem')
+
+    expect(mocks.leaderboard).toHaveBeenCalledWith('challenge-123', 1, 10)
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toHaveTextContent('Hà Linh')
+    expect(rows[0]).toHaveTextContent('3/3 cuốn')
+    expect(rows[0]).toHaveTextContent('Đã hoàn thành')
+    expect(rows[0]).not.toHaveAttribute('aria-current')
+    expect(rows[1]).toHaveTextContent('Bạn đọc · Bạn')
+    expect(rows[1]).toHaveTextContent('2/3 cuốn')
+    expect(rows[1]).toHaveTextContent('Đang thực hiện')
+    expect(rows[1]).toHaveAttribute('aria-current', 'true')
+    expect(within(rows[0]).getByRole('progressbar', { name: 'Tiến độ của Hà Linh' }))
+      .toHaveAttribute('aria-valuetext', '3/3 cuốn, 100%')
+    expect(within(rows[1]).getByRole('progressbar', { name: 'Tiến độ của Bạn đọc' }))
+      .toHaveAttribute('aria-valuetext', '2/3 cuốn, 67%')
+  })
+
+  it('renders the leaderboard loading state', async () => {
+    mocks.leaderboard.mockReturnValue(
+      leaderboardResult({ data: undefined, isPending: true, isLoading: true }),
+    )
+
+    renderProductionApp('/challenges/challenge-123')
+
+    const section = await screen.findByRole('region', { name: 'Bảng xếp hạng' })
+    expect(within(section).getByLabelText('Đang tải dữ liệu')).toBeInTheDocument()
+  })
+
+  it('renders and retries the leaderboard error state', async () => {
+    mocks.leaderboard.mockReturnValue(
+      leaderboardResult({ data: undefined, isError: true, error: new Error('network') }),
+    )
+    const user = userEvent.setup()
+
+    renderProductionApp('/challenges/challenge-123')
+
+    const section = await screen.findByRole('region', { name: 'Bảng xếp hạng' })
+    expect(within(section).getByRole('alert')).toHaveTextContent(
+      'Không thể tải bảng xếp hạng thử thách.',
+    )
+    await user.click(within(section).getByRole('button', { name: 'Thử lại' }))
+    expect(mocks.retryLeaderboard).toHaveBeenCalledOnce()
+  })
+
+  it('renders the leaderboard empty state', async () => {
+    mocks.leaderboard.mockReturnValue(
+      leaderboardResult({
+        data: {
+          items: [],
+          page: 1,
+          pageSize: 10,
+          totalItems: 0,
+          totalPages: 0,
+        },
+      }),
+    )
+
+    renderProductionApp('/challenges/challenge-123')
+
+    expect(
+      await screen.findByRole('heading', { name: 'Chưa có thứ hạng hiển thị' }),
+    ).toBeInTheDocument()
+  })
+
+  it('moves between leaderboard pages with page size 10', async () => {
+    mocks.leaderboard.mockImplementation((_id: string, page: number) =>
+      leaderboardResult({
+        data: {
+          items: leaderboardItems,
+          page,
+          pageSize: 10,
+          totalItems: 22,
+          totalPages: 3,
+        },
+      }),
+    )
+    const user = userEvent.setup()
+
+    renderProductionApp('/challenges/challenge-123')
+
+    await screen.findByText('Trang 1 / 3')
+    await user.click(screen.getByRole('button', { name: 'Trang sau' }))
+
+    await waitFor(() => {
+      expect(mocks.leaderboard).toHaveBeenLastCalledWith('challenge-123', 2, 10)
+    })
+    expect(screen.getByText('Trang 2 / 3')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Trang trước' }))
+    await waitFor(() => {
+      expect(mocks.leaderboard).toHaveBeenLastCalledWith('challenge-123', 1, 10)
+    })
   })
 })

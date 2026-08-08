@@ -63,12 +63,14 @@ export function SettingsPage() {
   const isReadingActivityPublic = profile.data?.privacy?.isReadingActivityPublic
   const [notificationSettings, setNotificationSettings] = useState({
     isFollowNotificationEnabled: true,
+    isCatalogNotificationEnabled: true,
     isReviewNotificationEnabled: true,
     isClubNotificationEnabled: true,
     isChallengeNotificationEnabled: true,
     isDirectMessageNotificationEnabled: true,
   })
   const followNotifications = notificationPreferences.data?.isFollowNotificationEnabled
+  const catalogNotifications = notificationPreferences.data?.isCatalogNotificationEnabled
   const reviewNotifications = notificationPreferences.data?.isReviewNotificationEnabled
   const clubNotifications = notificationPreferences.data?.isClubNotificationEnabled
   const challengeNotifications = notificationPreferences.data?.isChallengeNotificationEnabled
@@ -93,6 +95,7 @@ export function SettingsPage() {
   useEffect(() => {
     if (
       followNotifications === undefined ||
+      catalogNotifications === undefined ||
       reviewNotifications === undefined ||
       clubNotifications === undefined ||
       challengeNotifications === undefined ||
@@ -104,6 +107,7 @@ export function SettingsPage() {
     setNotificationSettings((current) => {
       if (
         current.isFollowNotificationEnabled === followNotifications &&
+        current.isCatalogNotificationEnabled === catalogNotifications &&
         current.isReviewNotificationEnabled === reviewNotifications &&
         current.isClubNotificationEnabled === clubNotifications &&
         current.isChallengeNotificationEnabled === challengeNotifications &&
@@ -114,6 +118,7 @@ export function SettingsPage() {
 
       return {
         isFollowNotificationEnabled: followNotifications,
+        isCatalogNotificationEnabled: catalogNotifications,
         isReviewNotificationEnabled: reviewNotifications,
         isClubNotificationEnabled: clubNotifications,
         isChallengeNotificationEnabled: challengeNotifications,
@@ -121,6 +126,7 @@ export function SettingsPage() {
       }
     })
   }, [
+    catalogNotifications,
     challengeNotifications,
     clubNotifications,
     directMessageNotifications,
@@ -321,6 +327,18 @@ export function SettingsPage() {
                 setNotificationSettings((value) => ({
                   ...value,
                   isReviewNotificationEnabled: checked,
+                }))
+              }
+            />
+            <PrivacyChoice
+              checked={notificationSettings.isCatalogNotificationEnabled}
+              icon={Books}
+              title="Sách mới từ nội dung theo dõi"
+              description="Nhận thông báo khi BookSpace có sách mới từ tác giả hoặc thể loại bạn theo dõi."
+              onChange={(checked) =>
+                setNotificationSettings((value) => ({
+                  ...value,
+                  isCatalogNotificationEnabled: checked,
                 }))
               }
             />

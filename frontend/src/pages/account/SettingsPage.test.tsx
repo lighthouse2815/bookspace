@@ -65,6 +65,7 @@ vi.mock('../../hooks/useNotifications', () => ({
   useNotificationPreferences: () => ({
     data: {
       isFollowNotificationEnabled: true,
+      isCatalogNotificationEnabled: true,
       isReviewNotificationEnabled: true,
       isClubNotificationEnabled: false,
       isChallengeNotificationEnabled: true,
@@ -165,6 +166,7 @@ describe('profile privacy settings', () => {
 
     expect(mocks.updateNotificationPreferences).toHaveBeenCalledWith({
       isFollowNotificationEnabled: false,
+      isCatalogNotificationEnabled: true,
       isReviewNotificationEnabled: true,
       isClubNotificationEnabled: false,
       isChallengeNotificationEnabled: true,

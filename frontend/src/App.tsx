@@ -15,6 +15,26 @@ const BooksPage = lazy(() =>
 const BookDetailPage = lazy(() =>
   import('./pages/catalog/BookDetailPage').then((module) => ({ default: module.BookDetailPage })),
 )
+const AuthorDetailPage = lazy(() =>
+  import('./pages/catalog/CatalogMetadataDetailPages').then((module) => ({
+    default: module.AuthorDetailPage,
+  })),
+)
+const CategoryDetailPage = lazy(() =>
+  import('./pages/catalog/CatalogMetadataDetailPages').then((module) => ({
+    default: module.CategoryDetailPage,
+  })),
+)
+const AuthorsDirectoryPage = lazy(() =>
+  import('./pages/catalog/CatalogMetadataDirectoryPages').then((module) => ({
+    default: module.AuthorsDirectoryPage,
+  })),
+)
+const CategoriesDirectoryPage = lazy(() =>
+  import('./pages/catalog/CatalogMetadataDirectoryPages').then((module) => ({
+    default: module.CategoriesDirectoryPage,
+  })),
+)
 const BookListsPage = lazy(() =>
   import('./pages/book-lists/BookListsPage').then((module) => ({ default: module.BookListsPage })),
 )
@@ -111,6 +131,11 @@ const MessagesPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import('./pages/account/SettingsPage').then((module) => ({ default: module.SettingsPage })),
 )
+const CatalogFollowingPage = lazy(() =>
+  import('./pages/account/CatalogFollowingPage').then((module) => ({
+    default: module.CatalogFollowingPage,
+  })),
+)
 const OnboardingPage = lazy(() =>
   import('./pages/onboarding/OnboardingPage').then((module) => ({
     default: module.OnboardingPage,
@@ -118,6 +143,16 @@ const OnboardingPage = lazy(() =>
 )
 const AdminBooksPage = lazy(() =>
   import('./pages/admin/AdminBooksPage').then((module) => ({ default: module.AdminBooksPage })),
+)
+const AdminAuthorsPage = lazy(() =>
+  import('./pages/admin/AdminCatalogMetadataPages').then((module) => ({
+    default: module.AdminAuthorsPage,
+  })),
+)
+const AdminCategoriesPage = lazy(() =>
+  import('./pages/admin/AdminCatalogMetadataPages').then((module) => ({
+    default: module.AdminCategoriesPage,
+  })),
 )
 const AdminChallengesPage = lazy(() =>
   import('./pages/admin/AdminChallengesPage').then((module) => ({
@@ -153,6 +188,10 @@ export default function App() {
           <Route path="explore" element={<ExplorePage />} />
           <Route path="books" element={<BooksPage />} />
           <Route path="books/:id" element={<BookDetailPage />} />
+          <Route path="authors" element={<AuthorsDirectoryPage />} />
+          <Route path="authors/:id" element={<AuthorDetailPage />} />
+          <Route path="categories" element={<CategoriesDirectoryPage />} />
+          <Route path="categories/:id" element={<CategoryDetailPage />} />
           <Route path="lists/:listId" element={<BookListDetailPage />} />
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />
@@ -183,9 +222,12 @@ export default function App() {
             <Route path="messages" element={<MessagesPage />} />
             <Route path="messages/:conversationId" element={<MessagesPage />} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="following-topics" element={<CatalogFollowingPage />} />
             <Route element={<AdminRoute />}>
               <Route path="admin" element={<Navigate to="/admin/books" replace />} />
               <Route path="admin/books" element={<AdminBooksPage />} />
+              <Route path="admin/authors" element={<AdminAuthorsPage />} />
+              <Route path="admin/categories" element={<AdminCategoriesPage />} />
               <Route path="admin/challenges" element={<AdminChallengesPage />} />
               <Route path="admin/moderation" element={<AdminModerationPage />} />
             </Route>

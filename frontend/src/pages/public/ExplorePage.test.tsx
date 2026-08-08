@@ -122,6 +122,24 @@ describe('personalized book discovery on Explore', () => {
     expect(screen.getByRole('heading', { name: popularBook.title })).toBeInTheDocument()
   })
 
+  it('links discovery to public author and category profiles', () => {
+    mocks.categories.mockReturnValue(
+      queryResult(page([{ id: 'category-1', name: 'Kinh điển', bookCount: 6 }])),
+    )
+
+    renderPage()
+
+    expect(screen.getByRole('link', { name: 'Xem tác giả' })).toHaveAttribute('href', '/authors')
+    expect(screen.getByRole('link', { name: 'Xem mọi thể loại' })).toHaveAttribute(
+      'href',
+      '/categories',
+    )
+    expect(screen.getByRole('link', { name: 'Kinh điển · 6' })).toHaveAttribute(
+      'href',
+      '/categories/category-1',
+    )
+  })
+
   it('renders the recommendation reason and adds a book only once while pending', async () => {
     mocks.auth.isAuthenticated = true
     let resolveMutation: ((value: { id: string }) => void) | undefined

@@ -12,6 +12,8 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
     public DbSet<User> UserSet => Set<User>();
     public DbSet<UserPreferredCategory> UserPreferredCategorySet => Set<UserPreferredCategory>();
     public DbSet<UserReferenceBook> UserReferenceBookSet => Set<UserReferenceBook>();
+    public DbSet<UserAuthorFollow> UserAuthorFollowSet => Set<UserAuthorFollow>();
+    public DbSet<UserCategoryFollow> UserCategoryFollowSet => Set<UserCategoryFollow>();
     public DbSet<RefreshToken> RefreshTokenSet => Set<RefreshToken>();
     public DbSet<PasswordResetToken> PasswordResetTokenSet => Set<PasswordResetToken>();
     public DbSet<Follow> FollowSet => Set<Follow>();
@@ -64,6 +66,12 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
         UserReferenceBookSet;
     IQueryable<UserReferenceBook> IBookSpaceDbContext.UserReferenceBooksIncludingDeleted =>
         UserReferenceBookSet.IgnoreQueryFilters();
+    IQueryable<UserAuthorFollow> IBookSpaceDbContext.UserAuthorFollows => UserAuthorFollowSet;
+    IQueryable<UserAuthorFollow> IBookSpaceDbContext.UserAuthorFollowsIncludingDeleted =>
+        UserAuthorFollowSet.IgnoreQueryFilters();
+    IQueryable<UserCategoryFollow> IBookSpaceDbContext.UserCategoryFollows => UserCategoryFollowSet;
+    IQueryable<UserCategoryFollow> IBookSpaceDbContext.UserCategoryFollowsIncludingDeleted =>
+        UserCategoryFollowSet.IgnoreQueryFilters();
     IQueryable<RefreshToken> IBookSpaceDbContext.RefreshTokens => RefreshTokenSet;
     IQueryable<PasswordResetToken> IBookSpaceDbContext.PasswordResetTokens => PasswordResetTokenSet;
     IQueryable<Follow> IBookSpaceDbContext.Follows => FollowSet;
@@ -220,6 +228,7 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
             entity.Property(x => x.IsReadingShelfPublic).HasDefaultValue(false);
             entity.Property(x => x.IsReadingActivityPublic).HasDefaultValue(false);
             entity.Property(x => x.IsFollowNotificationEnabled).HasDefaultValue(true);
+            entity.Property(x => x.IsCatalogNotificationEnabled).HasDefaultValue(true);
             entity.Property(x => x.IsReviewNotificationEnabled).HasDefaultValue(true);
             entity.Property(x => x.IsClubNotificationEnabled).HasDefaultValue(true);
             entity.Property(x => x.IsChallengeNotificationEnabled).HasDefaultValue(true);
@@ -255,6 +264,38 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
             entity.HasOne(x => x.Book)
                 .WithMany()
                 .HasForeignKey(x => x.BookId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.Ignore(x => x.IsDeleted);
+        });
+
+        modelBuilder.Entity<UserAuthorFollow>(entity =>
+        {
+            entity.ToTable("user_author_follows");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.UserId, x.AuthorId }).IsUnique();
+            entity.HasOne(x => x.User)
+                .WithMany(x => x.FollowedAuthors)
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.Author)
+                .WithMany()
+                .HasForeignKey(x => x.AuthorId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.Ignore(x => x.IsDeleted);
+        });
+
+        modelBuilder.Entity<UserCategoryFollow>(entity =>
+        {
+            entity.ToTable("user_category_follows");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.UserId, x.CategoryId }).IsUnique();
+            entity.HasOne(x => x.User)
+                .WithMany(x => x.FollowedCategories)
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.Category)
+                .WithMany()
+                .HasForeignKey(x => x.CategoryId)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.Ignore(x => x.IsDeleted);
         });
@@ -959,6 +1000,16 @@ public sealed class BookSpaceDbContext(DbContextOptions<BookSpaceDbContext> opti
             x.DeletedAt == null &&
             x.Challenge.DeletedAt == null &&
             x.User.DeletedAt == null);
+        modelBuilder.Entity<UserAuthorFollow>().HasQueryFilter(x =>
+            x.DeletedAt == null &&
+            x.User.DeletedAt == null &&
+            !x.User.IsLocked &&
+            x.Author.DeletedAt == null);
+        modelBuilder.Entity<UserCategoryFollow>().HasQueryFilter(x =>
+            x.DeletedAt == null &&
+            x.User.DeletedAt == null &&
+            !x.User.IsLocked &&
+            x.Category.DeletedAt == null);
         modelBuilder.Entity<Notification>().HasQueryFilter(x => x.DeletedAt == null);
         modelBuilder.Entity<ContentReport>().HasQueryFilter(x => x.DeletedAt == null);
     }

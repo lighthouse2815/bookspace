@@ -137,6 +137,11 @@ public sealed class ExternalCatalogService(
         db.Add(new BookAuthor(book.Id, author.Id));
         db.AddRange(categories.Select(category => new BookCategory(book.Id, category.Id)));
         db.Add(new ExternalBookLink(providerName, externalId, book.Id));
+        CatalogAlertDelivery.AddNewBookAlerts(
+            db,
+            book,
+            author.Id,
+            categories.Select(category => category.Id).ToList());
         await db.SaveChangesAsync(cancellationToken);
 
         return new ExternalBookImportResult(

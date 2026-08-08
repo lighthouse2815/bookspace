@@ -120,6 +120,10 @@ public sealed record CategoryDto(
     string? Description,
     int BookCount);
 
+public sealed record CatalogFollowingDto(
+    IReadOnlyList<AuthorDto> Authors,
+    IReadOnlyList<CategoryDto> Categories);
+
 public sealed record BookSummary(
     Guid Id,
     string Title,
@@ -446,6 +450,7 @@ public sealed record NotificationDto(
 
 public sealed record NotificationPreferencesDto(
     bool IsFollowNotificationEnabled,
+    bool IsCatalogNotificationEnabled,
     bool IsReviewNotificationEnabled,
     bool IsClubNotificationEnabled,
     bool IsChallengeNotificationEnabled,
@@ -483,6 +488,7 @@ public sealed record ContentReportDto(
 
 public sealed record UpdateNotificationPreferencesRequest(
     bool IsFollowNotificationEnabled,
+    bool IsCatalogNotificationEnabled,
     bool IsReviewNotificationEnabled,
     bool IsClubNotificationEnabled,
     bool IsChallengeNotificationEnabled,

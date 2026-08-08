@@ -31,6 +31,8 @@ public static class Paging
     {
         var normalizedPage = Math.Max(1, page);
         var normalizedSize = Math.Clamp(pageSize, 1, 100);
-        return (normalizedPage, normalizedSize, (normalizedPage - 1) * normalizedSize);
+        var requestedSkip = (long)(normalizedPage - 1) * normalizedSize;
+        var normalizedSkip = (int)Math.Min(requestedSkip, int.MaxValue);
+        return (normalizedPage, normalizedSize, normalizedSkip);
     }
 }

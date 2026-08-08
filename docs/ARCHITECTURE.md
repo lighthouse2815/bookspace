@@ -139,6 +139,7 @@ Mỗi use case được tiếp cận qua interface:
 | `IUserService` | hồ sơ, follow, followers/following |
 | `IOnboardingService` | owner-private preference draft, complete/skip state machine |
 | `ICatalogService` | catalog công khai, recommendation read model theo principal và admin CRUD |
+| `ICatalogFollowingService` | danh sách author/category follow owner-private và mutation idempotent/soft-delete |
 | `IReadingService` | library, progress, completed-session correction và Focus Reading lifecycle |
 | `ICommunityService` | review, like, comment, feed |
 | `IClubService` | club settings, invitations, membership roles, shared current book, post/comment |
@@ -146,7 +147,7 @@ Mỗi use case được tiếp cận qua interface:
 | `IDirectMessageService` | mutual-follow conversation, private history, send, unread/read marker |
 | `IBookListService` | ownership/privacy, CRUD list, add/remove/reorder và public profile projection |
 | `IClubReadingSprintService` | sprint lifecycle, participant state, progress, leaderboard, timeline, milestone/response và reminder |
-| `IChallengeService` | challenge, join, progress, publish |
+| `IChallengeService` | challenge, join, progress, leaderboard privacy-aware, publish |
 | `INotificationService` | list, unread count, mark read |
 | `IDashboardService` | projection dashboard của principal |
 | `IExternalCatalogService` | tìm metadata ngoài và import có kiểm duyệt vào catalog nội bộ |
@@ -321,9 +322,15 @@ Query key tối thiểu:
 ["onboarding", principalScope]
 ["books", filters]
 ["book", bookId]
+["book", bookId, "related", limit]
 ["book-recommendations", principalScope, page, pageSize]
 ["authors"]
 ["categories"]
+["author-directory", filters]
+["category-directory", filters]
+["author", authorId]
+["category", categoryId]
+["catalog", "following", principalScope]
 ["library", filters]
 ["reading-sessions", filters]
 ["reading-sessions", "active"]
@@ -343,6 +350,7 @@ Query key tối thiểu:
 ["direct-messages", principalScope, "conversation", conversationId, "messages"]
 ["direct-messages", principalScope, "unread"]
 ["challenges", paging]
+["challenge-leaderboard", principalScope, challengeId, paging]
 ["my-challenges", paging]
 ["notifications", filters]
 ["notification-unread-count"]
@@ -360,6 +368,8 @@ Mutation phải invalidate đúng consumer:
 - Focus start/pause/resume/cancel cập nhật `reading-sessions/active`; finish đồng thời invalidate active key và toàn bộ consumer của completed session.
 - Review create/update/delete: `book-reviews`, `book`, `book-recommendations`, `feed`, `notifications`.
 - Review like/comment: `book-reviews`, `feed`, `notifications`.
+- Catalog follow/unfollow: cập nhật `catalog/following` theo principal và invalidate
+  toàn bộ `book-recommendations` của principal; không chia sẻ cache giữa account.
 - Follow: principal-scoped `people`, target/current `users`, `followers`,
   `following`, `book-recommendations`, `feed`, `dashboard`; mutation cùng target
   dùng shared pending key.

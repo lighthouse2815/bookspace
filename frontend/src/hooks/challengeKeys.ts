@@ -11,4 +11,12 @@ export const challengeKeys = {
     [...challengeKeys.viewer(scope), 'list'] as const,
   detail: (scope: ChallengeViewerScope, id: string) =>
     [...challengeKeys.viewer(scope), 'detail', id] as const,
+  leaderboards: (scope: ChallengeViewerScope, id: string) =>
+    [...challengeKeys.detail(scope, id), 'leaderboard'] as const,
+  leaderboard: (
+    scope: ChallengeViewerScope,
+    id: string,
+    page: number,
+    pageSize: number,
+  ) => [...challengeKeys.leaderboards(scope, id), page, pageSize] as const,
 }

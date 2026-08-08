@@ -3,9 +3,14 @@ import { renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PageResult } from '../types/api'
-import type { BookRecommendation, User } from '../types/domain'
+import type { BookRecommendation, CatalogFollowing, User } from '../types/domain'
 import { recommendationKeys } from './recommendationKeys'
-import { useBookRecommendations } from './useCatalog'
+import {
+  catalogKeys,
+  useBookRecommendations,
+  useCatalogFollowing,
+  useSetCatalogFollow,
+} from './useCatalog'
 
 const readerA: User = {
   id: 'reader-a',
@@ -33,6 +38,11 @@ const mocks = vi.hoisted(() => ({
     isLoading: false,
   },
   recommendations: vi.fn(),
+  following: vi.fn(),
+  followAuthor: vi.fn(),
+  unfollowAuthor: vi.fn(),
+  followCategory: vi.fn(),
+  unfollowCategory: vi.fn(),
 }))
 
 vi.mock('../contexts/AuthContext', () => ({
@@ -42,6 +52,11 @@ vi.mock('../contexts/AuthContext', () => ({
 vi.mock('../services/catalog.service', () => ({
   catalogService: {
     recommendations: (...args: unknown[]) => mocks.recommendations(...args),
+    following: (...args: unknown[]) => mocks.following(...args),
+    followAuthor: (...args: unknown[]) => mocks.followAuthor(...args),
+    unfollowAuthor: (...args: unknown[]) => mocks.unfollowAuthor(...args),
+    followCategory: (...args: unknown[]) => mocks.followCategory(...args),
+    unfollowCategory: (...args: unknown[]) => mocks.unfollowCategory(...args),
   },
 }))
 
@@ -99,5 +114,45 @@ describe('book recommendation query ownership', () => {
     expect(client.getQueryData(recommendationKeys.page(readerA.id, 2, 12))).toEqual(
       emptyPage,
     )
+  })
+})
+
+describe('catalog following query ownership', () => {
+  const following: CatalogFollowing = { authors: [], categories: [] }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.auth.user = readerA
+    mocks.auth.isLoading = false
+    mocks.following.mockResolvedValue(following)
+    mocks.followAuthor.mockResolvedValue(null)
+  })
+
+  it('scopes following data to the authenticated principal', async () => {
+    const client = createQueryClient()
+    renderHook(() => useCatalogFollowing(), {
+      wrapper: ({ children }) => <Providers client={client}>{children}</Providers>,
+    })
+
+    await waitFor(() => expect(mocks.following).toHaveBeenCalledOnce())
+    expect(client.getQueryData(catalogKeys.following(readerA.id))).toEqual(following)
+  })
+
+  it('invalidates following and recommendation caches after a mutation', async () => {
+    const client = createQueryClient()
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    const view = renderHook(() => useSetCatalogFollow(), {
+      wrapper: ({ children }) => <Providers client={client}>{children}</Providers>,
+    })
+
+    await view.result.current.mutateAsync({
+      kind: 'author',
+      id: 'author-1',
+      following: true,
+    })
+
+    expect(mocks.followAuthor).toHaveBeenCalledWith('author-1')
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: catalogKeys.following(readerA.id) })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: recommendationKeys.scoped(readerA.id) })
   })
 })

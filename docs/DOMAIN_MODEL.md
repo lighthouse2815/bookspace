@@ -295,6 +295,8 @@ Nguồn tín hiệu hợp lệ:
   principal cung cấp tập author/category sở thích.
 - `UserPreferredCategory` active của principal được hợp nhất trực tiếp vào tập
   category sở thích.
+- `UserAuthorFollow` và `UserCategoryFollow` active của principal vừa cung cấp
+  explicit signal ưu tiên, vừa được hợp nhất vào tập author/category sở thích.
 - Review 4–5 sao còn hoạt động của user active mà principal đang follow cung cấp
   social signal; tuyệt đối không đọc library của những user này.
 - Rating trung bình và review count từ toàn bộ review công khai còn hoạt động cung
@@ -303,20 +305,22 @@ Nguồn tín hiệu hợp lệ:
 
 Vector xếp hạng xác định, theo thứ tự giảm dần trừ tie-break cuối:
 
-1. Số review 4–5 sao của các user principal đang follow cho book.
-2. Có author trùng tập sở thích từ own library/review/reference book của principal.
-3. Số category trùng tập sở thích từ onboarding, own library/review/reference book.
-4. Rating trung bình từ review công khai.
-5. Số review công khai.
-6. `Book.Id asc`.
+1. Có author mà principal đang theo dõi trực tiếp.
+2. Số category mà principal đang theo dõi trực tiếp trùng với book.
+3. Số review 4–5 sao của các user principal đang follow cho book.
+4. Có author trùng tập sở thích từ own library/review/reference book của principal.
+5. Số category trùng tập sở thích từ onboarding, own library/review/reference book.
+6. Rating trung bình từ review công khai.
+7. Số review công khai.
+8. `Book.Id asc`.
 
 Reason code lấy tín hiệu ưu tiên đầu tiên có giá trị:
 
 | Code | Điều kiện |
 |---|---|
 | `FOLLOWED_READER_LIKED` | có ít nhất một review 4–5 sao từ user đang follow |
-| `MATCHED_AUTHOR` | author trùng sở thích principal |
-| `MATCHED_CATEGORY` | có category trùng sở thích principal |
+| `MATCHED_AUTHOR` | author được theo dõi trực tiếp hoặc trùng sở thích suy luận của principal |
+| `MATCHED_CATEGORY` | category được theo dõi trực tiếp hoặc trùng sở thích suy luận của principal |
 | `POPULAR_FALLBACK` | không có tín hiệu cá nhân/social phía trên |
 
 Read model chỉ đọc onboarding preference của principal; không đọc preference,
@@ -324,6 +328,28 @@ Read model chỉ đọc onboarding preference của principal; không đọc pre
 Bookstore; không dùng machine learning. Mọi filter và ranking được áp
 dụng trước count/phân trang để không tạo trang rỗng giả hoặc làm lộ candidate đã
 bị loại.
+
+### 3.6A `UserAuthorFollow` và `UserCategoryFollow`
+
+Hai entity preference riêng tư lưu tác giả/thể loại mà principal chủ động theo
+dõi. Mỗi entity có `Id`, `UserId`, catalog target ID và bộ thời gian
+`CreatedAt`/`UpdatedAt`/`DeletedAt`; domain dùng `Guid` và UTC như các aggregate
+khác.
+
+Invariant:
+
+- Unique `(UserId, AuthorId)` và `(UserId, CategoryId)` cho toàn bộ lifecycle.
+- Follow là idempotent; follow lại một link đã soft-delete phải restore đúng row
+  cũ, còn unfollow là soft delete idempotent.
+- Chỉ principal được đọc và thay đổi danh sách của chính mình; không có public
+  endpoint để xem preference catalog của user khác.
+- Target phải là author/category đang hoạt động. Query active loại link, user
+  hoặc metadata đã soft-delete.
+- Explicit author follow và số explicit category match đứng đầu vector
+  recommendation, trước social signal và preference suy luận.
+- Khi tạo hoặc import một book mới, mỗi principal active có target khớp và bật
+  catalog notification nhận tối đa một notification `CATALOG`, dù book đồng thời
+  khớp cả author và category. Dedupe key chứa `bookId` và `userId`.
 
 ## 4. Bounded context Reading
 
@@ -887,6 +913,13 @@ Invariant:
 - `CurrentBooks` được đồng bộ từ số `LibraryItem` của user có shelf `READ`, `FinishedAt != null` và `FinishedAt` trong khoảng UTC đóng `[ReadingChallenge.StartDate, ReadingChallenge.EndDate]`, giống Reading Goal metric `BOOKS`.
 - Client không có endpoint ghi progress. Giá trị lưu là high-water mark, chỉ tăng và bị chặn tại `GoalBooks`, nên thay đổi shelf về sau không làm mất thành tích đã ghi nhận.
 - Mutation thư viện/phiên đọc hoàn tất sách lưu dữ liệu đọc và đồng bộ challenge trong cùng transaction; list, detail, `/my` và dashboard vẫn đồng bộ trước khi map/filter/phân trang có liên quan.
+- Leaderboard là read model từ high-water mark đã lưu và không đồng bộ hàng loạt
+  participant khi đọc. Sắp xếp theo `CurrentBooks` giảm dần, trạng thái hoàn thành,
+  `CompletedAt` tăng dần, `JoinedAt` tăng dần rồi `UserId` tăng dần.
+- Visibility được áp dụng trước count/rank/pagination: principal luôn thấy row của
+  mình; row khác chỉ hiện khi user còn hoạt động, công khai hoạt động đọc, không
+  block hai chiều với principal và không bị principal mute. Rank là vị trí trong
+  tập visible, vì vậy response không tiết lộ số hoặc khoảng hạng của user bị ẩn.
 - Use case join do Application điều phối: tạo participation, suy ra tiến độ ban đầu, đánh dấu completion và tạo notification liên quan trong cùng transaction trước khi trả `ChallengeResponse`.
 - Leave load participation, xóa, đồng bộ trạng thái còn lại và map `ChallengeResponse` trong cùng transaction; controller chỉ trả DTO đã commit, không chạy lần đọc/sync thứ hai.
 - Progress được ghi bằng atomic max tại database để request đồng thời không thể ghi lùi.

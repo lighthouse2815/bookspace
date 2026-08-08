@@ -86,8 +86,13 @@ public interface ICatalogService
         int page,
         int pageSize);
     BookDetail GetBook(Guid bookId, Guid? viewerId);
-    PageResult<AuthorDto> GetAuthors(int page, int pageSize);
-    PageResult<CategoryDto> GetCategories(int page, int pageSize);
+    IReadOnlyList<BookSummary> GetRelatedBooks(Guid bookId, Guid? viewerId, int limit);
+    AuthorDto GetAuthor(Guid authorId);
+    CategoryDto GetCategory(Guid categoryId);
+    PageResult<AuthorDto> GetAuthors(string? search, string? sort, int page, int pageSize);
+    PageResult<CategoryDto> GetCategories(string? search, string? sort, int page, int pageSize);
+    PageResult<AuthorDto> GetAdminAuthors(string? search, int page, int pageSize);
+    PageResult<CategoryDto> GetAdminCategories(string? search, int page, int pageSize);
     Task<BookDetail> CreateBookAsync(SaveBookRequest request, CancellationToken cancellationToken);
     Task<BookDetail> UpdateBookAsync(Guid id, SaveBookRequest request, CancellationToken cancellationToken);
     Task DeleteBookAsync(Guid id, CancellationToken cancellationToken);
@@ -97,6 +102,15 @@ public interface ICatalogService
     Task<CategoryDto> CreateCategoryAsync(SaveCategoryRequest request, CancellationToken cancellationToken);
     Task<CategoryDto> UpdateCategoryAsync(Guid id, SaveCategoryRequest request, CancellationToken cancellationToken);
     Task DeleteCategoryAsync(Guid id, CancellationToken cancellationToken);
+}
+
+public interface ICatalogFollowingService
+{
+    CatalogFollowingDto GetMine(Guid userId);
+    Task FollowAuthorAsync(Guid userId, Guid authorId, CancellationToken cancellationToken);
+    Task UnfollowAuthorAsync(Guid userId, Guid authorId, CancellationToken cancellationToken);
+    Task FollowCategoryAsync(Guid userId, Guid categoryId, CancellationToken cancellationToken);
+    Task UnfollowCategoryAsync(Guid userId, Guid categoryId, CancellationToken cancellationToken);
 }
 
 public interface IReadingService
@@ -240,6 +254,12 @@ public interface IChallengeService
     PageResult<ChallengeDto> GetAdminChallenges(int page, int pageSize);
     Task<PageResult<ChallengeDto>> GetMineAsync(Guid userId, int page, int pageSize, CancellationToken cancellationToken);
     Task<ChallengeDto> GetPublicAsync(Guid challengeId, Guid? userId, CancellationToken cancellationToken);
+    Task<PageResult<ChallengeLeaderboardItem>> GetLeaderboardAsync(
+        Guid challengeId,
+        Guid viewerId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken);
     Task SyncProgressAsync(Guid userId, CancellationToken cancellationToken);
     Task<ChallengeDto> JoinAsync(Guid userId, Guid challengeId, CancellationToken cancellationToken);
     Task<ChallengeDto> LeaveAsync(Guid userId, Guid challengeId, CancellationToken cancellationToken);

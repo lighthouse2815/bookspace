@@ -16,6 +16,20 @@ public sealed class AdminController(
     IChallengeService challengeService,
     IContentModerationService moderationService) : ApiControllerBase
 {
+    [HttpGet("authors")]
+    public ActionResult<ApiResponse<PageResult<AuthorDto>>> Authors(
+        [FromQuery] string? search = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20) =>
+        OkData(catalogService.GetAdminAuthors(search, page, pageSize));
+
+    [HttpGet("categories")]
+    public ActionResult<ApiResponse<PageResult<CategoryDto>>> Categories(
+        [FromQuery] string? search = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20) =>
+        OkData(catalogService.GetAdminCategories(search, page, pageSize));
+
     [HttpPost("books")]
     public async Task<ActionResult<ApiResponse<BookDetail>>> CreateBook(
         SaveBookRequest request,

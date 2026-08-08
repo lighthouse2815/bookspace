@@ -1671,6 +1671,11 @@ namespace BookSpace.Infrastructure.Persistence.Migrations
                         .HasMaxLength(254)
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("IsCatalogNotificationEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(true);
+
                     b.Property<bool>("IsChallengeNotificationEnabled")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER")
@@ -1740,6 +1745,37 @@ namespace BookSpace.Infrastructure.Persistence.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("BookSpace.Domain.Entities.UserAuthorFollow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("AuthorId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("DeletedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorId");
+
+                    b.HasIndex("UserId", "AuthorId")
+                        .IsUnique();
+
+                    b.ToTable("user_author_follows", (string)null);
+                });
+
             modelBuilder.Entity("BookSpace.Domain.Entities.UserBlock", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1769,6 +1805,37 @@ namespace BookSpace.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("user_blocks", (string)null);
+                });
+
+            modelBuilder.Entity("BookSpace.Domain.Entities.UserCategoryFollow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("DeletedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("UserId", "CategoryId")
+                        .IsUnique();
+
+                    b.ToTable("user_category_follows", (string)null);
                 });
 
             modelBuilder.Entity("BookSpace.Domain.Entities.UserMute", b =>
@@ -2495,6 +2562,25 @@ namespace BookSpace.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("BookSpace.Domain.Entities.UserAuthorFollow", b =>
+                {
+                    b.HasOne("BookSpace.Domain.Entities.Author", "Author")
+                        .WithMany()
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BookSpace.Domain.Entities.User", "User")
+                        .WithMany("FollowedAuthors")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Author");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("BookSpace.Domain.Entities.UserBlock", b =>
                 {
                     b.HasOne("BookSpace.Domain.Entities.User", "BlockedUser")
@@ -2512,6 +2598,25 @@ namespace BookSpace.Infrastructure.Persistence.Migrations
                     b.Navigation("BlockedUser");
 
                     b.Navigation("Blocker");
+                });
+
+            modelBuilder.Entity("BookSpace.Domain.Entities.UserCategoryFollow", b =>
+                {
+                    b.HasOne("BookSpace.Domain.Entities.Category", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BookSpace.Domain.Entities.User", "User")
+                        .WithMany("FollowedCategories")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Category");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("BookSpace.Domain.Entities.UserMute", b =>
@@ -2635,6 +2740,10 @@ namespace BookSpace.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("BookSpace.Domain.Entities.User", b =>
                 {
+                    b.Navigation("FollowedAuthors");
+
+                    b.Navigation("FollowedCategories");
+
                     b.Navigation("Followers");
 
                     b.Navigation("Following");

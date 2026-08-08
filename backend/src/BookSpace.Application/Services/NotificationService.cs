@@ -60,6 +60,7 @@ public sealed class NotificationService(IBookSpaceDbContext db) : INotificationS
         var user = FindUser(userId);
         user.UpdateNotificationPreferences(
             request.IsFollowNotificationEnabled,
+            request.IsCatalogNotificationEnabled,
             request.IsReviewNotificationEnabled,
             request.IsClubNotificationEnabled,
             request.IsChallengeNotificationEnabled,
@@ -94,6 +95,7 @@ public sealed class NotificationService(IBookSpaceDbContext db) : INotificationS
     private static NotificationPreferencesDto MapPreferences(User user) =>
         new(
             user.IsFollowNotificationEnabled,
+            user.IsCatalogNotificationEnabled,
             user.IsReviewNotificationEnabled,
             user.IsClubNotificationEnabled,
             user.IsChallengeNotificationEnabled,
@@ -113,6 +115,7 @@ public sealed class NotificationService(IBookSpaceDbContext db) : INotificationS
         return category switch
         {
             NotificationCategory.FOLLOW => query.Where(x => x.Type == NotificationType.FOLLOW),
+            NotificationCategory.CATALOG => query.Where(x => x.Type == NotificationType.CATALOG),
             NotificationCategory.REVIEW => query.Where(x =>
                 x.Type == NotificationType.REVIEW_LIKE ||
                 x.Type == NotificationType.COMMENT),

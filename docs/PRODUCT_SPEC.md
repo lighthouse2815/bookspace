@@ -179,14 +179,31 @@ hướng, nhưng Dashboard hiển thị CTA tiếp tục khi trạng thái chưa
 
 Người dùng tìm theo từ khóa và lọc theo tác giả/thể loại. Kết quả có phân trang. Chi tiết sách gồm tác giả, thể loại, thống kê rating và trạng thái thư viện của người đang đăng nhập nếu có.
 
+Tên tác giả và nhãn thể loại trên card/chi tiết sách dẫn tới hồ sơ public tương ứng.
+Trang tác giả hiển thị avatar, tiểu sử và sách active theo `authorId`; trang thể loại
+hiển thị mô tả và sách active theo `categoryId`. Hai danh sách sách đều phân trang và
+vẫn hoạt động khi chưa đăng nhập hoặc integration Bookstore đang tắt.
+
+Danh bạ `/authors` và `/categories` cho phép guest tìm theo metadata, sắp theo tên
+hoặc số sách và phân trang bằng URL. Explore dẫn tới hai danh bạ và từng hồ sơ thể
+loại. Chi tiết sách hiển thị tối đa bốn sách liên quan, ưu tiên cùng tác giả rồi số
+thể loại chung; không bao giờ lặp lại sách đang xem.
+
+Thành viên có thể theo dõi/bỏ theo dõi tác giả và thể loại ngay tại danh bạ hoặc
+trang chi tiết. Danh sách riêng `/following-topics` là nguồn preference explicit
+cho recommendation. Khi catalog có sách mới từ metadata đang theo dõi, BookSpace
+tạo tối đa một thông báo cho mỗi người dùng và sách, kể cả khi khớp cả tác giả lẫn
+thể loại; người dùng có thể tắt riêng nhóm thông báo này trong Settings.
+
 ### UC-03A — Gợi ý sách cá nhân hóa
 
 Thành viên nhận danh sách sách chưa có trong thư viện và chưa từng được chính
 thành viên review qua
 `GET /api/books/recommendations?page=1&pageSize=12`. Mỗi item kèm một lý do tiếng
 Việt và một reason code ổn định: `FOLLOWED_READER_LIKED`, `MATCHED_AUTHOR`,
-`MATCHED_CATEGORY` hoặc `POPULAR_FALLBACK`. Ranking ưu tiên số review 4–5 sao
-của các tài khoản principal đang follow, rồi tác giả đã xuất hiện trong thư viện,
+`MATCHED_CATEGORY` hoặc `POPULAR_FALLBACK`. Ranking ưu tiên tác giả rồi số thể
+loại principal explicit theo dõi, tiếp theo là số review 4–5 sao của các tài khoản
+principal đang follow, rồi tác giả đã xuất hiện trong thư viện,
 review 4–5 sao hoặc sách tham chiếu của principal; tiếp theo là số category trùng
 với thể loại onboarding, thư viện, review 4–5 sao hoặc sách tham chiếu, rating trung
 bình và số review công khai toàn hệ thống, cuối cùng `book.id asc` để phân trang xác định.
@@ -339,6 +356,15 @@ Join, unpublish và delete dùng cùng serialized, non-deferred SQLite challenge
 
 Atomicity của database không đồng nghĩa exactly-once ở HTTP: request bị hủy hoặc mất response trong lúc/sau commit không chứng minh rollback, nên client phải đọc lại trạng thái.
 
+Thành viên đăng nhập xem bảng xếp hạng phân trang của một thử thách đã xuất bản.
+Thứ hạng chỉ dùng high-water progress đã lưu, không đồng bộ hàng loạt người khác
+khi đọc: số sách giảm dần, người đã hoàn thành đứng trước theo thời điểm hoàn
+thành sớm hơn, sau đó là thời điểm tham gia và `UserId` để thứ tự ổn định. Bảng
+chỉ tính các tài khoản còn hoạt động mà principal được phép thấy; chính principal
+luôn thấy mình, còn người khác phải công khai hoạt động đọc và không bị chặn hai
+chiều hoặc bị principal ẩn. Lọc visibility diễn ra trước khi tính tổng, thứ hạng
+và phân trang nên không làm lộ số người bị ẩn.
+
 ### UC-10 — Thông báo
 
 Các sự kiện follow, like, comment, club và challenge tạo thông báo cho đúng người nhận, trừ khi tác nhân cũng là người nhận. Thành viên chỉ đọc/đánh dấu thông báo của chính mình. Danh sách hỗ trợ trạng thái đã đọc, nhóm `FOLLOW|REVIEW|CLUB|CHALLENGE|SYSTEM` và phân trang; unread count luôn do server tính trên toàn bộ dữ liệu principal.
@@ -408,6 +434,11 @@ xem trực tiếp. V1 không có cộng tác viên, like/comment hoặc smart li
 
 Quản trị viên tạo/sửa/soft-delete sách, tác giả, thể loại. Không cho xóa mềm tác giả/thể loại đang là liên kết duy nhất cần thiết của một sách đang hoạt động nếu request không đồng thời gỡ/chuyển liên kết hợp lệ.
 
+Hai danh sách tác giả/thể loại dành riêng cho admin hỗ trợ tìm theo tên và phần mô tả,
+phân trang, hiển thị số sách đang sử dụng. Giao diện chặn thao tác xóa khi số sách lớn
+hơn 0; backend tiếp tục là nguồn bảo vệ authoritative bằng conflict code ổn định. Mọi
+mutation metadata làm mới lookup đang dùng trong CRUD sách và import.
+
 Quản trị viên có thể tìm metadata bên ngoài theo tên, tác giả hoặc ISBN, xem trước
 rồi xác nhận import. Server tải lại chi tiết theo `provider + externalId`; admin ghép
 với tác giả/thể loại hiện hữu hoặc cho phép tạo tên mới. Sách được tạo luôn có `Guid`
@@ -430,10 +461,14 @@ Tên route là hợp đồng điều hướng Goal 1; thay đổi cần đồng 
 | `/` | Home | giới thiệu, sách nổi bật, hoạt động cộng đồng |
 | `/explore` | Explore | tìm kiếm/lọc sách có phân trang; thành viên thấy khu “Dành cho bạn” 12 item/trang, lý do gợi ý và thêm nhanh vào `WANT_TO_READ`; khách giữ catalog công khai và không gọi API cá nhân hóa |
 | `/books` | Books | catalog đầy đủ có phân trang |
-| `/books/:id` | Book detail | metadata, tác giả, thể loại, review |
+| `/books/:id` | Book detail | metadata, tác giả, thể loại, tối đa bốn sách liên quan và review |
+| `/authors` | Author directory | tìm kiếm, sắp xếp theo tên/số sách và phân trang tác giả public |
+| `/authors/:id` | Author detail | avatar, tiểu sử, số sách và catalog phân trang của tác giả |
+| `/categories` | Category directory | tìm kiếm, sắp xếp theo tên/số sách và phân trang thể loại public |
+| `/categories/:id` | Category detail | mô tả, số sách và catalog phân trang của thể loại |
 | `/lists/:listId` | Book list detail | bộ sưu tập công khai hoặc bộ riêng của chủ sở hữu; chủ sở hữu có thể sửa, xóa, bỏ và sắp xếp sách |
 | `/challenges` | Challenges | thử thách đã xuất bản |
-| `/challenges/:id` | Challenge detail | chi tiết, tiến độ tự động và join/leave |
+| `/challenges/:id` | Challenge detail | chi tiết, tiến độ tự động, join/leave và bảng xếp hạng riêng cho thành viên đăng nhập |
 | `/clubs` | Clubs | danh sách câu lạc bộ công khai |
 | `/clubs/:id` | Club detail | thông tin, thành viên, chat realtime, bài đăng và đợt đọc chung theo quyền |
 | `/clubs/:clubId/sprints/:sprintId` | Reading sprint | tiến độ, leaderboard, timeline, quản trị và cột mốc theo quyền |
@@ -459,6 +494,7 @@ Tên route là hợp đồng điều hướng Goal 1; thay đổi cần đồng 
 | `/dashboard` | My dashboard | số sách, trang/phút đọc, challenge |
 | `/profile` | My profile | hồ sơ hiện tại hoặc chuyển tới `/users/:id` |
 | `/settings` | Settings | chỉnh hồ sơ, liên kết chỉnh sở thích onboarding, quyền riêng tư hành trình đọc, danh sách chặn/ẩn nội dung, notification preferences và giao diện |
+| `/following-topics` | Catalog following | danh sách riêng tác giả/thể loại đang theo dõi, deep-link chi tiết và bỏ theo dõi |
 | `/notifications` | Notifications | server unread count, lọc trạng thái/nhóm, phân trang và deep-link |
 | `/messages` | Direct message inbox | danh sách hội thoại theo hoạt động mới nhất, last message và tổng unread |
 | `/messages/:conversationId` | Direct message thread | lịch sử cursor, gửi text, read marker, realtime, report và mute |
@@ -470,6 +506,8 @@ Tên route là hợp đồng điều hướng Goal 1; thay đổi cần đồng 
 | Route | Trang |
 |---|---|
 | `/admin/books` | CRUD sách; tìm, xem trước và import metadata ngoài vào catalog nội bộ |
+| `/admin/authors` | tìm kiếm/phân trang và CRUD hồ sơ tác giả; hiển thị số sách đang dùng |
+| `/admin/categories` | tìm kiếm/phân trang và CRUD thể loại; hiển thị số sách đang dùng |
 | `/admin/challenges` | CRUD/xuất bản thử thách |
 | `/admin/moderation` | hàng đợi báo cáo, snapshot, bác bỏ, ẩn nội dung và khóa tài khoản |
 

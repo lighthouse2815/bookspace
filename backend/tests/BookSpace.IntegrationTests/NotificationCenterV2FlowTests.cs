@@ -31,6 +31,7 @@ public sealed class NotificationCenterV2FlowTests
             new
             {
                 isFollowNotificationEnabled = false,
+                isCatalogNotificationEnabled = true,
                 isReviewNotificationEnabled = true,
                 isClubNotificationEnabled = true,
                 isChallengeNotificationEnabled = true,
@@ -73,6 +74,7 @@ public sealed class NotificationCenterV2FlowTests
             new
             {
                 isFollowNotificationEnabled = true,
+                isCatalogNotificationEnabled = true,
                 isReviewNotificationEnabled = true,
                 isClubNotificationEnabled = true,
                 isChallengeNotificationEnabled = true,

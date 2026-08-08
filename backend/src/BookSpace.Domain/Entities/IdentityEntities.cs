@@ -29,6 +29,7 @@ public sealed class User : Entity
     public bool IsReadingShelfPublic { get; private set; }
     public bool IsReadingActivityPublic { get; private set; }
     public bool IsFollowNotificationEnabled { get; private set; } = true;
+    public bool IsCatalogNotificationEnabled { get; private set; } = true;
     public bool IsReviewNotificationEnabled { get; private set; } = true;
     public bool IsClubNotificationEnabled { get; private set; } = true;
     public bool IsChallengeNotificationEnabled { get; private set; } = true;
@@ -40,6 +41,8 @@ public sealed class User : Entity
         new List<UserPreferredCategory>();
     public ICollection<UserReferenceBook> ReferenceBooks { get; } =
         new List<UserReferenceBook>();
+    public ICollection<UserAuthorFollow> FollowedAuthors { get; } = new List<UserAuthorFollow>();
+    public ICollection<UserCategoryFollow> FollowedCategories { get; } = new List<UserCategoryFollow>();
 
     public void UpdateProfile(string displayName, string? bio, string? avatarUrl)
     {
@@ -67,6 +70,7 @@ public sealed class User : Entity
     public bool AllowsNotification(NotificationType type) => type switch
     {
         NotificationType.FOLLOW => IsFollowNotificationEnabled,
+        NotificationType.CATALOG => IsCatalogNotificationEnabled,
         NotificationType.REVIEW_LIKE or NotificationType.COMMENT => IsReviewNotificationEnabled,
         NotificationType.CLUB => IsClubNotificationEnabled,
         NotificationType.CHALLENGE => IsChallengeNotificationEnabled,
@@ -77,12 +81,14 @@ public sealed class User : Entity
 
     public void UpdateNotificationPreferences(
         bool isFollowNotificationEnabled,
+        bool isCatalogNotificationEnabled,
         bool isReviewNotificationEnabled,
         bool isClubNotificationEnabled,
         bool isChallengeNotificationEnabled,
         bool isDirectMessageNotificationEnabled)
     {
         if (IsFollowNotificationEnabled == isFollowNotificationEnabled &&
+            IsCatalogNotificationEnabled == isCatalogNotificationEnabled &&
             IsReviewNotificationEnabled == isReviewNotificationEnabled &&
             IsClubNotificationEnabled == isClubNotificationEnabled &&
             IsChallengeNotificationEnabled == isChallengeNotificationEnabled &&
@@ -92,6 +98,7 @@ public sealed class User : Entity
         }
 
         IsFollowNotificationEnabled = isFollowNotificationEnabled;
+        IsCatalogNotificationEnabled = isCatalogNotificationEnabled;
         IsReviewNotificationEnabled = isReviewNotificationEnabled;
         IsClubNotificationEnabled = isClubNotificationEnabled;
         IsChallengeNotificationEnabled = isChallengeNotificationEnabled;

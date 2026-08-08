@@ -34,16 +34,37 @@ public sealed class CatalogController(ICatalogService catalogService) : ApiContr
         OkData(catalogService.GetBook(id, OptionalUserId));
 
     [AllowAnonymous]
+    [HttpGet("books/{id:guid}/related")]
+    public ActionResult<ApiResponse<IReadOnlyList<BookSummary>>> RelatedBooks(
+        Guid id,
+        [FromQuery] int limit = 4) =>
+        OkData(catalogService.GetRelatedBooks(id, OptionalUserId, limit));
+
+    [AllowAnonymous]
     [HttpGet("authors")]
     public ActionResult<ApiResponse<PageResult<AuthorDto>>> Authors(
+        [FromQuery] string? search,
+        [FromQuery] string? sort,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 100) =>
-        OkData(catalogService.GetAuthors(page, pageSize));
+        OkData(catalogService.GetAuthors(search, sort, page, pageSize));
+
+    [AllowAnonymous]
+    [HttpGet("authors/{id:guid}")]
+    public ActionResult<ApiResponse<AuthorDto>> Author(Guid id) =>
+        OkData(catalogService.GetAuthor(id));
 
     [AllowAnonymous]
     [HttpGet("categories")]
     public ActionResult<ApiResponse<PageResult<CategoryDto>>> Categories(
+        [FromQuery] string? search,
+        [FromQuery] string? sort,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 100) =>
-        OkData(catalogService.GetCategories(page, pageSize));
+        OkData(catalogService.GetCategories(search, sort, page, pageSize));
+
+    [AllowAnonymous]
+    [HttpGet("categories/{id:guid}")]
+    public ActionResult<ApiResponse<CategoryDto>> Category(Guid id) =>
+        OkData(catalogService.GetCategory(id));
 }

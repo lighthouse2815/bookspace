@@ -1,5 +1,6 @@
 import {
   Bell,
+  BookOpenText,
   ChatCircle,
   Check,
   EnvelopeSimple,
@@ -26,6 +27,7 @@ import type { Notification, NotificationCategory } from '../../types/domain'
 
 const notificationIcons = {
   FOLLOW: UserPlus,
+  CATALOG: BookOpenText,
   REVIEW_LIKE: Heart,
   COMMENT: ChatCircle,
   CLUB: UsersThree,
@@ -37,6 +39,7 @@ const notificationIcons = {
 const categoryOptions: Array<{ value?: NotificationCategory; label: string }> = [
   { label: 'Tất cả loại' },
   { value: 'FOLLOW', label: 'Theo dõi' },
+  { value: 'CATALOG', label: 'Sách mới' },
   { value: 'REVIEW', label: 'Đánh giá' },
   { value: 'CLUB', label: 'Câu lạc bộ' },
   { value: 'CHALLENGE', label: 'Thử thách' },

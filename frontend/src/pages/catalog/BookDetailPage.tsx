@@ -30,6 +30,7 @@ import {
 import { errorMessage } from '../../lib/api'
 import { shelfLabel } from '../../lib/format'
 import type { Shelf } from '../../types/domain'
+import { RelatedBooksSection } from './RelatedBooksSection'
 
 export function BookDetailPage() {
   const { id } = useParams()
@@ -144,7 +145,7 @@ export function BookDetailPage() {
             {book.data.categories?.map((category) => (
               <Link
                 key={category.id}
-                to={`/books?categoryId=${category.id}`}
+                to={`/categories/${category.id}`}
                 className="rounded-full bg-accent-soft px-3 py-1 text-xs font-semibold text-accent-strong"
               >
                 {category.name}
@@ -154,7 +155,16 @@ export function BookDetailPage() {
           <h1 className="mt-5 text-4xl font-bold leading-tight tracking-tight text-heading sm:text-5xl">
             {book.data.title}
           </h1>
-          <p className="mt-3 text-lg text-muted">{book.data.author?.name || 'Tác giả đang cập nhật'}</p>
+          {book.data.author ? (
+            <Link
+              to={`/authors/${book.data.author.id}`}
+              className="mt-3 inline-flex text-lg font-medium text-muted transition-colors hover:text-accent-strong focus-visible:focus-ring"
+            >
+              {book.data.author.name}
+            </Link>
+          ) : (
+            <p className="mt-3 text-lg text-muted">Tác giả đang cập nhật</p>
+          )}
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <Rating value={book.data.averageRating ?? 0} />
             <span className="text-sm font-semibold text-heading">
@@ -276,6 +286,8 @@ export function BookDetailPage() {
           ) : null}
         </div>
       </div>
+
+      <RelatedBooksSection bookId={book.data.id} bookTitle={book.data.title} />
 
       <section className="mt-16 grid gap-10 border-t border-border pt-12 lg:grid-cols-[22rem_1fr]">
         <div>

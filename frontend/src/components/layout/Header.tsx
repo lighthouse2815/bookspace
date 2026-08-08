@@ -124,6 +124,9 @@ export function Header() {
                     <Link to="/journal" onClick={() => setAccountOpen(false)}>
                       Nhật ký đọc
                     </Link>
+                    <Link to="/following-topics" onClick={() => setAccountOpen(false)}>
+                      Nội dung theo dõi
+                    </Link>
                     <Link to="/messages" onClick={() => setAccountOpen(false)}>
                       Tin nhắn
                     </Link>
@@ -204,6 +207,10 @@ export function Header() {
               </NavLink>
               <NavLink to="/journal" onClick={() => setMobileOpen(false)}>
                 Nhật ký đọc
+              </NavLink>
+              <NavLink to="/following-topics" onClick={() => setMobileOpen(false)}>
+                <Books size={19} />
+                Nội dung theo dõi
               </NavLink>
               <NavLink to="/messages" onClick={() => setMobileOpen(false)}>
                 <EnvelopeSimple size={19} />

@@ -57,6 +57,7 @@ public enum ClubInvitationStatus
 public enum NotificationType
 {
     FOLLOW,
+    CATALOG,
     REVIEW_LIKE,
     COMMENT,
     CLUB,
@@ -68,6 +69,7 @@ public enum NotificationType
 public enum NotificationCategory
 {
     FOLLOW,
+    CATALOG,
     REVIEW,
     CLUB,
     CHALLENGE,

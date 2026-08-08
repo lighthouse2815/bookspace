@@ -233,9 +233,24 @@ export function ExplorePage() {
       </section>
 
       <section className="mt-16 border-t border-border pt-12">
-        <h2 className="text-2xl font-bold tracking-tight text-heading">
-          Đi theo chủ đề bạn quan tâm
-        </h2>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight text-heading">
+              Đi theo chủ đề bạn quan tâm
+            </h2>
+            <p className="mt-2 text-sm text-muted">
+              Mở hồ sơ thể loại để xem mô tả và toàn bộ sách cùng chủ đề.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link to="/authors" className="button button-ghost button-sm">
+              Xem tác giả
+            </Link>
+            <Link to="/categories" className="button button-secondary button-sm">
+              Xem mọi thể loại
+            </Link>
+          </div>
+        </div>
         {categories.isLoading ? (
           <div className="mt-6 flex flex-wrap gap-2">
             {Array.from({ length: 8 }, (_, index) => (
@@ -249,7 +264,7 @@ export function ExplorePage() {
             {categories.data?.items.map((category) => (
               <Link
                 key={category.id}
-                to={`/books?categoryId=${category.id}`}
+                to={`/categories/${category.id}`}
                 className="rounded-full border border-border bg-surface px-4 py-2 text-sm font-medium text-body transition-colors hover:border-accent hover:text-accent-strong"
               >
                 {category.name}

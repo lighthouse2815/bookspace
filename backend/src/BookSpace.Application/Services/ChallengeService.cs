@@ -62,6 +62,81 @@ public sealed class ChallengeService(
         return _mapper.Challenge(challenge, userId);
     }
 
+    public async Task<PageResult<ChallengeLeaderboardItem>> GetLeaderboardAsync(
+        Guid challengeId,
+        Guid viewerId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        var challenge = await queryExecutor.FirstOrDefaultAsync(
+            db.ReadingChallenges.Where(x => x.Id == challengeId && x.IsPublished),
+            cancellationToken)
+            ?? throw ServiceErrors.NotFound(
+                "CHALLENGE_NOT_FOUND",
+                "Không tìm thấy thử thách.");
+
+        var hiddenUserIds = UserSafetyPolicy.HiddenUserIds(db, viewerId);
+        var visibleParticipants =
+            from participation in db.ChallengeParticipations
+            join user in db.Users on participation.UserId equals user.Id
+            where participation.ChallengeId == challengeId &&
+                  !user.IsLocked &&
+                  (user.Id == viewerId ||
+                   user.IsReadingActivityPublic && !hiddenUserIds.Contains(user.Id))
+            select new
+            {
+                participation.CompletedBooks,
+                participation.CompletedAt,
+                JoinedAt = participation.CreatedAt,
+                UserId = user.Id,
+                user.DisplayName,
+                user.AvatarUrl,
+                user.Role
+            };
+
+        var (normalizedPage, size, skip) = Paging.Normalize(page, pageSize);
+        var total = await queryExecutor.CountAsync(visibleParticipants, cancellationToken);
+        var rows = await queryExecutor.ToListAsync(
+            visibleParticipants
+                .OrderByDescending(x => x.CompletedBooks)
+                .ThenByDescending(x =>
+                    x.CompletedBooks >= challenge.TargetBooks)
+                .ThenBy(x => x.CompletedAt == null)
+                .ThenBy(x => x.CompletedAt)
+                .ThenBy(x => x.JoinedAt)
+                .ThenBy(x => x.UserId)
+                .Skip(skip)
+                .Take(size),
+            cancellationToken);
+
+        var items = rows
+            .Select((row, index) => new ChallengeLeaderboardItem(
+                skip + index + 1,
+                new UserSummary(
+                    row.UserId,
+                    null,
+                    row.DisplayName,
+                    row.AvatarUrl,
+                    row.Role),
+                row.CompletedBooks,
+                challenge.TargetBooks,
+                Math.Clamp(
+                    (int)Math.Round(
+                        row.CompletedBooks * 100d / challenge.TargetBooks),
+                    0,
+                    100),
+                row.CompletedAt,
+                row.UserId == viewerId))
+            .ToList();
+
+        return PageResult<ChallengeLeaderboardItem>.Create(
+            items,
+            normalizedPage,
+            size,
+            total);
+    }
+
     public async Task<ChallengeDto> JoinAsync(
         Guid userId,
         Guid challengeId,

@@ -30,6 +30,20 @@ public sealed class ChallengesController(IChallengeService challengeService) : A
         OkData(await challengeService.GetPublicAsync(id, OptionalUserId, cancellationToken));
 
     [Authorize]
+    [HttpGet("{id:guid}/leaderboard")]
+    public async Task<ActionResult<ApiResponse<PageResult<ChallengeLeaderboardItem>>>> Leaderboard(
+        Guid id,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default) =>
+        OkData(await challengeService.GetLeaderboardAsync(
+            id,
+            CurrentUserId,
+            page,
+            pageSize,
+            cancellationToken));
+
+    [Authorize]
     [HttpGet("my")]
     [HttpGet("mine")]
     public async Task<ActionResult<ApiResponse<PageResult<ChallengeDto>>>> Mine(
