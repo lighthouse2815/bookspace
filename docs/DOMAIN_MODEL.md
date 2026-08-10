@@ -37,7 +37,7 @@ Aggregate root của tài khoản và hồ sơ.
 | Trường | Kiểu | Bắt buộc | Quy tắc |
 |---|---|---:|---|
 | `Id` | `Guid` | có | tạo phía server |
-| `Email` | `string` | có | email hợp lệ, unique không phân biệt hoa thường, tối đa 320 |
+| `Email` | `string` | có | email hợp lệ, unique không phân biệt hoa thường, tối đa 254 |
 | `PasswordHash` | `string` | có | chỉ lưu hash qua password hasher, không trả API |
 | `DisplayName` | `string` | có | 2–100 ký tự sau trim |
 | `Bio` | `string?` | không | tối đa 500 ký tự |

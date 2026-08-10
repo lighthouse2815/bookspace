@@ -62,6 +62,70 @@ public sealed class ApiFlowTests(BookSpaceApiFactory factory) : IClassFixture<Bo
     }
 
     [Fact]
+    public async Task Auth_string_inputs_are_bounded_at_the_api_boundary_with_vietnamese_errors()
+    {
+        var cases = new (string Path, object Body, string Field, string ExpectedMessage)[]
+        {
+            (
+                "/api/auth/register",
+                new { email = $"{new string('a', 250)}@x.io", password = "Reader123!", displayName = "Reader" },
+                "email",
+                "Email không được vượt quá 254 ký tự."),
+            (
+                "/api/auth/login",
+                new { email = "reader@bookspace.local", password = new string('p', 101) },
+                "password",
+                "Mật khẩu không được vượt quá 100 ký tự."),
+            (
+                "/api/auth/refresh",
+                new { refreshToken = new string('r', 501) },
+                "refreshToken",
+                "Refresh token không hợp lệ."),
+            (
+                "/api/auth/logout",
+                new { refreshToken = new string('r', 501) },
+                "refreshToken",
+                "Refresh token không hợp lệ.")
+        };
+
+        foreach (var testCase in cases)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, testCase.Path)
+            {
+                Content = JsonContent.Create(testCase.Body, testCase.Body.GetType())
+            };
+            using var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            var envelope = await ReadEnvelopeAsync(response);
+            Assert.Equal("VALIDATION_ERROR", envelope.GetProperty("code").GetString());
+            var messages = envelope
+                .GetProperty("data")
+                .GetProperty("errors")
+                .GetProperty(testCase.Field)
+                .EnumerateArray()
+                .Select(item => item.GetString())
+                .ToArray();
+            Assert.Contains(testCase.ExpectedMessage, messages);
+        }
+    }
+
+    [Fact]
+    public async Task Framework_binding_and_json_errors_are_generic_vietnamese_and_keep_field_mapping()
+    {
+        using var invalidPage = await _client.GetAsync("/api/books?page=khong-phai-so");
+        await AssertGenericVietnameseValidationAsync(invalidPage, "page");
+
+        await LoginAsync("reader@bookspace.local", "Reader123!");
+        using var invalidShelf = await _client.PostAsJsonAsync("/api/library", new
+        {
+            bookId = Guid.NewGuid(),
+            shelf = "NOT_A_SHELF"
+        });
+        await AssertGenericVietnameseValidationAsync(invalidShelf, "shelf");
+    }
+
+    [Fact]
     public async Task Seeded_reader_can_login_and_load_core_product_pages()
     {
         await LoginAsync("reader@bookspace.local", "Reader123!");
@@ -1052,5 +1116,25 @@ public sealed class ApiFlowTests(BookSpaceApiFactory factory) : IClassFixture<Bo
     {
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         return document.RootElement.Clone();
+    }
+
+    private static async Task AssertGenericVietnameseValidationAsync(
+        HttpResponseMessage response,
+        string field)
+    {
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var envelope = await ReadEnvelopeAsync(response);
+        Assert.False(envelope.GetProperty("success").GetBoolean());
+        Assert.Equal("VALIDATION_ERROR", envelope.GetProperty("code").GetString());
+
+        var messages = envelope
+            .GetProperty("data")
+            .GetProperty("errors")
+            .GetProperty(field)
+            .EnumerateArray()
+            .Select(item => item.GetString())
+            .ToArray();
+        Assert.NotEmpty(messages);
+        Assert.All(messages, message => Assert.Equal("Giá trị không hợp lệ.", message));
     }
 }

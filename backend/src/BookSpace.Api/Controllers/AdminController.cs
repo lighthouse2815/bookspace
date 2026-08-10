@@ -14,8 +14,13 @@ public sealed class AdminController(
     ICatalogService catalogService,
     IExternalCatalogService externalCatalogService,
     IChallengeService challengeService,
-    IContentModerationService moderationService) : ApiControllerBase
+    IContentModerationService moderationService,
+    IAdminDashboardService adminDashboardService) : ApiControllerBase
 {
+    [HttpGet("dashboard")]
+    public ActionResult<ApiResponse<AdminDashboardDto>> Dashboard() =>
+        OkData(adminDashboardService.Get());
+
     [HttpGet("authors")]
     public ActionResult<ApiResponse<PageResult<AuthorDto>>> Authors(
         [FromQuery] string? search = null,

@@ -312,6 +312,11 @@ public interface IDashboardService
     Task<DashboardDto> GetAsync(Guid userId, CancellationToken cancellationToken);
 }
 
+public interface IAdminDashboardService
+{
+    AdminDashboardDto Get();
+}
+
 public interface IExternalCatalogService
 {
     Task<ExternalBookSearchResult> SearchAsync(string query, int limit, CancellationToken cancellationToken);

@@ -1,0 +1,18 @@
+{
+  "name": "BookSpace",
+  "short_name": "BookSpace",
+  "description": "Không gian độc lập để lưu hành trình đọc và kết nối cộng đồng.",
+  "lang": "vi",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f9f9",
+  "theme_color": "#087a56",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

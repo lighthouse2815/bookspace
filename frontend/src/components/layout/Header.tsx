@@ -49,7 +49,7 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 border-b border-border/80 bg-page/90 backdrop-blur-xl">
       <div className="container-page flex h-16 items-center gap-5">
-        <Logo />
+        <Logo compactOnMobile={isAuthenticated} />
         <nav className="hidden items-center gap-1 lg:flex" aria-label="Điều hướng chính">
           {publicLinks.map(({ to, label, icon: Icon }) => (
             <NavLink key={to} to={to} className={({ isActive }) => `nav-link ${isActive ? 'nav-active' : ''}`}>
@@ -149,7 +149,7 @@ export function Header() {
                       Cài đặt
                     </Link>
                     {user.role === 'ADMIN' ? (
-                      <Link to="/admin/books" onClick={() => setAccountOpen(false)}>
+                      <Link to="/admin" onClick={() => setAccountOpen(false)}>
                         Quản trị
                       </Link>
                     ) : null}
@@ -238,7 +238,7 @@ export function Header() {
                 Hồ sơ
               </NavLink>
               {user.role === 'ADMIN' ? (
-                <NavLink to="/admin/books" onClick={() => setMobileOpen(false)}>
+                <NavLink to="/admin" onClick={() => setMobileOpen(false)}>
                   Quản trị
                 </NavLink>
               ) : null}
@@ -274,7 +274,7 @@ function NotificationBell() {
     >
       <Bell size={19} />
       {count ? (
-        <span className="absolute -right-1 -top-1 grid min-h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white">
+        <span className="absolute -right-1 -top-1 grid min-h-4 min-w-4 place-items-center rounded-full bg-red-700 px-1 text-[10px] font-bold leading-none text-white">
           {count > 99 ? '99+' : count}
         </span>
       ) : null}

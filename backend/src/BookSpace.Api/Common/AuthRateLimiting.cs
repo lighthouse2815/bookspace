@@ -8,6 +8,7 @@ namespace BookSpace.Api.Common;
 
 public static class AuthRateLimitPolicies
 {
+    public const string Register = "auth-register";
     public const string Login = "auth-login";
     public const string Refresh = "auth-refresh";
     public const string PasswordResetRequest = "auth-password-reset-request";
@@ -17,6 +18,13 @@ public static class AuthRateLimitPolicies
 public sealed class AuthRateLimitOptions
 {
     public const string SectionName = "RateLimiting:Authentication";
+
+    public AuthEndpointRateLimitOptions Register { get; init; } = new()
+    {
+        PermitLimit = 5,
+        WindowSeconds = 900,
+        SegmentsPerWindow = 15
+    };
 
     public AuthEndpointRateLimitOptions Login { get; init; } = new()
     {
@@ -73,6 +81,7 @@ public static class AuthRateLimitingServiceCollectionExtensions
             .Bind(configuration.GetSection(AuthRateLimitOptions.SectionName))
             .Validate(
                 settings =>
+                    settings.Register.IsValid() &&
                     settings.Login.IsValid() &&
                     settings.Refresh.IsValid() &&
                     settings.PasswordResetRequest.IsValid() &&
@@ -84,6 +93,9 @@ public static class AuthRateLimitingServiceCollectionExtensions
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             options.OnRejected = WriteRejectedResponseAsync;
+            options.AddPolicy(
+                AuthRateLimitPolicies.Register,
+                context => CreatePartition(context, static settings => settings.Register));
             options.AddPolicy(
                 AuthRateLimitPolicies.Login,
                 context => CreatePartition(context, static settings => settings.Login));
@@ -166,6 +178,7 @@ public static class AuthRateLimitingServiceCollectionExtensions
             .Value;
         var endpointSettings = policyName switch
         {
+            AuthRateLimitPolicies.Register => settings.Register,
             AuthRateLimitPolicies.Login => settings.Login,
             AuthRateLimitPolicies.PasswordResetRequest => settings.PasswordResetRequest,
             AuthRateLimitPolicies.PasswordResetConfirm => settings.PasswordResetConfirm,

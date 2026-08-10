@@ -21,6 +21,12 @@ export function Footer() {
           <Link to="/challenges" className="hover:text-heading">
             Thử thách
           </Link>
+          <Link to="/privacy" className="hover:text-heading">
+            Quyền riêng tư
+          </Link>
+          <Link to="/terms" className="hover:text-heading">
+            Điều khoản
+          </Link>
         </nav>
       </div>
     </footer>

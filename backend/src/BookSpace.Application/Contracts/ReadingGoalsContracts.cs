@@ -20,13 +20,15 @@ public sealed record ReadingGoalDto(
 public sealed record CreateReadingGoalRequest(
     ReadingGoalMetric Metric,
     ReadingGoalPeriod Period,
-    [Range(1, 1_000_000)] int TargetValue,
+    [Range(1, 1_000_000, ErrorMessage = "Giá trị mục tiêu phải từ 1 đến 1.000.000.")]
+    int TargetValue,
     DateTimeOffset StartDate,
     DateTimeOffset EndDate);
 
 public sealed record UpdateReadingGoalRequest(
     ReadingGoalMetric Metric,
     ReadingGoalPeriod Period,
-    [Range(1, 1_000_000)] int TargetValue,
+    [Range(1, 1_000_000, ErrorMessage = "Giá trị mục tiêu phải từ 1 đến 1.000.000.")]
+    int TargetValue,
     DateTimeOffset StartDate,
     DateTimeOffset EndDate);

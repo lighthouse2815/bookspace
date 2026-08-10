@@ -100,7 +100,7 @@ export function HomePage() {
         </Link>
       </section>
 
-      <section className="section-space bg-slate-950 text-slate-100 dark:bg-surface-muted dark:text-heading">
+      <section className="section-space border-y border-border bg-surface-muted text-heading">
         <div className="container-page grid gap-12 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
           <div className="lg:sticky lg:top-28">
             <Quotes size={38} weight="fill" className="text-accent-strong" aria-hidden />
@@ -131,10 +131,10 @@ export function HomePage() {
                 text: 'Tham gia câu lạc bộ, cùng đọc một tựa sách và giữ cuộc trò chuyện đi xa.',
               },
             ].map(({ icon: Icon, title, text }) => (
-              <article key={title} className="rounded-2xl border border-white/10 bg-white/[0.04] p-6 dark:border-border dark:bg-surface">
+              <article key={title} className="rounded-2xl border border-border bg-surface p-6">
                 <Icon size={25} weight="duotone" className="text-accent-strong" aria-hidden />
                 <h3 className="mt-6 text-lg font-semibold">{title}</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-400 dark:text-muted">{text}</p>
+                <p className="mt-2 text-sm leading-6 text-muted">{text}</p>
               </article>
             ))}
           </div>

@@ -1,6 +1,7 @@
 import { api, unwrap } from '../lib/api'
 import type { ApiEnvelope, PageResult } from '../types/api'
 import type {
+  AdminDashboard,
   Author,
   Book,
   Category,
@@ -60,6 +61,9 @@ export interface ExternalBookImportInput {
 }
 
 export const adminService = {
+  dashboard: async () =>
+    unwrap(await api.get<ApiEnvelope<AdminDashboard>>('/admin/dashboard')),
+
   authors: async (params: AdminMetadataQuery = {}) =>
     unwrap(
       await api.get<ApiEnvelope<PageResult<Author>>>('/admin/authors', { params }),

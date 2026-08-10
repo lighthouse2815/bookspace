@@ -30,6 +30,14 @@ public sealed class BookSpaceApiFactory : WebApplicationFactory<Program>
         _configuration = configuration;
     }
 
+    internal BookSpaceApiFactory(
+        IReadOnlyDictionary<string, string?> configuration,
+        Action<IServiceCollection> configureTestServices)
+    {
+        _configuration = configuration;
+        _configureTestServices = configureTestServices;
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
@@ -37,6 +45,7 @@ public sealed class BookSpaceApiFactory : WebApplicationFactory<Program>
         {
             var testSettings = new Dictionary<string, string?>
             {
+                ["RateLimiting:Authentication:Register:PermitLimit"] = "10000",
                 ["RateLimiting:Authentication:Login:PermitLimit"] = "10000",
                 ["RateLimiting:Authentication:Refresh:PermitLimit"] = "10000",
                 ["RateLimiting:Authentication:PasswordResetRequest:PermitLimit"] = "10000",

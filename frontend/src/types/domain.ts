@@ -748,3 +748,39 @@ export interface Dashboard {
   recentSessions: ReadingSession[]
   activeChallenges: Challenge[]
 }
+
+export interface AdminDailyActivity {
+  date: string
+  newUsers: number
+  readingSessions: number
+  pagesRead: number
+}
+
+export interface AdminRecentUser {
+  id: string
+  displayName: string
+  role: UserRole
+  isLocked: boolean
+  joinedAt: string
+}
+
+export interface AdminDashboard {
+  generatedAt: string
+  totalUsers: number
+  lockedUsers: number
+  newUsersLast30Days: number
+  activeReadersLast30Days: number
+  totalBooks: number
+  totalAuthors: number
+  totalCategories: number
+  totalReviews: number
+  totalClubs: number
+  publishedChallenges: number
+  activeChallenges: number
+  pendingReports: number
+  readingSessionsLast30Days: number
+  pagesReadLast30Days: number
+  readingMinutesLast30Days: number
+  activityLast7Days: AdminDailyActivity[]
+  recentUsers: AdminRecentUser[]
+}

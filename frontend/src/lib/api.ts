@@ -2,7 +2,7 @@ import axios, { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig 
 import type { ApiEnvelope } from '../types/api'
 import type { AuthTokens } from '../types/domain'
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5080/api'
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 const TOKEN_KEY = 'bookspace.tokens'
 
 export const api = axios.create({

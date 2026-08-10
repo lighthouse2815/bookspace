@@ -63,7 +63,7 @@ export function ClubManagementPanel({ club }: { club: Club }) {
       </div>
 
       <div className="border-b border-border px-3 sm:px-5">
-        <div className="flex gap-1 overflow-x-auto py-2" role="tablist" aria-label="Quản lý câu lạc bộ">
+        <div className="scrollbar-subtle flex gap-1 overflow-x-auto py-2" role="tablist" aria-label="Quản lý câu lạc bộ">
           {tabs.map(({ value, label, icon: Icon }) => (
             <button
               key={value}

@@ -446,6 +446,15 @@ nội bộ và dùng như mọi sách BookSpace khác. ISBN trùng chỉ tạo l
 sách hiện có, không ghi đè metadata. Retry cùng nguồn trả lại cùng sách và không tạo
 row trùng; outbound HTTP hoàn tất trước transaction ghi catalog.
 
+### UC-11A — Tổng quan vận hành cho quản trị viên
+
+Quản trị viên có một dashboard chỉ đọc, lấy trực tiếp từ database BookSpace và không
+gọi provider ngoài. Dashboard hiển thị quy mô tài khoản/catalog/cộng đồng, tài khoản
+mới và độc giả hoạt động trong 30 ngày, số phiên/trang/phút đọc, thử thách đang diễn
+ra, số báo cáo chờ xử lý, nhịp đọc bảy ngày và các tài khoản đăng ký gần nhất. Dữ liệu
+người dùng gần đây không trả email; dashboard không thay thế hàng đợi kiểm duyệt hoặc
+các màn hình CRUD chuyên biệt.
+
 ### UC-12 — Tích hợp nhà cung cấp tùy chọn
 
 Khi provider được bật, người dùng có thể tìm metadata/offer ngoài hệ thống. Lỗi provider phải trả trạng thái tích hợp có kiểm soát và không làm hỏng catalog nội bộ, thư viện hay đăng nhập.
@@ -478,6 +487,8 @@ Tên route là hợp đồng điều hướng Goal 1; thay đổi cần đồng 
 | `/register` | Register | đăng ký |
 | `/forgot-password` | Forgot password | yêu cầu liên kết đặt lại mật khẩu với response chống dò email |
 | `/reset-password` | Reset password | xác nhận token một lần và đặt mật khẩu mạnh mới |
+| `/privacy` | Privacy | dữ liệu được thu thập, mục đích, public/private boundary, lưu giữ và quyền lựa chọn |
+| `/terms` | Terms | quy tắc tài khoản, nội dung, kiểm duyệt, catalog ngoài và trách nhiệm vận hành |
 
 ### Cần đăng nhập
 
@@ -505,6 +516,7 @@ Tên route là hợp đồng điều hướng Goal 1; thay đổi cần đồng 
 
 | Route | Trang |
 |---|---|
+| `/admin` | dashboard vận hành: người dùng, catalog, tương tác đọc, thử thách và hàng đợi kiểm duyệt |
 | `/admin/books` | CRUD sách; tìm, xem trước và import metadata ngoài vào catalog nội bộ |
 | `/admin/authors` | tìm kiếm/phân trang và CRUD hồ sơ tác giả; hiển thị số sách đang dùng |
 | `/admin/categories` | tìm kiếm/phân trang và CRUD thể loại; hiển thị số sách đang dùng |

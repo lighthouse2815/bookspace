@@ -235,6 +235,7 @@ Seed chỉ tồn tại trong Development. Production startup không tạo các t
 | AC-ADM-021 | P0 | Chỉ ADMIN gọi được `GET /api/admin/authors` và `GET /api/admin/categories`; anonymous nhận 401, USER nhận 403. |
 | AC-ADM-022 | P0 | Danh sách metadata quản trị tìm theo tên/nội dung, phân trang ổn định và trả `bookCount`; từ khóa trên 200 ký tự trả 400 `CATALOG_METADATA_SEARCH_TOO_LONG`. |
 | AC-ADM-023 | P0 | Sau create/patch/delete metadata chưa được dùng, danh sách tìm kiếm phản ánh dữ liệu mới; metadata đang gắn với sách vẫn trả conflict tương ứng. |
+| AC-ADM-024 | P0 | Chỉ ADMIN gọi được `GET /api/admin/dashboard`; response có số liệu người dùng/catalog/cộng đồng, đúng 7 ngày hoạt động, tối đa 6 tài khoản mới không có email và không phụ thuộc Bookstore. |
 
 ## 8. Library và state transition
 
@@ -576,6 +577,7 @@ sau khi auth bootstrap kết thúc.
 
 | ID | P | Route | Tiêu chí |
 |---|---|---|---|
+| AC-WEB-020D | P0 | `/admin` | ADMIN thấy dashboard vận hành, loading/error state, số báo cáo pending dẫn tới moderation, biểu đồ 7 ngày và quick link; USER bị chặn |
 | AC-WEB-021 | P0 | `/admin/books` | ADMIN create/patch/delete book bằng `/api/admin/books`; USER bị chặn |
 | AC-WEB-022 | P0 | `/admin/challenges` | ADMIN create/patch/publish/delete challenge; USER bị chặn |
 | AC-WEB-022A | P0 | `/admin/moderation` | ADMIN lọc queue, xem snapshot, ghi note, bác bỏ, ẩn nội dung hoặc khóa tài khoản; USER bị chặn |
@@ -601,6 +603,7 @@ sau khi auth bootstrap kết thúc.
 | AC-WEB-029 | P1 | Layout dùng được ở 360px, 768px, 1280px; không có overflow ngang ngoài thành phần chủ đích. |
 | AC-WEB-030 | P1 | Form có label, keyboard focus, disabled/loading state và error gắn đúng field. |
 | AC-WEB-031 | P1 | Màu chữ/nút/focus đạt contrast cơ bản ở light và dark theme. |
+| AC-WEB-031A | P1 | App shell có skip-link tới `main`, favicon/manifest/meta chia sẻ, title/description theo route và footer dẫn tới `/privacy`, `/terms`; hai trang legal public có đường về trang chủ. |
 | AC-WEB-032 | P0 | People/profile/feed query chờ auth bootstrap và dùng principal-scoped key; guest, account A và account B không dùng lại relationship state. |
 | AC-WEB-033 | P0 | Follow dùng response server để cập nhật state, chặn double click và invalidate people, target/current profile counters, followers/following, feed và dashboard. |
 | AC-WEB-034 | P0 | `/feed` dùng URL chữ thường `type=review`, `type=reading`, `type=club` hoặc `type=challenge` cùng `page`; service đổi filter sang giá trị API chữ hoa, còn “Tất cả” bỏ hẳn `type`. |

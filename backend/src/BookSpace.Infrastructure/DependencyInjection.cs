@@ -84,6 +84,7 @@ public static class DependencyInjection
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IContentModerationService, ContentModerationService>();
         services.AddScoped<IDashboardService, DashboardService>();
+        services.AddScoped<IAdminDashboardService, AdminDashboardService>();
         services.AddScoped<IReadingInsightsRepository, ReadingInsightsRepository>();
         services.AddScoped<IReadingInsightsService, ReadingInsightsService>();
         services.AddScoped<IExternalCatalogService, ExternalCatalogService>();

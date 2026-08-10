@@ -1,0 +1,74 @@
+name: bookspace-production
+
+services:
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_HTTP_PORTS: "5080"
+      BOOKSPACE_ConnectionStrings__DefaultConnection: Data Source=/app/data/bookspace.db
+      BOOKSPACE_DataProtection__KeysPath: /app/data/dataprotection-keys
+      BOOKSPACE_Jwt__Issuer: BookSpace
+      BOOKSPACE_Jwt__Audience: BookSpace.Web
+      BOOKSPACE_Jwt__Secret: ${BOOKSPACE_JWT_SECRET:?BOOKSPACE_JWT_SECRET is required}
+      BOOKSPACE_Cors__AllowedOrigins__0: ${BOOKSPACE_PUBLIC_ORIGIN:?BOOKSPACE_PUBLIC_ORIGIN is required}
+      BOOKSPACE_SeedData__Enabled: "false"
+      BOOKSPACE_ForwardedHeaders__ForwardLimit: "1"
+      BOOKSPACE_ForwardedHeaders__KnownNetworks__0: ${BOOKSPACE_DOCKER_SUBNET:?BOOKSPACE_DOCKER_SUBNET is required}
+      BOOKSPACE_PasswordRecovery__TokenLifetimeMinutes: "15"
+      BOOKSPACE_PasswordRecovery__RequestCooldownSeconds: "60"
+      BOOKSPACE_PasswordRecovery__FrontendResetUrl: ${BOOKSPACE_PUBLIC_ORIGIN:?BOOKSPACE_PUBLIC_ORIGIN is required}/reset-password
+      BOOKSPACE_PasswordRecovery__DeliveryMode: Smtp
+      BOOKSPACE_PasswordRecovery__Smtp__Host: ${BOOKSPACE_SMTP_HOST:?BOOKSPACE_SMTP_HOST is required}
+      BOOKSPACE_PasswordRecovery__Smtp__Port: ${BOOKSPACE_SMTP_PORT:-587}
+      BOOKSPACE_PasswordRecovery__Smtp__EnableSsl: ${BOOKSPACE_SMTP_ENABLE_SSL:-true}
+      BOOKSPACE_PasswordRecovery__Smtp__Username: ${BOOKSPACE_SMTP_USERNAME:-}
+      BOOKSPACE_PasswordRecovery__Smtp__Password: ${BOOKSPACE_SMTP_PASSWORD:-}
+      BOOKSPACE_PasswordRecovery__Smtp__FromAddress: ${BOOKSPACE_SMTP_FROM_ADDRESS:?BOOKSPACE_SMTP_FROM_ADDRESS is required}
+      BOOKSPACE_PasswordRecovery__Smtp__FromName: ${BOOKSPACE_SMTP_FROM_NAME:-BookSpace}
+      BOOKSPACE_BookstoreIntegration__Enabled: "false"
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - bookspace-production-data:/app/data
+    networks:
+      - bookspace-network
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+        VITE_OPERATOR_NAME: ${BOOKSPACE_OPERATOR_NAME:?BOOKSPACE_OPERATOR_NAME is required}
+        VITE_SUPPORT_EMAIL: ${BOOKSPACE_SUPPORT_EMAIL:?BOOKSPACE_SUPPORT_EMAIL is required}
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${BOOKSPACE_PORT:-8080}:80"
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/"]
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+    networks:
+      - bookspace-network
+
+volumes:
+  bookspace-production-data:
+    name: ${BOOKSPACE_DATA_VOLUME:-bookspace-production-data}
+
+networks:
+  bookspace-network:
+    name: bookspace-production-network
+    ipam:
+      config:
+        - subnet: ${BOOKSPACE_DOCKER_SUBNET:?BOOKSPACE_DOCKER_SUBNET is required}

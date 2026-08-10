@@ -34,15 +34,19 @@ public sealed record BookListDetailDto(
     DateTimeOffset? UpdatedAt);
 
 public sealed record CreateBookListRequest(
-    [Required(ErrorMessage = "Tên bộ sưu tập là bắt buộc."), MaxLength(120)]
+    [Required(ErrorMessage = "Tên bộ sưu tập là bắt buộc.")]
+    [MaxLength(120, ErrorMessage = "Tên bộ sưu tập không được vượt quá 120 ký tự.")]
     string Name,
-    [MaxLength(1000)] string? Description,
+    [MaxLength(1000, ErrorMessage = "Mô tả bộ sưu tập không được vượt quá 1.000 ký tự.")]
+    string? Description,
     BookListVisibility Visibility);
 
 public sealed record UpdateBookListRequest(
-    [Required(ErrorMessage = "Tên bộ sưu tập là bắt buộc."), MaxLength(120)]
+    [Required(ErrorMessage = "Tên bộ sưu tập là bắt buộc.")]
+    [MaxLength(120, ErrorMessage = "Tên bộ sưu tập không được vượt quá 120 ký tự.")]
     string Name,
-    [MaxLength(1000)] string? Description,
+    [MaxLength(1000, ErrorMessage = "Mô tả bộ sưu tập không được vượt quá 1.000 ký tự.")]
+    string? Description,
     BookListVisibility Visibility);
 
 public sealed record AddBookToListRequest(

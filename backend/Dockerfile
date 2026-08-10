@@ -19,11 +19,18 @@ RUN dotnet publish src/BookSpace.Api/BookSpace.Api.csproj \
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=build /app/publish .
-RUN mkdir -p /app/data && chown -R app:app /app
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /app/data \
+    && chown -R app:app /app
 USER app
 
-ENV ASPNETCORE_URLS=http://0.0.0.0:5080
+ENV ASPNETCORE_HTTP_PORTS=5080
 ENV BOOKSPACE_ConnectionStrings__DefaultConnection="Data Source=/app/data/bookspace.db"
 EXPOSE 5080
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=5 \
+    CMD curl --fail --silent --show-error http://127.0.0.1:5080/health > /dev/null || exit 1
 
 ENTRYPOINT ["dotnet", "BookSpace.Api.dll"]

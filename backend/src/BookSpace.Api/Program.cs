@@ -9,16 +9,29 @@ using BookSpace.Infrastructure;
 using BookSpace.Infrastructure.Persistence;
 using BookSpace.Infrastructure.Security;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddEnvironmentVariables("BOOKSPACE_");
 
+var dataProtection = builder.Services
+    .AddDataProtection()
+    .SetApplicationName("BookSpace");
+var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"];
+if (!string.IsNullOrWhiteSpace(dataProtectionKeysPath))
+{
+    Directory.CreateDirectory(dataProtectionKeysPath);
+    dataProtection.PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
+}
+
 builder.Services
     .AddControllers()
     .AddJsonOptions(options =>
     {
+        options.AllowInputFormatterExceptionMessages = false;
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
         options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.Never;
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
@@ -32,9 +45,7 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
             .ToDictionary(
                 x => ToCamelCaseFieldName(x.Key),
                 x => x.Value!.Errors
-                    .Select(error => string.IsNullOrWhiteSpace(error.ErrorMessage)
-                        ? "Giá trị không hợp lệ."
-                        : error.ErrorMessage)
+                    .Select(ToLocalizedModelError)
                     .ToArray());
         return new BadRequestObjectResult(
             ApiResponse<object?>.Failure(
@@ -165,7 +176,10 @@ app.UseCors("BookSpaceWeb");
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
-app.MapOpenApi();
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+}
 app.MapBookSpaceHealthChecks();
 app.MapGet("/", () => ApiResponse<object>.Ok(
     new
@@ -173,7 +187,7 @@ app.MapGet("/", () => ApiResponse<object>.Ok(
         product = "BookSpace API",
         version = "v1",
         health = "/health",
-        openApi = "/openapi/v1.json"
+        openApi = app.Environment.IsDevelopment() ? "/openapi/v1.json" : null
     },
     "BookSpace đang hoạt động."));
 app.MapControllers();
@@ -193,6 +207,20 @@ static string ToCamelCaseFieldName(string key)
     return string.IsNullOrWhiteSpace(segment)
         ? "request"
         : JsonNamingPolicy.CamelCase.ConvertName(segment);
+}
+
+static string ToLocalizedModelError(ModelError error)
+{
+    if (error.Exception is not null || string.IsNullOrWhiteSpace(error.ErrorMessage))
+    {
+        return "Giá trị không hợp lệ.";
+    }
+
+    return error.ErrorMessage.StartsWith("The ", StringComparison.Ordinal) ||
+           error.ErrorMessage.StartsWith("A ", StringComparison.Ordinal) ||
+           error.ErrorMessage.StartsWith("Could not ", StringComparison.Ordinal)
+        ? "Giá trị không hợp lệ."
+        : error.ErrorMessage;
 }
 
 public partial class Program;

@@ -520,7 +520,7 @@ export function ReadingSprintSection({ club }: { club: Club }) {
       ) : null}
 
       <div
-        className="mt-7 flex gap-2 overflow-x-auto pb-2"
+        className="scrollbar-subtle mt-7 flex gap-2 overflow-x-auto pb-2"
         aria-label="Lọc đợt đọc theo trạng thái"
       >
         {filters.map(([value, label]) => (

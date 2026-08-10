@@ -352,6 +352,36 @@ a {
   .focus-ring {
     @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-page;
   }
+
+  .legal-copy {
+    @apply text-[0.975rem] leading-7 text-body;
+  }
+
+  .legal-copy h2 {
+    @apply mt-9 text-xl font-bold tracking-[-0.02em] text-heading first:mt-0;
+  }
+
+  .legal-copy p {
+    @apply mt-3 max-w-[70ch] text-pretty;
+  }
+
+  .scrollbar-subtle {
+    scrollbar-color: var(--border) transparent;
+    scrollbar-width: thin;
+  }
+
+  .scrollbar-subtle::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .scrollbar-subtle::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-subtle::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: var(--border);
+  }
 }
 
 .shadow-accent {

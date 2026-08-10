@@ -364,6 +364,10 @@ if (-not $adminLogin.success -or -not $adminLogin.data.accessToken) {
     throw 'Đăng nhập admin cho cold-start recommendation không thành công.'
 }
 $adminToken = $adminLogin.data.accessToken
+$adminDashboard = Invoke-BookSpaceRequest `
+    -Method Get `
+    -Path '/api/admin/dashboard' `
+    -AccessToken $adminToken
 $catalogAuthorFollow = Invoke-BookSpaceRequest `
     -Method Put `
     -Path "/api/catalog-follows/authors/$publicAuthorId" `
@@ -1166,6 +1170,20 @@ if ($feedSmokeInvalid) {
     throw 'Feed filter, paging, ordering or note isolation is invalid.'
 }
 
+$adminDashboardRecentUsersWithEmail = @($adminDashboard.data.recentUsers | Where-Object {
+    $_.PSObject.Properties.Name -contains 'email'
+})
+if (
+    -not $adminDashboard.success -or
+    [int]$adminDashboard.data.totalUsers -lt 1 -or
+    [int]$adminDashboard.data.totalBooks -lt 1 -or
+    @($adminDashboard.data.activityLast7Days).Count -ne 7 -or
+    @($adminDashboard.data.recentUsers).Count -gt 6 -or
+    $adminDashboardRecentUsersWithEmail.Count -ne 0
+) {
+    throw 'Admin dashboard operational metrics hoặc privacy contract không hợp lệ.'
+}
+
 if ($null -ne $activeReadingSession.data) {
     $activeReadingFields = @($activeReadingSession.data.PSObject.Properties.Name)
     $requiredActiveReadingFields = @(
@@ -1520,6 +1538,7 @@ if (
     PublicCatalogMetadata = 'PASS'
     CatalogDiscovery = 'PASS'
     CatalogFollowing = 'PASS'
+    AdminDashboard = 'PASS'
     PasswordRecovery = 'PASS'
     ReadingFeedItems = $feed.data.totalItems
     Books = $books.data.totalItems

@@ -1,9 +1,17 @@
-import { Books, Flag, IdentificationCard, ShieldWarning, Tag } from '@phosphor-icons/react'
+import { Books, Flag, Gauge, IdentificationCard, ShieldWarning, Tag } from '@phosphor-icons/react'
 import { NavLink } from 'react-router-dom'
 
 export function AdminNav() {
   return (
-    <nav className="mb-8 flex gap-2 overflow-x-auto border-b border-border pb-3" aria-label="Điều hướng quản trị">
+    <nav className="scrollbar-subtle mb-8 flex gap-2 overflow-x-auto border-b border-border pb-3" aria-label="Điều hướng quản trị">
+      <NavLink
+        to="/admin"
+        end
+        className={({ isActive }) => `filter-tab ${isActive ? 'filter-active' : ''}`}
+      >
+        <Gauge size={17} />
+        Tổng quan
+      </NavLink>
       <NavLink
         to="/admin/books"
         className={({ isActive }) => `filter-tab ${isActive ? 'filter-active' : ''}`}

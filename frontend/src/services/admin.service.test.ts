@@ -80,6 +80,12 @@ describe('admin catalog metadata service', () => {
     })
   })
 
+  it('loads the protected operational dashboard', async () => {
+    await adminService.dashboard()
+
+    expect(mocks.get).toHaveBeenCalledWith('/admin/dashboard')
+  })
+
   it('uses the author and category mutation contracts', async () => {
     const author = { name: 'Ursula K. Le Guin', biography: 'Nhà văn.' }
     const category = { name: 'Khoa học viễn tưởng', description: 'Tác phẩm giả tưởng.' }

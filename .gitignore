@@ -15,11 +15,13 @@
 *.db-shm
 *.db-wal
 data/
+backups/
 
 # Environment and secrets
 .env
 .env.*
 !.env.example
+!.env.*.example
 
 # IDE / OS
 .idea/

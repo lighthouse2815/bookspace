@@ -12,6 +12,7 @@ public sealed class AuthController(IAuthService authService) : ApiControllerBase
 {
     [AllowAnonymous]
     [HttpPost("register")]
+    [EnableRateLimiting(AuthRateLimitPolicies.Register)]
     public async Task<ActionResult<ApiResponse<AuthResponse>>> Register(
         RegisterRequest request,
         CancellationToken cancellationToken) =>

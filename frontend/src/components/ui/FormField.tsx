@@ -3,12 +3,13 @@ import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTML
 interface FieldShellProps {
   label: string
   htmlFor: string
+  messageId?: string
   error?: string
   hint?: string
   children: ReactNode
 }
 
-function FieldShell({ label, htmlFor, error, hint, children }: FieldShellProps) {
+function FieldShell({ label, htmlFor, messageId, error, hint, children }: FieldShellProps) {
   return (
     <div className="field">
       <label htmlFor={htmlFor} className="field-label">
@@ -16,11 +17,11 @@ function FieldShell({ label, htmlFor, error, hint, children }: FieldShellProps) 
       </label>
       {children}
       {error ? (
-        <p className="field-error" role="alert">
+        <p id={messageId} className="field-error" role="alert">
           {error}
         </p>
       ) : hint ? (
-        <p className="field-hint">{hint}</p>
+        <p id={messageId} className="field-hint">{hint}</p>
       ) : null}
     </div>
   )
@@ -35,13 +36,23 @@ interface InputFieldProps extends InputHTMLAttributes<HTMLInputElement> {
 export function InputField({ label, id, error, hint, className = '', ...props }: InputFieldProps) {
   const inputId = id || props.name
   if (!inputId) throw new Error('InputField cần id hoặc name')
+  const messageId = error ? `${inputId}-error` : hint ? `${inputId}-hint` : undefined
+  const describedBy = [props['aria-describedby'], messageId].filter(Boolean).join(' ') || undefined
   return (
-    <FieldShell label={label} htmlFor={inputId} error={error} hint={hint}>
+    <FieldShell
+      label={label}
+      htmlFor={inputId}
+      messageId={messageId}
+      error={error}
+      hint={hint}
+    >
       <input
+        {...props}
         id={inputId}
         className={`input ${error ? 'input-error' : ''} ${className}`}
         aria-invalid={Boolean(error)}
-        {...props}
+        aria-describedby={describedBy}
+        aria-errormessage={error ? messageId : undefined}
       />
     </FieldShell>
   )
@@ -63,13 +74,23 @@ export function TextareaField({
 }: TextareaFieldProps) {
   const inputId = id || props.name
   if (!inputId) throw new Error('TextareaField cần id hoặc name')
+  const messageId = error ? `${inputId}-error` : hint ? `${inputId}-hint` : undefined
+  const describedBy = [props['aria-describedby'], messageId].filter(Boolean).join(' ') || undefined
   return (
-    <FieldShell label={label} htmlFor={inputId} error={error} hint={hint}>
+    <FieldShell
+      label={label}
+      htmlFor={inputId}
+      messageId={messageId}
+      error={error}
+      hint={hint}
+    >
       <textarea
+        {...props}
         id={inputId}
         className={`input min-h-28 resize-y ${error ? 'input-error' : ''} ${className}`}
         aria-invalid={Boolean(error)}
-        {...props}
+        aria-describedby={describedBy}
+        aria-errormessage={error ? messageId : undefined}
       />
     </FieldShell>
   )
@@ -92,13 +113,23 @@ export function SelectField({
 }: SelectFieldProps) {
   const inputId = id || props.name
   if (!inputId) throw new Error('SelectField cần id hoặc name')
+  const messageId = error ? `${inputId}-error` : hint ? `${inputId}-hint` : undefined
+  const describedBy = [props['aria-describedby'], messageId].filter(Boolean).join(' ') || undefined
   return (
-    <FieldShell label={label} htmlFor={inputId} error={error} hint={hint}>
+    <FieldShell
+      label={label}
+      htmlFor={inputId}
+      messageId={messageId}
+      error={error}
+      hint={hint}
+    >
       <select
+        {...props}
         id={inputId}
         className={`input ${error ? 'input-error' : ''} ${className}`}
         aria-invalid={Boolean(error)}
-        {...props}
+        aria-describedby={describedBy}
+        aria-errormessage={error ? messageId : undefined}
       >
         {children}
       </select>

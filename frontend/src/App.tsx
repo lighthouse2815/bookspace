@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/layout/AppShell'
 import { AdminRoute, ProtectedRoute } from './components/routing/ProtectedRoute'
 
@@ -144,6 +144,9 @@ const OnboardingPage = lazy(() =>
 const AdminBooksPage = lazy(() =>
   import('./pages/admin/AdminBooksPage').then((module) => ({ default: module.AdminBooksPage })),
 )
+const AdminDashboardPage = lazy(() =>
+  import('./pages/admin/AdminDashboardPage').then((module) => ({ default: module.AdminDashboardPage })),
+)
 const AdminAuthorsPage = lazy(() =>
   import('./pages/admin/AdminCatalogMetadataPages').then((module) => ({
     default: module.AdminAuthorsPage,
@@ -166,6 +169,12 @@ const AdminModerationPage = lazy(() =>
 )
 const NotFoundPage = lazy(() =>
   import('./pages/system/NotFoundPage').then((module) => ({ default: module.NotFoundPage })),
+)
+const PrivacyPage = lazy(() =>
+  import('./pages/public/LegalPages').then((module) => ({ default: module.PrivacyPage })),
+)
+const TermsPage = lazy(() =>
+  import('./pages/public/LegalPages').then((module) => ({ default: module.TermsPage })),
 )
 
 function RouteLoader() {
@@ -204,6 +213,8 @@ export default function App() {
           <Route path="clubs/:clubId/sprints/:sprintId" element={<ReadingSprintPage />} />
           <Route path="challenges" element={<ChallengesPage />} />
           <Route path="challenges/:id" element={<ChallengeDetailPage />} />
+          <Route path="privacy" element={<PrivacyPage />} />
+          <Route path="terms" element={<TermsPage />} />
 
           <Route element={<ProtectedRoute />}>
             <Route path="onboarding" element={<OnboardingPage />} />
@@ -224,7 +235,7 @@ export default function App() {
             <Route path="settings" element={<SettingsPage />} />
             <Route path="following-topics" element={<CatalogFollowingPage />} />
             <Route element={<AdminRoute />}>
-              <Route path="admin" element={<Navigate to="/admin/books" replace />} />
+              <Route path="admin" element={<AdminDashboardPage />} />
               <Route path="admin/books" element={<AdminBooksPage />} />
               <Route path="admin/authors" element={<AdminAuthorsPage />} />
               <Route path="admin/categories" element={<AdminCategoriesPage />} />

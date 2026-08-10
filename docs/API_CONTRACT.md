@@ -934,6 +934,24 @@ dedupe theo cặp user/sách ngăn trùng khi khớp nhiều nguồn hoặc retr
 
 Tất cả endpoint yêu cầu role `ADMIN`.
 
+### `GET /api/admin/dashboard`
+
+Response `200`: `ApiResponse<AdminDashboardResponse>`. Đây là read model chỉ đọc,
+không nhận `userId` và không gọi provider ngoài. Response gồm:
+
+| Field | Kiểu |
+|---|---|
+| `generatedAt` | datetime UTC |
+| `totalUsers`, `lockedUsers`, `newUsersLast30Days`, `activeReadersLast30Days` | integer |
+| `totalBooks`, `totalAuthors`, `totalCategories`, `totalReviews`, `totalClubs` | integer |
+| `publishedChallenges`, `activeChallenges`, `pendingReports` | integer |
+| `readingSessionsLast30Days`, `pagesReadLast30Days`, `readingMinutesLast30Days` | integer |
+| `activityLast7Days` | đúng 7 item `{ date, newUsers, readingSessions, pagesRead }`, cũ nhất trước |
+| `recentUsers` | tối đa 6 item `{ id, displayName, role, isLocked, joinedAt }`, mới nhất trước |
+
+`recentUsers` không chứa email, token, dữ liệu thư viện hoặc nội dung riêng tư. Anonymous
+nhận 401; role `USER` nhận 403.
+
 ### `GET /api/admin/authors?search=&page=1&pageSize=20`
 
 Response `200`: `ApiResponse<PageResult<AuthorResponse>>`. `search` tùy chọn, tối đa

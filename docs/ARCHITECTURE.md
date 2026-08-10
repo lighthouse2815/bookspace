@@ -150,6 +150,7 @@ Mỗi use case được tiếp cận qua interface:
 | `IChallengeService` | challenge, join, progress, leaderboard privacy-aware, publish |
 | `INotificationService` | list, unread count, mark read |
 | `IDashboardService` | projection dashboard của principal |
+| `IAdminDashboardService` | projection vận hành chỉ đọc cho ADMIN, tổng hợp dữ liệu nội bộ theo UTC |
 | `IExternalCatalogService` | tìm metadata ngoài và import có kiểm duyệt vào catalog nội bộ |
 
 Application:
@@ -519,29 +520,34 @@ Goal 1 không bắt buộc provider production khác. Nếu chuyển PostgreSQL/
 | Key | Bắt buộc | Giá trị local |
 |---|---:|---|
 | `ASPNETCORE_ENVIRONMENT` | có | `Development` |
-| `ASPNETCORE_URLS` | có trong container | `http://+:8080` |
-| `ConnectionStrings__DefaultConnection` | có | `Data Source=/app/data/bookspace.db` |
-| `Jwt__Issuer` | có | `BookSpace` |
-| `Jwt__Audience` | có | `BookSpace.Web` |
-| `Jwt__Key` | có | secret local đủ dài |
-| `Cors__AllowedOrigins__0` | có | `http://localhost:5173` |
+| `ASPNETCORE_HTTP_PORTS` | có trong container | `5080` |
+| `BOOKSPACE_ConnectionStrings__DefaultConnection` | có | `Data Source=/app/data/bookspace.db` |
+| `BOOKSPACE_DataProtection__KeysPath` | có trong container | `/app/data/dataprotection-keys` |
+| `BOOKSPACE_Jwt__Issuer` | có | `BookSpace` |
+| `BOOKSPACE_Jwt__Audience` | có | `BookSpace.Web` |
+| `BOOKSPACE_Jwt__Secret` | có | secret riêng tối thiểu 32 byte |
+| `BOOKSPACE_Cors__AllowedOrigins__0` | có | `http://localhost:5173` |
 | `BOOKSPACE_BookstoreIntegration__Enabled` | không | `false` |
 | `BOOKSPACE_BookstoreIntegration__BaseUrl` | khi bật | URL API Bookstore, gồm `/api` |
-| `VITE_API_BASE_URL` | có khi build web | `http://localhost:5080/api` |
+| `VITE_API_BASE_URL` | có khi build web | `/api` (same-origin) |
+| `VITE_OPERATOR_NAME` | có khi build production | tên đơn vị vận hành |
+| `VITE_SUPPORT_EMAIL` | có khi build production | email hỗ trợ public |
 
-Giá trị mặc định Docker của `Jwt__Key` chỉ dùng local. Deployment production phải cung cấp secret mới.
+Giá trị mặc định Docker của `BOOKSPACE_Jwt__Secret` chỉ dùng local. Deployment production phải cung cấp secret mới.
 
 ## 10. Docker topology
 
 ```text
-localhost:5173 ──> nginx + React static
-                         │
-                         └── browser gọi localhost:5080/api
-
-localhost:5080 ──> ASP.NET container:8080 ──> /app/data/bookspace.db
+browser ──> web/nginx:80 ──> React static
+                  │
+                  ├── /api/*, /health ──> api:5080 ──> /app/data/bookspace.db
+                  └── /hubs/* WebSocket ──> api:5080
 ```
 
-`web` chỉ được coi là ready sau khi `api` health check thành công. Health check không gọi Bookstore provider.
+Local Compose vẫn publish `5080` để chạy smoke trực tiếp. Production chỉ publish web,
+dùng `/api` same-origin và trusted Docker network cho forwarded headers. `web` chỉ
+được coi là ready sau khi `api` health check thành công. Health check không gọi
+Bookstore provider. Chi tiết phát hành nằm ở `DEPLOYMENT.md`.
 
 ## 11. Giao dịch và consistency
 
@@ -658,6 +664,7 @@ System:
 
 ```powershell
 docker compose -f T:\bookspace\docker-compose.yml config
+docker compose --env-file T:\bookspace\.env.production.example -f T:\bookspace\docker-compose.production.yml config
 docker compose -f T:\bookspace\docker-compose.yml up --build
 ```
 

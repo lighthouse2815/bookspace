@@ -110,9 +110,9 @@ jobs:
         run: npm run build
 
   compose:
-    name: Docker Compose configuration
+    name: Docker release packaging
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 20
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -121,3 +121,17 @@ jobs:
 
       - name: Validate Docker Compose configuration
         run: docker compose --file docker-compose.yml config --quiet
+
+      - name: Validate production Compose configuration
+        run: >-
+          docker compose
+          --env-file .env.production.example
+          --file docker-compose.production.yml
+          config --quiet
+
+      - name: Build production container images
+        run: >-
+          docker compose
+          --env-file .env.production.example
+          --file docker-compose.production.yml
+          build

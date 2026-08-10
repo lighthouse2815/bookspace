@@ -39,7 +39,10 @@ cơ sở dữ liệu.
 - Bảng điều khiển thành viên, bản đồ nhiệt hoạt động theo thời gian, chuỗi ngày đọc, báo cáo theo kỳ và dự báo thời điểm đọc xong
 - Báo cáo hồ sơ, đánh giá, bình luận, bài viết và tin nhắn; hàng đợi quản trị có audit, soft-delete nội dung và khóa tài khoản
 - Chặn hai chiều để ngăn nhìn thấy/tương tác và ẩn nội dung một chiều khỏi feed, review, câu lạc bộ, chat và thông báo; quản lý tập trung trong Cài đặt
-- Quản trị danh mục, thử thách và an toàn cộng đồng
+- Dashboard vận hành cho quản trị viên với số liệu người dùng, catalog, nhịp đọc,
+  thử thách và hàng đợi kiểm duyệt; cùng công cụ quản trị chi tiết cho từng khu vực
+- Trang quyền riêng tư/điều khoản public, metadata chia sẻ, favicon và skip navigation
+  để hoàn thiện lớp phát hành web
 - Tùy chọn tích hợp nhà cung cấp sách bên ngoài
 
 ## Kiến trúc
@@ -173,6 +176,21 @@ Sau đó mở:
 - API: `http://localhost:5080`
 
 Dữ liệu BookSpace được lưu bền vững trong volume Docker có tên `bookspace-data`.
+
+### Phát hành production
+
+Production dùng file Compose riêng: frontend gọi API/SignalR cùng origin, API không
+publish trực tiếp, secret và SMTP là cấu hình bắt buộc, tài khoản demo không được seed.
+
+```powershell
+Copy-Item .env.production.example .env.production
+# Điền domain HTTPS, JWT secret, đơn vị/email hỗ trợ và SMTP thật trong .env.production
+.\scripts\validate-production.ps1 -EnvironmentFile .env.production
+docker compose --env-file .env.production -f docker-compose.production.yml up -d --build
+```
+
+Checklist TLS, backup/restore, health, realtime và rollback nằm trong
+[`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md).
 
 ## Kiểm tra
 
