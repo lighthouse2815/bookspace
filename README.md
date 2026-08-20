@@ -88,7 +88,12 @@ bookspace/
 └── docker-compose.yml
 ```
 
-Các đặc tả chi tiết về sản phẩm và kỹ thuật nằm trong thư mục [`docs`](./docs).
+Để hiểu code chạy qua những file nào từ giao diện đến database/realtime, bắt đầu với
+[`docs/HUONG_DAN_DOC_HIEU_DU_AN.md`](./docs/HUONG_DAN_DOC_HIEU_DU_AN.md). Tài liệu
+này có lộ trình đọc source, bản đồ bounded context và các luồng end-to-end tiêu biểu.
+
+Các đặc tả sản phẩm, domain, API, kiến trúc, nghiệm thu và triển khai còn lại nằm
+trong thư mục [`docs`](./docs).
 
 ## Yêu cầu hệ thống
 

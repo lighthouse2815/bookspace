@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="820" viewBox="0 0 1600 820" role="img" aria-labelledby="title desc">
+  <title id="title">Bản đồ luồng code BookSpace</title>
+  <desc id="desc">Sơ đồ từ hành động của người dùng qua các lớp frontend, REST API, Application, Domain, port, Infrastructure và database rồi quay lại cache giao diện.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L12,6 L0,12 z" fill="#40546f" />
+    </marker>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="5" stdDeviation="7" flood-color="#172133" flood-opacity="0.12" />
+    </filter>
+    <style>
+      .title { font: 700 34px Inter, Segoe UI, Arial, sans-serif; fill: #172133; }
+      .subtitle { font: 400 17px Inter, Segoe UI, Arial, sans-serif; fill: #58667a; }
+      .group { font: 700 18px Inter, Segoe UI, Arial, sans-serif; letter-spacing: 1.2px; fill: #40546f; }
+      .box-title { font: 700 20px Inter, Segoe UI, Arial, sans-serif; fill: #172133; }
+      .box-copy { font: 400 14px Inter, Segoe UI, Arial, sans-serif; fill: #58667a; }
+      .arrow-label { font: 600 13px Inter, Segoe UI, Arial, sans-serif; fill: #40546f; }
+      .line { stroke: #40546f; stroke-width: 2.2; fill: none; marker-end: url(#arrow); }
+      .return { stroke: #16836d; stroke-width: 2.6; fill: none; marker-end: url(#arrow); stroke-dasharray: 8 7; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="820" fill="#f5f7fb" />
+  <circle cx="1510" cy="78" r="145" fill="#dcefe9" opacity="0.72" />
+  <circle cx="90" cy="758" r="180" fill="#e7e2f6" opacity="0.68" />
+
+  <text x="80" y="66" class="title">Một hành động đi xuyên BookSpace như thế nào?</text>
+  <text x="80" y="98" class="subtitle">REST và database là nguồn sự thật; cache và realtime giúp giao diện phản hồi nhanh, không thay thế business rule.</text>
+
+  <rect x="60" y="135" width="690" height="575" rx="28" fill="#ffffff" stroke="#cdd8e6" filter="url(#shadow)" />
+  <rect x="850" y="135" width="690" height="575" rx="28" fill="#ffffff" stroke="#cdd8e6" filter="url(#shadow)" />
+  <text x="94" y="177" class="group">FRONTEND · REACT</text>
+  <text x="884" y="177" class="group">BACKEND · ASP.NET CORE</text>
+
+  <rect x="95" y="210" width="270" height="92" rx="16" fill="#fff3dc" stroke="#e8bd67" />
+  <text x="117" y="244" class="box-title">Page / Component</text>
+  <text x="117" y="271" class="box-copy">Sự kiện người dùng, form, state hiển thị</text>
+
+  <rect x="445" y="210" width="270" height="92" rx="16" fill="#e9f0ff" stroke="#84a5e8" />
+  <text x="467" y="244" class="box-title">Feature hook</text>
+  <text x="467" y="271" class="box-copy">Query key, mutation, cache invalidation</text>
+
+  <rect x="445" y="355" width="270" height="92" rx="16" fill="#eaf7f3" stroke="#79bba8" />
+  <text x="467" y="389" class="box-title">TypeScript service</text>
+  <text x="467" y="416" class="box-copy">HTTP method, URL, body và response type</text>
+
+  <rect x="95" y="355" width="270" height="92" rx="16" fill="#f1edfb" stroke="#a893dc" />
+  <text x="117" y="389" class="box-title">Axios client</text>
+  <text x="117" y="416" class="box-copy">Bearer token, unwrap, 401 refresh một lần</text>
+
+  <rect x="95" y="515" width="620" height="138" rx="18" fill="#f7f9fc" stroke="#c5d0df" />
+  <text x="117" y="551" class="box-title">TanStack Query cache</text>
+  <text x="117" y="580" class="box-copy">Response authoritative được set/merge; các read model phụ thuộc được invalidate.</text>
+  <text x="117" y="607" class="box-copy">Dữ liệu private dùng principal ID trong key; logout xóa toàn bộ cache.</text>
+
+  <path d="M365 256 H445" class="line" />
+  <text x="383" y="242" class="arrow-label">gọi hook</text>
+  <path d="M580 302 V355" class="line" />
+  <text x="594" y="334" class="arrow-label">queryFn</text>
+  <path d="M445 401 H365" class="line" />
+  <text x="374" y="387" class="arrow-label">api.*</text>
+
+  <rect x="885" y="210" width="270" height="92" rx="16" fill="#fff3dc" stroke="#e8bd67" />
+  <text x="907" y="244" class="box-title">Controller</text>
+  <text x="907" y="271" class="box-copy">Route, auth, principal, ApiResponse</text>
+
+  <rect x="1235" y="210" width="270" height="92" rx="16" fill="#e9f0ff" stroke="#84a5e8" />
+  <text x="1257" y="244" class="box-title">Application service</text>
+  <text x="1257" y="271" class="box-copy">Use case, quyền, transaction, projection</text>
+
+  <rect x="1235" y="355" width="270" height="92" rx="16" fill="#f1edfb" stroke="#a893dc" />
+  <text x="1257" y="389" class="box-title">Domain entity</text>
+  <text x="1257" y="416" class="box-copy">Invariant và lifecycle cục bộ</text>
+
+  <rect x="885" y="355" width="270" height="92" rx="16" fill="#eaf7f3" stroke="#79bba8" />
+  <text x="907" y="389" class="box-title">Application port</text>
+  <text x="907" y="416" class="box-copy">DbContext, provider, realtime, boundary</text>
+
+  <rect x="885" y="515" width="620" height="138" rx="18" fill="#eaf7f3" stroke="#79bba8" />
+  <text x="907" y="551" class="box-title">Infrastructure / API adapter</text>
+  <text x="907" y="580" class="box-copy">EF Core + SQLite · BCrypt/JWT · SMTP · SignalR · Bookstore HTTP tùy chọn</text>
+  <text x="907" y="607" class="box-copy">Global soft-delete filter, index, migration và transaction boundary sống ở đây.</text>
+
+  <path d="M1155 256 H1235" class="line" />
+  <text x="1171" y="242" class="arrow-label">gọi use case</text>
+  <path d="M1370 302 V355" class="line" />
+  <text x="1384" y="334" class="arrow-label">hành vi</text>
+  <path d="M1235 401 H1155" class="line" />
+  <text x="1171" y="387" class="arrow-label">cần I/O</text>
+  <path d="M1020 447 V515" class="line" />
+  <text x="1034" y="486" class="arrow-label">implementation</text>
+
+  <path d="M365 401 C398 401 390 475 425 475 H800 V256 H885" class="line" />
+  <text x="610" y="463" class="arrow-label">HTTP /api + JSON</text>
+
+  <path d="M885 633 C774 748 448 751 260 653" class="return" />
+  <text x="582" y="748" class="arrow-label" fill="#16836d">ApiResponse&lt;T&gt; → cache → React render lại</text>
+
+  <rect x="60" y="750" width="1480" height="42" rx="12" fill="#172133" />
+  <text x="800" y="777" text-anchor="middle" style="font: 600 15px Inter, Segoe UI, Arial, sans-serif; fill: #ffffff;">
+    Quy tắc kiểm tra: Page không gọi Axios · Controller không query DB · Domain không phụ thuộc framework · Realtime phát sau commit
+  </text>
+</svg>

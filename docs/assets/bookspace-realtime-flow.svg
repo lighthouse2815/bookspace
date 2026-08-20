@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="700" viewBox="0 0 1600 700" role="img" aria-labelledby="title desc">
+  <title id="title">Luồng persistence và realtime BookSpace</title>
+  <desc id="desc">Sơ đồ một tin nhắn được gửi bằng REST, kiểm quyền và lưu trong transaction trước khi phát SignalR, sau đó client merge cache và refetch REST khi reconnect.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L11,5.5 L0,11 z" fill="#40546f" />
+    </marker>
+    <marker id="green-arrow" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L11,5.5 L0,11 z" fill="#16836d" />
+    </marker>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="5" stdDeviation="7" flood-color="#172133" flood-opacity="0.12" />
+    </filter>
+    <style>
+      .title { font: 700 34px Inter, Segoe UI, Arial, sans-serif; fill: #172133; }
+      .subtitle { font: 400 17px Inter, Segoe UI, Arial, sans-serif; fill: #58667a; }
+      .step { font: 700 14px Inter, Segoe UI, Arial, sans-serif; fill: #ffffff; }
+      .box-title { font: 700 19px Inter, Segoe UI, Arial, sans-serif; fill: #172133; }
+      .box-copy { font: 400 14px Inter, Segoe UI, Arial, sans-serif; fill: #58667a; }
+      .label { font: 600 13px Inter, Segoe UI, Arial, sans-serif; fill: #40546f; }
+      .line { stroke: #40546f; stroke-width: 2.4; fill: none; marker-end: url(#arrow); }
+      .event { stroke: #16836d; stroke-width: 2.8; fill: none; marker-end: url(#green-arrow); }
+      .fallback { stroke: #16836d; stroke-width: 2.4; fill: none; marker-end: url(#green-arrow); stroke-dasharray: 9 7; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="700" fill="#f5f7fb" />
+  <circle cx="1500" cy="80" r="145" fill="#dcefe9" opacity="0.72" />
+  <circle cx="95" cy="645" r="170" fill="#fff0d4" opacity="0.7" />
+
+  <text x="80" y="66" class="title">Realtime chỉ phát sau khi dữ liệu đã được lưu</text>
+  <text x="80" y="98" class="subtitle">Minh họa Direct Messages; Club Chat dùng cùng nguyên tắc write-before-publish và REST-resync.</text>
+
+  <g filter="url(#shadow)">
+    <rect x="70" y="190" width="205" height="150" rx="20" fill="#ffffff" stroke="#d2dce8" />
+    <rect x="320" y="190" width="205" height="150" rx="20" fill="#ffffff" stroke="#d2dce8" />
+    <rect x="570" y="190" width="205" height="150" rx="20" fill="#ffffff" stroke="#d2dce8" />
+    <rect x="820" y="190" width="205" height="150" rx="20" fill="#ffffff" stroke="#d2dce8" />
+    <rect x="1070" y="190" width="205" height="150" rx="20" fill="#ffffff" stroke="#d2dce8" />
+    <rect x="1320" y="190" width="205" height="150" rx="20" fill="#ffffff" stroke="#d2dce8" />
+  </g>
+
+  <circle cx="101" cy="218" r="17" fill="#40546f" /><text x="101" y="223" text-anchor="middle" class="step">1</text>
+  <text x="95" y="263" class="box-title">React hook</text>
+  <text x="95" y="290" class="box-copy">POST message bằng REST</text>
+  <text x="95" y="315" class="box-copy">không gọi hub method</text>
+
+  <circle cx="351" cy="218" r="17" fill="#40546f" /><text x="351" y="223" text-anchor="middle" class="step">2</text>
+  <text x="345" y="263" class="box-title">Controller</text>
+  <text x="345" y="290" class="box-copy">Lấy CurrentUserId</text>
+  <text x="345" y="315" class="box-copy">gọi Application service</text>
+
+  <circle cx="601" cy="218" r="17" fill="#40546f" /><text x="601" y="223" text-anchor="middle" class="step">3</text>
+  <text x="595" y="263" class="box-title">Application</text>
+  <text x="595" y="290" class="box-copy">Participant, mutual-follow</text>
+  <text x="595" y="315" class="box-copy">block/mute, invariant</text>
+
+  <circle cx="851" cy="218" r="17" fill="#40546f" /><text x="851" y="223" text-anchor="middle" class="step">4</text>
+  <text x="845" y="263" class="box-title">Transaction</text>
+  <text x="845" y="290" class="box-copy">Lưu message + notification</text>
+  <text x="845" y="315" class="box-copy">COMMIT SQLite</text>
+
+  <circle cx="1101" cy="218" r="17" fill="#16836d" /><text x="1101" y="223" text-anchor="middle" class="step">5</text>
+  <text x="1095" y="263" class="box-title">Publisher</text>
+  <text x="1095" y="290" class="box-copy">SignalR Clients.Users</text>
+  <text x="1095" y="315" class="box-copy">bắt lỗi delivery</text>
+
+  <circle cx="1351" cy="218" r="17" fill="#16836d" /><text x="1351" y="223" text-anchor="middle" class="step">6</text>
+  <text x="1345" y="263" class="box-title">Client cache</text>
+  <text x="1345" y="290" class="box-copy">Merge theo message ID</text>
+  <text x="1345" y="315" class="box-copy">invalidate inbox/unread</text>
+
+  <path d="M275 265 H320" class="line" />
+  <path d="M525 265 H570" class="line" />
+  <path d="M775 265 H820" class="line" />
+  <path d="M1025 265 H1070" class="event" />
+  <path d="M1275 265 H1320" class="event" />
+
+  <text x="297" y="250" text-anchor="middle" class="label">HTTP</text>
+  <text x="797" y="250" text-anchor="middle" class="label">BEGIN</text>
+  <text x="1047" y="250" text-anchor="middle" class="label" fill="#16836d">sau commit</text>
+  <text x="1297" y="250" text-anchor="middle" class="label" fill="#16836d">event</text>
+
+  <rect x="320" y="425" width="955" height="160" rx="24" fill="#eaf7f3" stroke="#79bba8" />
+  <text x="355" y="465" class="box-title">Đường phục hồi khi SignalR chập chờn</text>
+  <text x="355" y="498" class="box-copy">• Message đã commit vẫn còn trong database; lỗi publish chỉ được log, không rollback dữ liệu.</text>
+  <text x="355" y="529" class="box-copy">• SignalR tự reconnect theo backoff. Sau reconnect, client invalidate scope và tải lại REST.</text>
+  <text x="355" y="560" class="box-copy">• REST history + cursor là nguồn sự thật; event stream chỉ giảm độ trễ hiển thị.</text>
+
+  <path d="M1422 340 C1422 520 1305 633 1115 633 H520 C395 633 260 571 260 410 C260 368 291 349 342 340" class="fallback" />
+  <text x="798" y="659" text-anchor="middle" class="label" fill="#16836d">reconnect → refetch REST → bù event bị lỡ</text>
+
+  <rect x="70" y="622" width="205" height="42" rx="12" fill="#172133" />
+  <text x="172" y="648" text-anchor="middle" style="font: 600 14px Inter, Segoe UI, Arial, sans-serif; fill: #ffffff;">REST = source of truth</text>
+</svg>

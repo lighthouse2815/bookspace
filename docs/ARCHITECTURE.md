@@ -2,6 +2,10 @@
 
 > Kiến trúc Goal 1: modular monolith ASP.NET Core + SPA React + database riêng.
 
+> Nếu cần lần theo code thực tế từ React page → hook → service → controller →
+> Application/Domain → EF Core/SignalR, đọc
+> [`HUONG_DAN_DOC_HIEU_DU_AN.md`](HUONG_DAN_DOC_HIEU_DU_AN.md).
+
 ## 1. System context
 
 ```mermaid
